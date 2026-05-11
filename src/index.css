@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,900;1,900&family=Inter:wght@300;400;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+
+  /* Default light theme — static values required here */
+  --color-primary: #1A1A1A;
+  --color-on-primary: #F7F4F0;
+  --color-surface: #F7F4F0;
+  --color-surface-low: #EBE8E2;
+  --color-surface-lowest: #DEDED9;
+  --color-surface-high: #E6D5B8;
+  --color-outline: rgba(26, 26, 26, 0.15);
+}
+
+/* Override Tailwind's generated --color-* vars per theme.
+   These cascade normally at runtime because they're plain CSS custom properties. */
+.theme-green {
+  --color-primary: #1B3022;
+  --color-on-primary: #E8F3E9;
+  --color-surface: #E8F3E9;
+  --color-surface-low: #D1E1D3;
+  --color-surface-lowest: #BCCEC0;
+  --color-surface-high: #A5C0AA;
+  --color-outline: rgba(27, 48, 34, 0.2);
+}
+
+.theme-dark-green {
+  --color-primary: #A7C4A0;
+  --color-on-primary: #0A140D;
+  --color-surface: #0A140D;
+  --color-surface-low: #121F15;
+  --color-surface-lowest: #1A2B1D;
+  --color-surface-high: #243A29;
+  --color-outline: rgba(167, 196, 160, 0.15);
+}
+
+@layer utilities {
+  .text-highlight {
+    position: relative;
+    display: inline-block;
+    z-index: 1;
+  }
+
+  .text-highlight::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 5%;
+    width: 0;
+    height: 35%;
+    background: var(--color-primary);
+    opacity: 0.15;
+    z-index: -1;
+    transition: width 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .text-highlight:hover::after {
+    width: 100%;
+  }
+
+  .magnetic-area {
+    display: inline-block;
+    padding: 20px;
+    margin: -20px;
+  }
+}
+
+:root {
+  --primary: #1A1A1A;
+  --on-primary: #F7F4F0;
+  --surface: #F7F4F0;
+  --surface-low: #EBE8E2;
+  --surface-lowest: #DEDED9;
+  --surface-high: #E6D5B8;
+  --outline: rgba(26, 26, 26, 0.15);
+}
+
+.theme-green {
+  --primary: #1B3022;
+  --on-primary: #E8F3E9;
+  --surface: #E8F3E9;
+  --surface-low: #D1E1D3;
+  --surface-lowest: #BCCEC0;
+  --surface-high: #A5C0AA;
+  --outline: rgba(27, 48, 34, 0.2);
+}
+
+.theme-dark-green {
+  --primary: #A7C4A0;
+  --on-primary: #0A140D;
+  --surface: #0A140D;
+  --surface-low: #121F15;
+  --surface-lowest: #1A2B1D;
+  --surface-high: #243A29;
+  --outline: rgba(167, 196, 160, 0.15);
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-primary selection:bg-surface-high transition-colors duration-700;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .artistic-grid {
+    background-image: radial-gradient(circle at 1px 1px, var(--outline) 1px, transparent 0);
+    background-size: 40px 40px;
+  }
+
+  .border-main {
+    @apply border border-outline;
+  }
+
+  .text-display {
+    @apply font-serif font-black leading-[0.85] tracking-tighter uppercase;
+  }
+
+  .text-subtle {
+    @apply font-sans text-[11px] font-semibold uppercase tracking-[0.3em] opacity-60;
+  }
+
+  .vertical-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+}
+
