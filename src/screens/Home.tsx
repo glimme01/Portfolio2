@@ -71,7 +71,7 @@ export default function Home() {
 
           {/* Timeline */}
           <section className="flex-1 p-0 relative overflow-hidden bg-primary/5 min-h-[50vh] lg:min-h-0 flex items-center justify-center">
-            <div className="absolute top-8 right-8 text-subtle opacity-30">Studio_Ref // Timeline</div>
+            <div className="absolute top-8 right-8 text-subtle opacity-30">Cut_Ref // Timeline</div>
             <div className="w-full h-full flex items-center justify-center p-8 lg:p-12">
               <div className="w-full h-full max-h-[500px]">
                 <VideoTimeline />

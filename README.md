@@ -1,20 +1,20 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Moritz Freund Portfolio
 
-# Run and deploy your AI Studio app
+Portfolio website built with React, Vite, Tailwind CSS, and Motion.
 
-This contains everything you need to run your app locally.
+## Local Development
 
-View your app in AI Studio: https://ai.studio/apps/1694a82d-57df-4238-98af-c5f5852fe948
+```bash
+npm install
+npm run dev
+```
 
-## Run Locally
+The dev server runs at `http://localhost:3000`.
 
-**Prerequisites:**  Node.js
+## Build
 
+```bash
+npm run build
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+The production output is generated in `dist`.
