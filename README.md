@@ -1,5 +1,7 @@
 # Moritz Freund Portfolio
 
+moritzfreund.de
+
 Portfolio website built with React, Vite, Tailwind CSS, and Motion.
 
 ## Local Development
