@@ -7,20 +7,30 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from "react-route
 import { AnimatePresence } from "motion/react";
 import Layout from "./components/Layout";
 import Home from "./screens/Home";
-import Services from "./screens/Services";
-import Projects from "./screens/Projects";
-import Contact from "./screens/Contact";
+import KahootBot from "./screens/KahootBot";
+import Games from "./screens/Games";
+import SnakeGame from "./games/Snake";
+import ReactionTest from "./games/ReactionTest";
+import CookieClicker from "./games/CookieClicker";
+import Game2048 from "./games/Game2048";
+import TicTacToe from "./games/TicTacToe";
+import FlappyBird from "./games/FlappyBird";
 
 function AnimatedRoutes() {
   const location = useLocation();
-  
+
   return (
     <AnimatePresence mode="wait">
       <Routes location={location}>
         <Route path="/" element={<Home />} />
-        <Route path="/services" element={<Services />} />
-        <Route path="/projects" element={<Projects />} />
-        <Route path="/contact" element={<Contact />} />
+        <Route path="/kahoot" element={<KahootBot />} />
+        <Route path="/games" element={<Games />} />
+        <Route path="/games/snake" element={<SnakeGame />} />
+        <Route path="/games/reaction" element={<ReactionTest />} />
+        <Route path="/games/cookie" element={<CookieClicker />} />
+        <Route path="/games/2048" element={<Game2048 />} />
+        <Route path="/games/tictactoe" element={<TicTacToe />} />
+        <Route path="/games/flappy" element={<FlappyBird />} />
       </Routes>
     </AnimatePresence>
   );

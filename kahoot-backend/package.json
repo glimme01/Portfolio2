@@ -1,0 +1,14 @@
+{
+  "name": "kahoot-proxy-backend",
+  "version": "1.0.0",
+  "description": "Proxy backend to flood Kahoot games with bots",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "kahoot.js-updated": "^2.4.5"
+  }
+}

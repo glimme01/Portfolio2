@@ -1,153 +1,142 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect, useRef } from "react";
-import { motion } from "motion/react";
+import React, { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Link, useLocation } from "react-router-dom";
-import { Moon, Sun, Leaf } from "lucide-react";
-
-type Theme = "light" | "green" | "dark-green";
+import { Menu, X } from "lucide-react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const [theme, setTheme] = useState<Theme>(() => {
-    return (localStorage.getItem("theme") as Theme) || "light";
-  });
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Cursor spotlight state
-  const [cursor, setCursor] = useState({ x: -300, y: -300 });
-  const spotlightRef = useRef<HTMLDivElement>(null);
-
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   useEffect(() => {
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => setCursor({ x: e.clientX, y: e.clientY });
-    window.addEventListener("mousemove", move);
-    return () => window.removeEventListener("mousemove", move);
-  }, []);
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
 
   const navItems = [
-    { name: "Main", path: "/" },
-    { name: "Projekte", path: "/projects" },
-    { name: "Tools", path: "/services" },
-    { name: "Kontakt", path: "/contact" },
+    { name: "Главная", label: "Home", path: "/" },
+    { name: "Kahoot Bot", label: "Kahoot Bot", path: "/kahoot" },
+    { name: "Games", label: "Games", path: "/games" },
   ];
 
-  const toggleTheme = () => {
-    if (theme === "light") setTheme("green");
-    else if (theme === "green") setTheme("dark-green");
-    else setTheme("light");
-  };
+  const isActive = (path: string) =>
+    location.pathname === path ||
+    (path === "/games" && location.pathname.startsWith("/games"));
 
   return (
-    <div className={`min-h-screen theme-${theme} transition-colors duration-700`}>
-      <div className="min-h-screen artistic-grid relative text-primary bg-surface transition-colors duration-500">
-
-        {/* Cursor Spotlight */}
-        <div
-          ref={spotlightRef}
-          className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-300"
-          style={{
-            background: `radial-gradient(350px circle at ${cursor.x}px ${cursor.y}px, var(--color-primary) 0%, transparent 80%)`,
-            opacity: 0.04,
-          }}
-        />
-
-        {/* Sidebar - Desktop Only */}
-        <nav className="fixed left-0 top-0 w-20 h-full border-r border-outline flex flex-col items-center py-12 justify-between z-50 bg-surface/80 backdrop-blur-sm hidden lg:flex">
-          <Link to="/" className="font-serif italic text-3xl font-black hover:opacity-70 transition-opacity">
-            MF.
-          </Link>
-
-          <div className="flex flex-col gap-10 items-center">
+    <div className="min-h-screen bg-bg text-cream">
+      {/* ── Topbar ── */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-md border-b border-border">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 h-16 flex items-center justify-between">
+          {/* Left: Pill Nav */}
+          <nav className="hidden md:flex items-center gap-2">
             {navItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`vertical-text text-subtle transition-all duration-300 hover:opacity-100 ${location.pathname === item.path
-                    ? "opacity-100 scale-105 font-bold underline decoration-primary/30"
-                    : "opacity-40"
-                  }`}
+                className={`pill ${isActive(item.path) ? "active" : ""}`}
               >
-                {item.name}
+                {item.label}
               </Link>
             ))}
-          </div>
+          </nav>
 
-          <div className="flex flex-col items-center gap-6">
-            <button
-              onClick={toggleTheme}
-              className="w-10 h-10 border border-outline rounded-full flex items-center justify-center hover:bg-primary hover:text-surface transition-all cursor-pointer"
-              title="Thema wechseln"
-            >
-              {theme === "light" && <Sun size={16} />}
-              {theme === "green" && <Leaf size={16} />}
-              {theme === "dark-green" && <Moon size={16} />}
-            </button>
-            <div className="w-1 h-8 bg-outline/30 rounded-full" />
-          </div>
-        </nav>
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="md:hidden pill px-3"
+            aria-label="Menü"
+          >
+            <Menu size={18} />
+          </button>
 
-        <div className="flex flex-col min-h-screen lg:pl-20">
-          {/* Header */}
-          <header className="h-20 border-b border-outline flex items-center justify-between px-8 md:px-12 sticky top-0 bg-surface/80 backdrop-blur-sm z-40">
-            <div className="flex gap-8 md:gap-12">
-              <span className="text-subtle hidden sm:block">Digital</span>
-              <span className="text-subtle">Ästhetik</span>
+          {/* Center/Right: Brand */}
+          <Link to="/" className="flex items-center gap-3 group">
+            {/* Grid icon like reference */}
+            <div className="grid grid-cols-3 gap-[3px] opacity-60 group-hover:opacity-100 transition-opacity">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="w-[5px] h-[5px] bg-cream rounded-[1px]" />
+              ))}
             </div>
-
-            <div className="flex items-center gap-6">
-              <button
-                onClick={toggleTheme}
-                className="lg:hidden w-10 h-10 border border-outline rounded-full flex items-center justify-center"
-              >
-                {theme === "light" && <Sun size={16} />}
-                {theme === "green" && <Leaf size={16} />}
-                {theme === "dark-green" && <Moon size={16} />}
-              </button>
+            <div className="text-right leading-tight">
+              <div className="text-sm font-medium tracking-wide">Moritz</div>
+              <div className="text-sm font-medium tracking-wide">Freund</div>
             </div>
-          </header>
-
-          {/* Main Content */}
-          <main className="flex-1">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8 }}
-              className="w-full"
-            >
-              {children}
-            </motion.div>
-          </main>
-
-          {/* Footer */}
-          <footer className="w-full border-t border-outline bg-surface-low/30 py-16 px-8 md:px-12">
-            <div className="max-w-[1700px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-10">
-              <div className="font-serif italic text-3xl font-black">
-                Moritz Freund
-                <p className="text-[10px] font-sans not-italic uppercase tracking-[0.2em] opacity-40 mt-2 font-semibold">
-                  Multidisziplinär // {new Date().getFullYear()}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-x-12 gap-y-4">
-                <a href="https://www.instagram.com/glmn.media/" className="text-subtle hover:opacity-100 transition-opacity">Instagram</a>
-                <span className="text-subtle opacity-30">Vimeo</span>
-                <span className="text-subtle opacity-30">LinkedIn</span>
-              </div>
-
-              <div className="text-subtle font-bold opacity-30">
-                Vol. 01 / Portfolio
-              </div>
-            </div>
-          </footer>
+          </Link>
         </div>
-      </div>
+      </header>
+
+      {/* ── Mobile Menu ── */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] md:hidden"
+          >
+            <div className="absolute inset-0 bg-bg/90" onClick={() => setMobileOpen(false)} />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="absolute left-0 top-0 bottom-0 w-[80%] max-w-xs bg-bg border-r border-border flex flex-col"
+            >
+              <div className="flex items-center justify-between h-16 px-6 border-b border-border">
+                <span className="text-sm font-medium">Moritz Freund</span>
+                <button onClick={() => setMobileOpen(false)} className="pill px-2 py-2">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 flex flex-col justify-center px-6 gap-3">
+                {navItems.map((item, i) => (
+                  <motion.div
+                    key={item.path}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.05 + i * 0.06 }}
+                  >
+                    <Link
+                      to={item.path}
+                      className={`block py-3 font-serif text-3xl italic transition-opacity ${
+                        isActive(item.path) ? "opacity-100" : "opacity-40 hover:opacity-80"
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Content ── */}
+      <main className="pt-16 min-h-screen">
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        >
+          {children}
+        </motion.div>
+      </main>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-border py-10 px-5 md:px-10">
+        <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="text-sm text-cream-dark">
+            © {new Date().getFullYear()} Moritz Freund
+          </div>
+          <div className="flex gap-6 text-sm text-cream-dark">
+            <a href="https://www.instagram.com/glmn.media/" target="_blank" rel="noopener noreferrer" className="hover:text-cream transition-colors">Instagram</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

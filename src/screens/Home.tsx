@@ -1,147 +1,155 @@
-import { motion, useScroll, useTransform } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
+import { motion } from "motion/react";
 import { Link } from "react-router-dom";
-import React, { useRef } from "react";
-import VideoTimeline from "../components/VideoTimeline";
-import { TextReveal } from "../components/InteractiveText";
+import { ArrowRight } from "lucide-react";
 
-function StickySection({
-  children,
-  className = "",
-  zIndex = 10,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  zIndex?: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const opacity = useTransform(scrollYProgress, [0, 0.15, 0.85, 1], [0, 1, 1, 0]);
-  const y = useTransform(scrollYProgress, [0, 1], [40, -40]);
-
-  return (
-    <div
-      ref={ref}
-      className={`sticky top-20 min-h-screen border-b border-outline overflow-hidden ${className}`}
-      style={{ zIndex }}
-    >
-      <motion.div style={{ opacity, y }} className="h-full w-full">
-        {children}
-      </motion.div>
-    </div>
-  );
-}
+const games = [
+  { name: "Snake", emoji: "🐍", path: "/games/snake" },
+  { name: "Reaktion", emoji: "⚡", path: "/games/reaction" },
+  { name: "Cookie", emoji: "🍪", path: "/games/cookie" },
+  { name: "2048", emoji: "🧊", path: "/games/2048" },
+  { name: "Tic Tac Toe", emoji: "❌", path: "/games/tictactoe" },
+  { name: "Flappy", emoji: "🐦", path: "/games/flappy" },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col">
-      {/* ── Section 1: Hero ── bg-surface */}
-      <StickySection className="bg-surface" zIndex={10}>
-        <div className="flex flex-col lg:flex-row min-h-screen">
-          <section className="flex-1 p-8 md:p-12 lg:p-24 flex flex-col justify-between border-r border-outline">
-            <div className="relative pt-12">
-              <h1 className="font-serif text-[clamp(80px,15vw,160px)] leading-[0.8] tracking-tighter mb-12">
-                <TextReveal text="Moritz" />
-                <br />
-                <span className="italic opacity-40">
-                  <TextReveal text="Freund." delay={0.15} />
-                </span>
-              </h1>
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 0.6, y: 0 }}
-                transition={{ delay: 0.6, duration: 0.8 }}
-                className="max-w-md text-lg leading-relaxed font-sans tracking-tight"
-              >
-                Ich schneide{" "}
-                <span className="text-highlight font-semibold">Videos.</span>
-              </motion.p>
-            </div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      {/* ── Hero ── */}
+      <section className="relative min-h-[90vh] flex flex-col justify-between px-5 md:px-10 overflow-hidden">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-bg via-bg-light to-bg pointer-events-none" />
 
-            <div className="pb-12">
-              <Link
-                to="/projects"
-                className="group inline-flex items-center gap-6 text-xl font-serif italic hover:gap-10 transition-all duration-500"
-              >
-                Projekte
-                <ArrowUpRight size={24} strokeWidth={1} className="group-hover:rotate-45 transition-transform" />
-              </Link>
-            </div>
-          </section>
-
-          {/* Timeline */}
-          <section className="flex-1 p-0 relative overflow-hidden bg-primary/5 min-h-[50vh] lg:min-h-0 flex items-center justify-center">
-            <div className="absolute top-8 right-8 text-subtle opacity-30">Cut_Ref // Timeline</div>
-            <div className="w-full h-full flex items-center justify-center p-8 lg:p-12">
-              <div className="w-full h-full max-h-[500px]">
-                <VideoTimeline />
-              </div>
-            </div>
-          </section>
+        {/* Top row */}
+        <div className="relative z-10 max-w-[1400px] mx-auto w-full pt-12 flex flex-col md:flex-row justify-between items-start gap-4">
+          <div className="label">Moritz Freund</div>
+          <div className="text-right">
+            <div className="label">2025</div>
+            <div className="label mt-1">Entertainment & Tools</div>
+          </div>
         </div>
-      </StickySection>
 
-      {/* ── Section 2: About ── bg-surface-low */}
-      <StickySection className="bg-surface-low" zIndex={20}>
-        <section className="px-8 md:px-12 lg:px-24 py-0 min-h-screen flex items-center">
-          <div className="max-w-5xl w-full py-24">
-            {/* Left accent bar */}
-            <motion.div
-              initial={{ scaleY: 0 }}
-              whileInView={{ scaleY: 1 }}
-              viewport={{ once: false }}
-              transition={{ duration: 0.8, ease: [0.19, 1, 0.22, 1] }}
-              className="w-[3px] h-16 bg-primary mb-16 origin-top"
-            />
+        {/* Big title */}
+        <div className="relative z-10 max-w-[1400px] mx-auto w-full py-8 md:py-0">
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
+            className="font-serif text-[clamp(4rem,14vw,12rem)] leading-[0.85] tracking-tight"
+          >
+            <span className="text-cream">Lange</span>
+            <br />
+            <span className="italic text-cream/40">weile?</span>
+          </motion.h1>
+        </div>
 
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 0.4 }}
-              viewport={{ once: false }}
-              className="text-subtle mb-12 uppercase tracking-[0.3em] text-xs font-bold"
-            >
-              Über mich
-            </motion.div>
+        {/* Bottom info row */}
+        <div className="relative z-10 max-w-[1400px] mx-auto w-full pb-10 flex flex-col md:flex-row justify-between items-end gap-8">
+          {/* Info card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="card max-w-sm"
+          >
+            <p className="text-sm text-cream/70 leading-relaxed">
+              Kahoot Bots, geile Games und alles was du brauchst wenn dir in der
+              Schule langweilig ist. Direkt im Browser, kein Download.
+            </p>
+          </motion.div>
 
-            <h2 className="font-serif text-5xl md:text-8xl leading-[1.05] mb-16 italic tracking-tighter">
-              <span className="text-highlight">"Warum nicht?"</span>
-            </h2>
+          {/* Right side tags */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-right text-sm text-cream-dark space-y-1"
+          >
+            <div>— Kahoot Bot</div>
+            <div>— 6 Browser Games</div>
+            <div>— 100% Kostenlos</div>
+          </motion.div>
+        </div>
+      </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-end">
-              <div className="font-sans text-xl leading-relaxed opacity-60 space-y-2">
-                {["Hi.", "Ich bin Moritz.", "Bin 14.", "Schneide Videos."].map((line, i) => (
-                  <motion.p
-                    key={line}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: false }}
-                    transition={{ delay: i * 0.12, duration: 0.5 }}
-                  >
-                    {line}
-                  </motion.p>
-                ))}
-              </div>
+      {/* ── Divider ── */}
+      <div className="divider" />
 
-              <div className="flex flex-col gap-4">
-                <motion.div
-                  initial={{ width: 0 }}
-                  whileInView={{ width: "100%" }}
-                  viewport={{ once: false }}
-                  transition={{ duration: 0.8, ease: [0.19, 1, 0.22, 1] }}
-                  className="h-[1px] bg-outline"
-                />
-                <div className="flex justify-between text-subtle opacity-40">
-                  <span>Minimalismus</span>
-                  <div className="flex gap-2">
-                    <div className="w-2 h-2 rounded-full bg-orange-500/40" />
-                    <div className="w-2 h-2 rounded-full bg-blue-500/40" />
-                  </div>
-                </div>
+      {/* ── Feature Sections ── */}
+      <section className="max-w-[1400px] mx-auto px-5 md:px-10">
+        {/* Kahoot Bot */}
+        <Link to="/kahoot" className="group block py-16 md:py-24 border-b border-border">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+            <div>
+              <div className="label mb-4">01 — Tool</div>
+              <h2 className="font-serif text-[clamp(3rem,8vw,7rem)] leading-[0.9] tracking-tight italic">
+                Kahoot
+                <br />
+                <span className="not-italic text-cream/40">Bot</span>
+              </h2>
+            </div>
+            <div className="flex items-center gap-6">
+              <p className="text-sm text-cream-dim max-w-xs text-right hidden md:block">
+                Gib den Game PIN ein, wähl die Anzahl
+                Bots und lass sie das Game flooden.
+              </p>
+              <div className="w-12 h-12 rounded-full border border-border-strong flex items-center justify-center group-hover:bg-cream group-hover:text-bg transition-all duration-300">
+                <ArrowRight size={18} strokeWidth={1.5} />
               </div>
             </div>
           </div>
-        </section>
-      </StickySection>
-    </div>
+        </Link>
+
+        {/* Games */}
+        <Link to="/games" className="group block py-16 md:py-24 border-b border-border">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+            <div>
+              <div className="label mb-4">02 — Sammlung</div>
+              <h2 className="font-serif text-[clamp(3rem,8vw,7rem)] leading-[0.9] tracking-tight italic">
+                Browser
+                <br />
+                <span className="not-italic text-cream/40">Games</span>
+              </h2>
+            </div>
+            <div className="flex items-center gap-6">
+              <p className="text-sm text-cream-dim max-w-xs text-right hidden md:block">
+                Snake, 2048, Flappy Bird, Cookie Clicker
+                und mehr. Kein Download nötig.
+              </p>
+              <div className="w-12 h-12 rounded-full border border-border-strong flex items-center justify-center group-hover:bg-cream group-hover:text-bg transition-all duration-300">
+                <ArrowRight size={18} strokeWidth={1.5} />
+              </div>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      {/* ── Quick Access Grid ── */}
+      <section className="max-w-[1400px] mx-auto px-5 md:px-10 py-16 md:py-24">
+        <div className="label mb-8">Direkt spielen</div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-border">
+          {games.map((game, i) => (
+            <motion.div
+              key={game.name}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.1 + i * 0.05 }}
+            >
+              <Link
+                to={game.path}
+                className="block bg-bg p-6 md:p-8 text-center group hover:bg-bg-light transition-colors"
+              >
+                <div className="text-3xl mb-3 group-hover:scale-110 transition-transform inline-block">
+                  {game.emoji}
+                </div>
+                <div className="text-xs text-cream-dark group-hover:text-cream transition-colors">
+                  {game.name}
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+    </motion.div>
   );
 }
