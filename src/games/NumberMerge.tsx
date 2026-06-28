@@ -1,550 +1,502 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, RotateCcw } from "lucide-react";
-import { loadState, saveState } from "../utils/storage";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { loadState, saveState } from '../utils/storage';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const COLS = 5;
-const ROWS = 5;
-const POWERS = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
-
-// ─── Tile colour map ──────────────────────────────────────────────────────────
-const TILE_BG: Record<number, string> = {
-  2:    "#706b63",
-  4:    "#a09a90",
-  8:    "#f0ebe3",
-  16:   "#FFA586",
-  32:   "#ff7043",
-  64:   "#B01A2B",
-  128:  "#9c27b0",
-  256:  "#4a9eff",
-  512:  "#4aff9e",
-};
-
-const TILE_FG: Record<number, string> = {
-  2:    "#f0ebe3",
-  4:    "#141416",
-  8:    "#141416",
-  16:   "#141416",
-  32:   "#f0ebe3",
-  64:   "#f0ebe3",
-  128:  "#f0ebe3",
-  256:  "#f0ebe3",
-  512:  "#141416",
-};
-
-function getTileBg(val: number): string {
-  if (val >= 1024) return "linear-gradient(135deg,#ffd700,#ffaa00)";
-  return TILE_BG[val] ?? "#706b63";
-}
-function getTileFg(val: number): string {
-  if (val >= 1024) return "#141416";
-  return TILE_FG[val] ?? "#f0ebe3";
+// ─── Tile colours ────────────────────────────────────────────────────────────
+interface TileStyle { bg: string; text: string }
+function getTileStyle(val: number | null): TileStyle {
+  if (!val) return { bg: 'transparent', text: 'transparent' };
+  if (val >= 1024) return { bg: '#2a2a00', text: '#ffd700' };
+  const map: Record<number, TileStyle> = {
+    2:   { bg: '#2a2a2e', text: '#a09a90' },
+    4:   { bg: '#3a3028', text: '#FFA586' },
+    8:   { bg: '#4a2020', text: '#ff8566' },
+    16:  { bg: '#B01A2B', text: '#f0ebe3' },
+    32:  { bg: '#8B0F1F', text: '#FFA586' },
+    64:  { bg: '#1a3a4a', text: '#4a9eff' },
+    128: { bg: '#1a4a2a', text: '#4aff9e' },
+    256: { bg: '#3a1a4a', text: '#c678dd' },
+    512: { bg: '#4a3a00', text: '#ffd700' },
+  };
+  return map[val] ?? { bg: '#2a2a00', text: '#ffd700' };
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type Cell = { val: number; id: number };
-type Grid = Cell[][];
-
-let _nextId = 1;
-function freshId() { return _nextId++; }
-function emptyCell(): Cell { return { val: 0, id: freshId() }; }
-
-// ─── Pure grid helpers ────────────────────────────────────────────────────────
-function createGrid(): Grid {
-  return Array.from({ length: ROWS }, () =>
-    Array.from({ length: COLS }, () => emptyCell())
-  );
+// ─── Tile generation ─────────────────────────────────────────────────────────
+function genTile(): number {
+  const r = Math.random();
+  if (r < 0.70) return 2;
+  if (r < 0.90) return 4;
+  return 8;
 }
 
-function cloneGrid(g: Grid): Grid {
-  return g.map(row => row.map(c => ({ ...c })));
+// ─── Drop + merge (pure) ─────────────────────────────────────────────────────
+interface DropResult {
+  newGrid: (number | null)[][];
+  merged: string[];
+  score: number;
+  landed: string; // "row-col" of where tile landed
 }
 
-function applyGravity(g: Grid): Grid {
-  const out = cloneGrid(g);
-  for (let c = 0; c < COLS; c++) {
-    const col = out.map(row => row[c]);
-    const nonZero = col.filter(cell => cell.val !== 0);
-    const zeros   = col.filter(cell => cell.val === 0);
-    const settled = [...zeros, ...nonZero];
-    for (let r = 0; r < ROWS; r++) out[r][c] = settled[r];
+function dropTile(
+  grid: (number | null)[][],
+  col: number,
+  value: number,
+): DropResult {
+  const g = grid.map(r => [...r]);
+
+  // find bottom-most empty row
+  let row = -1;
+  for (let r = 7; r >= 0; r--) {
+    if (!g[r][col]) { row = r; break; }
   }
-  return out;
-}
+  if (row === -1) {
+    return { newGrid: g, merged: [], score: 0, landed: '-1--1' };
+  }
 
-function mergeCols(g: Grid): { grid: Grid; gained: number } {
-  const out = cloneGrid(g);
-  let gained = 0;
-  for (let c = 0; c < COLS; c++) {
-    for (let r = ROWS - 1; r > 0; r--) {
-      if (out[r][c].val !== 0 && out[r][c].val === out[r - 1][c].val) {
-        const merged = out[r][c].val * 2;
-        gained += merged;
-        out[r][c] = { val: merged, id: freshId() };
-        out[r - 1][c] = emptyCell();
+  g[row][col] = value;
+  const landed = `${row}-${col}`;
+
+  let totalScore = 0;
+  const mergedCells: string[] = [];
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let r = 7; r > 0; r--) {
+      if (g[r][col] !== null && g[r][col] === g[r - 1][col]) {
+        const merged = (g[r][col] as number) * 2;
+        g[r - 1][col] = merged;
+        g[r][col] = null;
+        // compact: shift everything above r down by one
+        for (let rr = r; rr < 7; rr++) g[rr][col] = g[rr + 1][col];
+        g[7][col] = null;
+        totalScore += merged;
+        mergedCells.push(`${r - 1}-${col}`);
+        changed = true;
+        break;
       }
     }
   }
-  return { grid: out, gained };
+
+  return { newGrid: g, merged: mergedCells, score: totalScore, landed };
 }
 
-function settle(g: Grid): { grid: Grid; gained: number } {
-  let current = g;
-  let total = 0;
-  for (let i = 0; i < ROWS; i++) {
-    current = applyGravity(current);
-    const { grid: merged, gained } = mergeCols(current);
-    total += gained;
-    current = merged;
-  }
-  current = applyGravity(current);
-  return { grid: current, gained: total };
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function emptyGrid(): (number | null)[][] {
+  return Array(8).fill(null).map(() => Array(5).fill(null));
 }
 
-function dropTile(g: Grid, col: number, val: number): Grid | null {
-  const out = cloneGrid(g);
-  for (let r = 0; r < ROWS; r++) {
-    if (out[r][col].val === 0) {
-      out[r][col] = { val, id: freshId() };
-      return out;
-    }
-  }
-  return null;
+function highestTile(grid: (number | null)[][]): number {
+  let max = 0;
+  grid.forEach(row => row.forEach(v => { if (v && v > max) max = v; }));
+  return max;
 }
 
-function isColumnFull(g: Grid, col: number): boolean {
-  return g[0][col].val !== 0;
-}
+const CELL = 60;
+const GAP  = 4;
 
-function isGameOver(g: Grid): boolean {
-  for (let c = 0; c < COLS; c++) {
-    if (!isColumnFull(g, c)) return false;
-  }
-  return true;
-}
-
-function maxTile(g: Grid): number {
-  return Math.max(...g.flat().map(c => c.val), 0);
-}
-
-function nextPower(): number {
-  const weights = [30, 30, 20, 10, 5, 3, 1, 1];
-  const pool = POWERS.slice(0, weights.length);
-  const total = weights.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < pool.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return pool[i];
-  }
-  return 2;
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Component ───────────────────────────────────────────────────────────────
 export default function NumberMerge() {
-  const [highScore, setHighScore] = useState(() => Number(loadState("merge_high") || "0"));
-  const [grid, setGrid]           = useState<Grid>(createGrid);
-  const [score, setScore]         = useState(0);
+  const [grid, setGrid]           = useState<(number | null)[][]>(emptyGrid);
+  const [currentTile, setCurrentTile] = useState<number>(() => genTile());
+  const [nextTile, setNextTile]   = useState<number>(() => genTile());
   const [selectedCol, setSelectedCol] = useState(2);
-  const [nextTile, setNextTile]   = useState(() => nextPower());
-  const [gameOver, setGameOver]   = useState(false);
-  const [started, setStarted]     = useState(false);
-  const [justMerged, setJustMerged] = useState<Set<number>>(new Set());
+  const [score, setScore]         = useState(0);
+  const [highScore, setHighScore] = useState(() => Number(loadState('merge_high') ?? 0));
+  const [phase, setPhase]         = useState<'idle' | 'playing' | 'gameover'>('idle');
+  const [mergeFlash, setMergeFlash] = useState<Set<string>>(new Set());
+  const [landFlash, setLandFlash] = useState<string | null>(null);
+  const [dropping, setDropping]   = useState(false);
 
-  const nextTileRef  = useRef(nextTile);
-  const selectedRef  = useRef(selectedCol);
-  const gridRef      = useRef(grid);
-  const gameOverRef  = useRef(gameOver);
-  const highScoreRef = useRef(highScore);
+  const gridRef = useRef(grid);
+  gridRef.current = grid;
 
-  nextTileRef.current  = nextTile;
-  selectedRef.current  = selectedCol;
-  gridRef.current      = grid;
-  gameOverRef.current  = gameOver;
-  highScoreRef.current = highScore;
-
-  // ── Drop tile logic ─────────────────────────────────────────────────────────
-  const drop = useCallback((col: number) => {
-    if (gameOverRef.current) return;
-    const g = gridRef.current;
-    if (isColumnFull(g, col)) return;
-
-    setStarted(true);
-
-    const after = dropTile(g, col, nextTileRef.current);
-    if (!after) return;
-
-    const { grid: settled, gained } = settle(after);
-
-    const prevFlat = g.flat();
-    const nextFlat = settled.flat();
-    const merged = new Set<number>();
-    nextFlat.forEach((cell, i) => {
-      if (cell.val !== 0 && cell.val !== prevFlat[i]?.val) {
-        merged.add(cell.id);
-      }
-    });
-    setJustMerged(merged);
-    setTimeout(() => setJustMerged(new Set()), 380);
-
-    setGrid(settled);
-
-    const newScore = score + gained;
-    const tileMax  = maxTile(settled);
-    const bestVal  = Math.max(newScore, tileMax);
-    if (bestVal > highScoreRef.current) {
-      setHighScore(bestVal);
-      saveState("merge_high", String(bestVal));
-    }
-    setScore(newScore);
-
-    const nn = nextPower();
-    setNextTile(nn);
-    nextTileRef.current = nn;
-
-    if (isGameOver(settled)) {
-      setGameOver(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [score]);
-
-  // ── Keyboard ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        setSelectedCol(c => Math.max(0, c - 1));
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        setSelectedCol(c => Math.min(COLS - 1, c + 1));
-      } else if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        drop(selectedRef.current);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [drop]);
-
-  // ── Reset ───────────────────────────────────────────────────────────────────
-  const reset = useCallback(() => {
-    _nextId = 1;
-    setGrid(createGrid());
-    setScore(0);
-    setSelectedCol(2);
-    setNextTile(nextPower());
-    setGameOver(false);
-    setStarted(false);
-    setJustMerged(new Set());
+  // ── Flash helpers ─────────────────────────────────────────────────────────
+  const flashCells = useCallback((cells: string[], duration = 320) => {
+    if (!cells.length) return;
+    setMergeFlash(new Set(cells));
+    setTimeout(() => setMergeFlash(new Set()), duration);
   }, []);
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen">
-      <div className="max-w-sm mx-auto px-4 py-8">
+  // ── Drop action ───────────────────────────────────────────────────────────
+  const drop = useCallback((col: number) => {
+    if (phase !== 'playing' || dropping) return;
 
-        {/* Back link */}
+    // game-over check: top row of col is full
+    if (gridRef.current[0][col] !== null) {
+      setPhase('gameover');
+      const best = highestTile(gridRef.current);
+      const hs = Math.max(best, Number(loadState('merge_high') ?? 0));
+      setHighScore(hs);
+      saveState('merge_high', String(hs));
+      return;
+    }
+
+    setDropping(true);
+    const { newGrid, merged, score: gained, landed } = dropTile(
+      gridRef.current,
+      col,
+      currentTile,
+    );
+
+    setGrid(newGrid);
+    setScore(s => s + gained);
+
+    // brief land flash
+    setLandFlash(landed);
+    setTimeout(() => setLandFlash(null), 150);
+
+    // merge flash
+    if (merged.length) flashCells(merged, 350);
+
+    // update high score tile
+    const best = highestTile(newGrid);
+    if (best > highScore) {
+      setHighScore(best);
+      saveState('merge_high', String(best));
+    }
+
+    // advance tiles
+    setCurrentTile(nextTile);
+    setNextTile(genTile());
+    setDropping(false);
+  }, [phase, dropping, currentTile, nextTile, highScore, flashCells]);
+
+  // ── Keyboard ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (phase === 'idle') { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPhase('playing'); } return; }
+      if (phase === 'gameover') { if (e.key === 'Enter' || e.key === ' ' || e.key === 'r' || e.key === 'R') { e.preventDefault(); restart(); } return; }
+      switch (e.key) {
+        case 'ArrowLeft':  e.preventDefault(); setSelectedCol(c => Math.max(0, c - 1)); break;
+        case 'ArrowRight': e.preventDefault(); setSelectedCol(c => Math.min(4, c + 1)); break;
+        case 'ArrowDown':
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          drop(selectedCol);
+          break;
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase, selectedCol, drop]);
+
+  // ── Restart ───────────────────────────────────────────────────────────────
+  function restart() {
+    setGrid(emptyGrid());
+    setCurrentTile(genTile());
+    setNextTile(genTile());
+    setSelectedCol(2);
+    setScore(0);
+    setMergeFlash(new Set());
+    setLandFlash(null);
+    setDropping(false);
+    setPhase('playing');
+  }
+
+  // ── Column click: first click selects, second click drops ─────────────────
+  const lastClickCol = useRef<number | null>(null);
+  const lastClickTime = useRef<number>(0);
+
+  function handleColClick(col: number) {
+    if (phase !== 'playing') return;
+    const now = Date.now();
+    if (selectedCol === col && now - lastClickTime.current < 600) {
+      // double-click or fast second click → drop
+      drop(col);
+      lastClickCol.current = null;
+    } else {
+      setSelectedCol(col);
+      lastClickCol.current = col;
+      lastClickTime.current = now;
+    }
+  }
+
+  // ── Cell render ───────────────────────────────────────────────────────────
+  function renderCell(val: number | null, r: number, c: number) {
+    const key = `${r}-${c}`;
+    const style = getTileStyle(val);
+    const isFlash = mergeFlash.has(key);
+    const isLand  = landFlash === key;
+
+    return (
+      <div
+        key={key}
+        style={{
+          width: CELL,
+          height: CELL,
+          background: val ? style.bg : 'rgba(255,255,255,0.03)',
+          border: isFlash
+            ? '2px solid #FFA586'
+            : isLand
+            ? '2px solid rgba(255,165,134,0.5)'
+            : '1px solid rgba(240,235,227,0.07)',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'background 0.08s, border 0.06s',
+          boxShadow: isFlash
+            ? '0 0 12px rgba(255,165,134,0.6)'
+            : val
+            ? '0 2px 6px rgba(0,0,0,0.4)'
+            : 'none',
+        }}
+      >
+        {val ? (
+          <span
+            style={{
+              fontFamily: '"Inter", sans-serif',
+              fontWeight: 700,
+              fontSize: val >= 1024 ? 14 : val >= 128 ? 17 : val >= 16 ? 20 : 24,
+              color: style.text,
+              userSelect: 'none',
+            }}
+          >
+            {val}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
+  // ── Floating current tile above grid ──────────────────────────────────────
+  const tileStyle = getTileStyle(currentTile);
+  const tileLeft  = selectedCol * (CELL + GAP); // offset from grid left edge (incl padding)
+
+  // ── Layout ───────────────────────────────────────────────────────────────
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#141416',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        fontFamily: '"Inter", sans-serif',
+        color: '#f0ebe3',
+        padding: '24px 16px 40px',
+      }}
+    >
+      {/* Top bar */}
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <Link
           to="/games"
-          className="inline-flex items-center gap-2 text-[#a09a90] hover:text-[#FFA586] transition-colors text-sm mb-6"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#a09a90', textDecoration: 'none', fontSize: 14 }}
         >
-          <ArrowLeft size={16} /> Zurück zu Games
+          <ArrowLeft size={16} /> Games
         </Link>
-
-        {/* Title row */}
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="font-serif font-black text-3xl leading-none">🔢 Number Merge</h1>
-            <p className="text-[#a09a90] text-xs mt-1">Falling-tile gravity merge · 5×5</p>
-          </div>
-          <button onClick={reset} className="pill flex items-center gap-2 text-sm px-3 py-2">
-            <RotateCcw size={14} /> Neu
-          </button>
-        </div>
-
-        {/* Score bar + next tile preview */}
-        <div className="flex gap-3 mb-5">
-          <div
-            className="flex-1 text-center py-2 px-3"
-            style={{ border: "1px solid rgba(240,235,227,0.12)", borderRadius: "8px" }}
-          >
-            <div className="text-xs text-[#a09a90] mb-0.5">Score</div>
-            <div className="text-xl font-serif font-bold text-[#FFA586]">{score}</div>
-          </div>
-          <div
-            className="flex-1 text-center py-2 px-3"
-            style={{ border: "1px solid rgba(240,235,227,0.12)", borderRadius: "8px" }}
-          >
-            <div className="text-xs text-[#a09a90] mb-0.5">Best</div>
-            <div className="text-xl font-serif font-bold text-[#f0ebe3]">{highScore}</div>
-          </div>
-          <div
-            className="flex-1 text-center py-2 px-3 flex flex-col items-center justify-center gap-1"
-            style={{ border: "1px solid rgba(240,235,227,0.12)", borderRadius: "8px" }}
-          >
-            <div className="text-xs text-[#a09a90]">Next</div>
-            <motion.div
-              key={nextTile}
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1,   opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              style={{
-                background:     getTileBg(nextTile),
-                color:          getTileFg(nextTile),
-                borderRadius:   "7px",
-                width:          "38px",
-                height:         "38px",
-                display:        "flex",
-                alignItems:     "center",
-                justifyContent: "center",
-                fontWeight:     900,
-                fontSize:       nextTile >= 100 ? "0.68rem" : "0.9rem",
-                boxShadow:      nextTile >= 16 ? `0 0 14px 2px ${getTileBg(nextTile).split("(")[0] === "linear" ? "#FFA58688" : getTileBg(nextTile) + "88"}` : "none",
-              }}
-            >
-              {nextTile}
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Game area */}
-        <div
-          style={{
-            border:       "1px solid rgba(240,235,227,0.12)",
-            borderRadius: "14px",
-            padding:      "10px",
-            background:   "rgba(240,235,227,0.02)",
-            position:     "relative",
-          }}
+        <h1 className="font-serif" style={{ margin: 0, fontSize: 22, color: '#f0ebe3' }}>
+          Number Merge
+        </h1>
+        <button
+          onClick={phase === 'playing' ? restart : restart}
+          style={{ background: 'none', border: 'none', color: '#a09a90', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}
+          title="Restart"
         >
-          {/* Column drop headers */}
-          <div
+          <RotateCcw size={15} /> Restart
+        </button>
+      </div>
+
+      {/* Score row */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+        <ScoreBox label="Score" value={score} />
+        <ScoreBox label="Best Tile" value={highScore || '—'} highlight />
+        <NextTileBox value={nextTile} />
+      </div>
+
+      {/* ── Idle screen ── */}
+      <AnimatePresence>
+        {phase === 'idle' && (
+          <motion.div
+            key="idle"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            style={{ textAlign: 'center', marginBottom: 24 }}
+          >
+            <p style={{ color: '#a09a90', fontSize: 14, marginBottom: 16, maxWidth: 300 }}>
+              Drop numbered tiles into columns. Match two equal tiles to merge them!
+            </p>
+            <button
+              className="btn-main"
+              onClick={restart}
+              style={{ padding: '10px 32px', fontSize: 16 }}
+            >
+              Play
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Game over overlay ── */}
+      <AnimatePresence>
+        {phase === 'gameover' && (
+          <motion.div
+            key="gameover"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
             style={{
-              display:             "grid",
-              gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-              gap:                 "6px",
-              marginBottom:        "4px",
+              position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(20,20,22,0.82)', zIndex: 50,
             }}
           >
-            {Array.from({ length: COLS }, (_, col) => {
-              const full   = isColumnFull(grid, col);
-              const active = col === selectedCol;
-              return (
-                <div
-                  key={col}
-                  onClick={() => { setSelectedCol(col); drop(col); }}
-                  style={{
-                    display:        "flex",
-                    alignItems:     "center",
-                    justifyContent: "center",
-                    minHeight:      "30px",
-                    borderRadius:   "6px 6px 0 0",
-                    cursor:         full ? "not-allowed" : "pointer",
-                    background:     active ? "rgba(255,165,134,0.18)" : "rgba(240,235,227,0.04)",
-                    border:         active ? "1px solid rgba(255,165,134,0.4)" : "1px solid transparent",
-                    transition:     "background 0.15s, border 0.15s",
-                  }}
-                  aria-label={`Drop in column ${col + 1}`}
-                >
-                  <span style={{
-                    fontSize:   "0.85rem",
-                    color:      full ? "#a09a90" : active ? "#FFA586" : "#a09a90",
-                    opacity:    full ? 0.3 : 1,
-                  }}>
-                    ▼
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+            <div style={{
+              background: '#1c1c1f', border: '1px solid rgba(240,235,227,0.12)', borderRadius: 16,
+              padding: '36px 48px', textAlign: 'center',
+            }}>
+              <h2 className="font-serif" style={{ fontSize: 28, marginBottom: 8, color: '#FFA586' }}>Game Over</h2>
+              <p style={{ color: '#a09a90', marginBottom: 4, fontSize: 14 }}>Score: <strong style={{ color: '#f0ebe3' }}>{score}</strong></p>
+              <p style={{ color: '#a09a90', marginBottom: 24, fontSize: 14 }}>Best Tile: <strong style={{ color: '#ffd700' }}>{highScore}</strong></p>
+              <button className="btn-main" onClick={restart} style={{ padding: '10px 32px', fontSize: 15 }}>
+                Play Again
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* 5×5 grid */}
+      {/* ── Game area ── */}
+      {(phase === 'playing' || phase === 'gameover') && (
+        <div style={{ position: 'relative', userSelect: 'none' }}>
+
+          {/* Floating current tile */}
           <div
             style={{
-              display:             "grid",
-              gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-              gap:                 "6px",
+              position: 'absolute',
+              top: -72,
+              left: 4 + tileLeft, // 4px = grid left padding
+              width: CELL,
+              height: CELL,
+              background: tileStyle.bg,
+              border: '2px solid rgba(255,165,134,0.6)',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 16px rgba(255,165,134,0.25)',
+              transition: 'left 0.12s cubic-bezier(0.25,0.8,0.25,1)',
+              zIndex: 10,
             }}
           >
-            {grid.map((row, r) =>
-              row.map((cell, c) => {
-                const isEmpty  = cell.val === 0;
-                const isMerged = justMerged.has(cell.id);
-                return (
-                  <motion.div
-                    key={`${r}-${c}-${cell.id}`}
-                    initial={{ opacity: 0, scale: 0.55 }}
-                    animate={{
-                      opacity: isEmpty ? 0.3 : 1,
-                      scale:   isMerged ? [1, 1.25, 1] : 1,
-                    }}
-                    transition={{ duration: isMerged ? 0.32 : 0.18, ease: "easeOut" }}
-                    onClick={() => { setSelectedCol(c); drop(c); }}
-                    style={{
-                      background:     isEmpty ? "rgba(240,235,227,0.04)" : getTileBg(cell.val),
-                      color:          isEmpty ? "transparent"             : getTileFg(cell.val),
-                      border:         isEmpty ? "1px solid rgba(240,235,227,0.08)" : "none",
-                      boxShadow:      (!isEmpty && cell.val >= 16)
-                        ? `0 0 18px 2px ${getTileBg(cell.val).startsWith("linear") ? "#ffd70066" : getTileBg(cell.val) + "66"}`
-                        : "none",
-                      borderRadius:   "10px",
-                      display:        "flex",
-                      alignItems:     "center",
-                      justifyContent: "center",
-                      fontWeight:     900,
-                      fontFamily:     "serif",
-                      fontSize:       cell.val >= 1000 ? "0.65rem"
-                                    : cell.val >= 100  ? "0.82rem"
-                                    : "1rem",
-                      minHeight:      "56px",
-                      cursor:         "pointer",
-                      userSelect:     "none",
-                    }}
-                    data-col={c}
-                    data-row={r}
-                  >
-                    {!isEmpty && cell.val}
-                  </motion.div>
-                );
-              })
-            )}
+            <span style={{ fontWeight: 700, fontSize: currentTile >= 128 ? 17 : 24, color: tileStyle.text }}>
+              {currentTile}
+            </span>
           </div>
 
-          {/* Start overlay */}
-          <AnimatePresence>
-            {!started && !gameOver && (
-              <motion.div
-                key="start-overlay"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                style={{
-                  position:       "absolute",
-                  inset:          0,
-                  borderRadius:   "14px",
-                  display:        "flex",
-                  flexDirection:  "column",
-                  alignItems:     "center",
-                  justifyContent: "center",
-                  gap:            "14px",
-                  background:     "rgba(20,20,22,0.78)",
-                  backdropFilter: "blur(6px)",
-                }}
-              >
-                <div className="font-serif font-black text-2xl text-[#f0ebe3]">🔢 Number Merge</div>
-                <p className="text-[#a09a90] text-sm text-center px-6 leading-relaxed">
-                  Klicke eine Spalte · Gleiche Zahlen verschmelzen!<br />
-                  ← → + Enter für Tastatur-Steuerung
-                </p>
-                <button onClick={() => drop(selectedCol)} className="btn-main">
-                  ▶ Start
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Game-over overlay */}
-          <AnimatePresence>
-            {gameOver && (
-              <motion.div
-                key="gameover-overlay"
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.92 }}
-                style={{
-                  position:       "absolute",
-                  inset:          0,
-                  borderRadius:   "14px",
-                  display:        "flex",
-                  flexDirection:  "column",
-                  alignItems:     "center",
-                  justifyContent: "center",
-                  gap:            "12px",
-                  background:     "rgba(20,20,22,0.88)",
-                  backdropFilter: "blur(8px)",
-                }}
-              >
-                <div className="font-serif font-black text-3xl text-[#B01A2B]">Game Over!</div>
-                <div className="text-[#FFA586] text-lg font-bold">{score} Punkte</div>
-                <div className="text-[#a09a90] text-sm">
-                  Höchste Kachel:{" "}
-                  <span
-                    style={{
-                      color:      getTileFg(maxTile(grid)),
-                      background: getTileBg(maxTile(grid)),
-                      padding:    "1px 8px",
-                      borderRadius: "6px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {maxTile(grid)}
-                  </span>
-                </div>
-                <button onClick={reset} className="btn-main flex items-center gap-2">
-                  <RotateCcw size={16} /> Nochmal
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Column selector controls */}
-        <div className="mt-5 flex items-center justify-center gap-4">
-          <button
-            onClick={() => setSelectedCol(c => Math.max(0, c - 1))}
-            className="pill w-10 h-10 flex items-center justify-center text-lg font-bold active:bg-[#FFA586] active:text-[#141416]"
-            aria-label="Select previous column"
+          {/* Column selector buttons */}
+          <div
+            style={{
+              display: 'flex',
+              gap: GAP,
+              paddingLeft: 4,
+              paddingRight: 4,
+              marginBottom: GAP,
+            }}
           >
-            ◀
-          </button>
-
-          {/* Dot indicator */}
-          <div className="flex gap-2 items-center">
-            {Array.from({ length: COLS }, (_, i) => (
+            {Array.from({ length: 5 }, (_, c) => (
               <button
-                key={i}
-                onClick={() => { setSelectedCol(i); drop(i); }}
-                aria-label={`Drop in column ${i + 1}`}
+                key={c}
+                onClick={() => handleColClick(c)}
                 style={{
-                  width:        i === selectedCol ? "28px" : "10px",
-                  height:       "10px",
-                  borderRadius: "9999px",
-                  background:   i === selectedCol ? "#FFA586" : "rgba(240,235,227,0.2)",
-                  border:       "none",
-                  cursor:       "pointer",
-                  transition:   "all 0.2s ease",
-                  padding:      0,
+                  width: CELL,
+                  height: 32,
+                  background: selectedCol === c ? 'rgba(255,165,134,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: selectedCol === c
+                    ? '2px solid #FFA586'
+                    : '1px solid rgba(240,235,227,0.1)',
+                  borderRadius: 6,
+                  color: selectedCol === c ? '#FFA586' : '#a09a90',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'border 0.1s, background 0.1s, color 0.1s',
+                  padding: 0,
                 }}
-              />
+                aria-label={`Column ${c + 1}`}
+                title={selectedCol === c ? 'Click again to drop' : 'Select column'}
+              >
+                ↓
+              </button>
             ))}
           </div>
 
-          <button
-            onClick={() => setSelectedCol(c => Math.min(COLS - 1, c + 1))}
-            className="pill w-10 h-10 flex items-center justify-center text-lg font-bold active:bg-[#FFA586] active:text-[#141416]"
-            aria-label="Select next column"
+          {/* Grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(5, ${CELL}px)`,
+              gridTemplateRows: `repeat(8, ${CELL}px)`,
+              gap: GAP,
+              background: '#1c1c1f',
+              padding: 4,
+              borderRadius: 10,
+              border: '1px solid rgba(240,235,227,0.08)',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+            }}
           >
-            ▶
-          </button>
-        </div>
+            {grid.map((row, r) =>
+              row.map((val, c) => renderCell(val, r, c))
+            )}
+          </div>
 
-        {/* Drop button */}
-        <div className="mt-3 flex justify-center">
-          <button
-            onClick={() => drop(selectedCol)}
-            disabled={gameOver}
-            className="btn-main px-8 py-2 text-sm"
-            style={{ opacity: gameOver ? 0.4 : 1 }}
-          >
-            ⬇ Drop (Enter / Space)
-          </button>
+          {/* Keyboard hint */}
+          <p style={{ textAlign: 'center', color: '#a09a90', fontSize: 12, marginTop: 14, lineHeight: 1.6 }}>
+            ← → select &nbsp;·&nbsp; ↓ / Enter / Space drop &nbsp;·&nbsp; Click once → select, twice → drop
+          </p>
         </div>
+      )}
+    </div>
+  );
+}
 
-        <p className="text-center text-[#a09a90] text-xs mt-4">
-          ← → Spalte wählen · Enter / Space fallen lassen · Tippe direkt aufs Grid
-        </p>
+// ─── Score box ───────────────────────────────────────────────────────────────
+function ScoreBox({ label, value, highlight }: { label: string; value: number | string; highlight?: boolean }) {
+  return (
+    <div style={{
+      background: '#1c1c1f',
+      border: '1px solid rgba(240,235,227,0.1)',
+      borderRadius: 10,
+      padding: '8px 18px',
+      textAlign: 'center',
+      minWidth: 80,
+    }}>
+      <div style={{ fontSize: 11, color: '#a09a90', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: highlight ? '#ffd700' : '#f0ebe3' }}>{value}</div>
+    </div>
+  );
+}
+
+// ─── Next tile preview ────────────────────────────────────────────────────────
+function NextTileBox({ value }: { value: number }) {
+  const s = getTileStyle(value);
+  return (
+    <div style={{
+      background: '#1c1c1f',
+      border: '1px solid rgba(240,235,227,0.1)',
+      borderRadius: 10,
+      padding: '8px 14px',
+      textAlign: 'center',
+      minWidth: 80,
+    }}>
+      <div style={{ fontSize: 11, color: '#a09a90', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Next</div>
+      <div style={{
+        width: 40, height: 40, margin: '0 auto',
+        background: s.bg,
+        border: '1px solid rgba(240,235,227,0.12)',
+        borderRadius: 6,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontWeight: 700, fontSize: value >= 8 ? 15 : 18,
+        color: s.text,
+      }}>
+        {value}
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -1,43 +1,43 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion } from "motion/react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, RotateCcw } from "lucide-react";
-import { loadState, saveState } from "../utils/storage";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { loadState, saveState } from '../utils/storage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const CW = 400;
-const CH = 560;
 
-const PADDLE_W = 80;
-const PADDLE_H = 12;
-const PADDLE_Y = CH - 40;
-const PADDLE_WIDE = 140;
-const BALL_R = 10;
-
+const W = 400;
+const H = 560;
+const BALL_R = 8;
 const COLS = 8;
-const ROWS = 5;
-const BRICK_W = 42;
-const BRICK_H = 18;
-const BRICK_PAD_X = 6;
-const BRICK_PAD_Y = 5;
-const BRICK_AREA_TOP = 52;
+const ROWS = 6;
+const BRICK_GAP = 4;
+const BRICK_W = 45;
+const BRICK_H = 20;
+const BRICKS_START_Y = 40;
+const PADDLE_H = 12;
+const PADDLE_Y = 530;
+const PADDLE_W_NORMAL = 90;
+const PADDLE_W_WIDE = 140;
+const WIDE_DURATION = 8000; // ms
+const POWERUP_R = 12;
+const POWERUP_SPEED = 2;
 
-const POWERUP_R = 13;
-const POWERUP_SPEED = 1.8;
-const POWERUP_CHANCE = 0.15;
-
-const BASE_SPEED = 4;
-const SPEED_PER_LEVEL = 0.3;
-
-const ROW_META: { color: string; pts: number }[] = [
-  { color: "#B01A2B", pts: 3 },
-  { color: "#FFA586", pts: 2 },
-  { color: "#f0ebe3", pts: 1 },
-  { color: "#4a9eff", pts: 1 },
-  { color: "#4aff9e", pts: 1 },
+const ROW_COLORS = [
+  '#B01A2B', // row 0 – red, 5pts
+  '#c0392b', // row 1 – dark red, 4pts
+  '#FFA586', // row 2 – orange, 3pts
+  '#f0ebe3', // row 3 – cream, 2pts
+  '#4a9eff', // row 4 – blue, 1pt
+  '#4aff9e', // row 5 – green, 1pt
 ];
 
+const ROW_POINTS = [5, 4, 3, 2, 1, 1];
+
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type Phase = 'idle' | 'playing' | 'gameover' | 'levelup';
+
 interface Ball {
   x: number;
   y: number;
@@ -45,599 +45,871 @@ interface Ball {
   vy: number;
 }
 
-interface Brick {
-  x: number;
-  y: number;
-  alive: boolean;
-  color: string;
-  pts: number;
-  row: number;
-  hitFlash: number;
+interface Paddle {
+  x: number; // center X
 }
 
 interface PowerUp {
   x: number;
   y: number;
-  type: "wide" | "multi" | "slow";
-  vy: number;
+  type: 'W' | 'S';
 }
 
 interface GameState {
-  paddle: { x: number; w: number };
-  balls: Ball[];
-  bricks: Brick[];
-  powerups: PowerUp[];
+  ball: Ball;
+  paddle: Paddle;
+  bricks: boolean[][]; // [row][col] true = alive
   lives: number;
   score: number;
   level: number;
-  wideTimer: number;
-  slowTimer: number;
-  running: boolean;
-  over: boolean;
+  phase: Phase;
+  powerup: PowerUp | null;
+  powerupTimer: number; // ms remaining for active effect
+  wideActive: boolean;
+  slowActive: boolean;
+  speedMult: number;
+  keys: { left: boolean; right: boolean };
+  lastTime: number;
 }
-
-// ─── Power-up meta ─────────────────────────────────────────────────────────────
-const POWERUP_META: Record<"wide" | "multi" | "slow", { color: string; label: string }> = {
-  wide:  { color: "#FFA586", label: "W" },
-  multi: { color: "#4a9eff", label: "M" },
-  slow:  { color: "#4aff9e", label: "S" },
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function makeBricks(): Brick[] {
-  const bricks: Brick[] = [];
-  const totalW = COLS * BRICK_W + (COLS - 1) * BRICK_PAD_X;
-  const startX = (CW - totalW) / 2;
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      bricks.push({
-        x: startX + c * (BRICK_W + BRICK_PAD_X),
-        y: BRICK_AREA_TOP + r * (BRICK_H + BRICK_PAD_Y),
-        alive: true,
-        color: ROW_META[r].color,
-        pts: ROW_META[r].pts,
-        row: r,
-        hitFlash: 0,
-      });
-    }
-  }
-  return bricks;
+
+function makeBricks(): boolean[][] {
+  return Array.from({ length: ROWS }, () => Array(COLS).fill(true));
 }
 
-function ballSpeed(level: number): number {
-  return BASE_SPEED + (level - 1) * SPEED_PER_LEVEL;
+function brickRect(row: number, col: number) {
+  const totalBrickW = COLS * BRICK_W + (COLS - 1) * BRICK_GAP;
+  const offsetX = (W - totalBrickW) / 2;
+  const x = offsetX + col * (BRICK_W + BRICK_GAP);
+  const y = BRICKS_START_Y + row * (BRICK_H + BRICK_GAP);
+  return { x, y, w: BRICK_W, h: BRICK_H };
 }
 
-function spawnBall(level: number, paddleX: number, paddleW: number): Ball {
-  const spd = ballSpeed(level);
-  const angleDeg = 60 + Math.random() * 60; // 60–120° upward
-  const angle = angleDeg * (Math.PI / 180);
+function initBall(speedMult: number): Ball {
   return {
-    x: paddleX + paddleW / 2,
-    y: PADDLE_Y - BALL_R - 2,
-    vx: spd * Math.cos(angle) * (Math.random() < 0.5 ? 1 : -1),
-    vy: -Math.abs(spd * Math.sin(angle)),
+    x: W / 2,
+    y: 420,
+    vx: 3 * speedMult,
+    vy: -4 * speedMult,
   };
 }
 
-function makeInitialState(level = 1): GameState {
-  const paddleX = (CW - PADDLE_W) / 2;
-  return {
-    paddle: { x: paddleX, w: PADDLE_W },
-    balls: [spawnBall(level, paddleX, PADDLE_W)],
-    bricks: makeBricks(),
-    powerups: [],
-    lives: 3,
-    score: 0,
-    level,
-    wideTimer: 0,
-    slowTimer: 0,
-    running: false,
-    over: false,
-  };
+function clampPaddle(cx: number, paddleW: number): number {
+  return Math.max(paddleW / 2, Math.min(W - paddleW / 2, cx));
 }
 
-function applyPowerUp(g: GameState, type: "wide" | "multi" | "slow") {
-  if (type === "wide") {
-    g.paddle.w = PADDLE_WIDE;
-    g.wideTimer = 8 * 60;
-  } else if (type === "slow") {
-    g.slowTimer = 6 * 60;
-  } else if (type === "multi") {
-    const extras: Ball[] = g.balls.slice(0, 2).map((b) => ({
-      x: b.x,
-      y: b.y,
-      vx: -b.vx + (Math.random() - 0.5) * 1.5,
-      vy: b.vy + (Math.random() - 0.5) * 0.5,
-    }));
-    g.balls.push(...extras);
-  }
+function darken(hex: string): string {
+  // Return a slightly darkened version of the color for brick border
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, ((n >> 16) & 0xff) - 40);
+  const g = Math.max(0, ((n >> 8) & 0xff) - 40);
+  const b = Math.max(0, (n & 0xff) - 40);
+  return `rgb(${r},${g},${b})`;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function Breakout() {
-  const [highScore, setHighScore] = useState(() =>
-    Number(loadState("breakout_high") || "0")
-  );
-  const [displayScore, setDisplayScore] = useState(0);
-  const [displayLives, setDisplayLives] = useState(3);
-  const [displayLevel, setDisplayLevel] = useState(1);
-  const [isOver, setIsOver] = useState(false);
-  const [isStarted, setIsStarted] = useState(false);
-  const [lifeLost, setLifeLost] = useState(false);
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gsRef = useRef<GameState>(makeInitialState());
-  const mouseXRef = useRef<number | null>(null);
-  const highScoreRef = useRef(highScore);
-  highScoreRef.current = highScore;
+  const gsRef = useRef<GameState | null>(null);
+  const rafRef = useRef<number>(0);
 
-  // ── Draw ──────────────────────────────────────────────────────────────────
-  const draw = useCallback((ctx: CanvasRenderingContext2D, g: GameState) => {
-    ctx.fillStyle = "#141416";
-    ctx.fillRect(0, 0, CW, CH);
+  const [highScore, setHighScore] = useState<number>(() =>
+    Number(loadState('breakout_high') || '0'),
+  );
+  const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [level, setLevel] = useState(1);
+  const [phase, setPhase] = useState<Phase>('idle');
 
-    // Grid lines
-    ctx.strokeStyle = "rgba(240,235,227,0.03)";
-    ctx.lineWidth = 0.5;
-    for (let x = 0; x <= CW; x += 20) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CH); ctx.stroke();
-    }
-    for (let y = 0; y <= CH; y += 20) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke();
-    }
+  // ── Build initial game state ──────────────────────────────────────────────
 
-    // Bricks
-    g.bricks.forEach((b) => {
-      if (!b.alive) return;
-      ctx.save();
-      if (b.hitFlash > 0) {
-        ctx.shadowColor = b.color;
-        ctx.shadowBlur = 24;
-      }
-      ctx.fillStyle = b.color;
-      ctx.beginPath();
-      (ctx as CanvasRenderingContext2D & { roundRect: (x:number,y:number,w:number,h:number,r:number)=>void }).roundRect(b.x, b.y, BRICK_W, BRICK_H, 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.15)";
-      ctx.fillRect(b.x + 1, b.y + 1, BRICK_W - 2, 3);
-      ctx.restore();
-    });
-
-    // Power-ups
-    g.powerups.forEach((p) => {
-      const meta = POWERUP_META[p.type];
-      ctx.save();
-      ctx.shadowColor = meta.color;
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = meta.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, POWERUP_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      ctx.save();
-      ctx.fillStyle = "#141416";
-      ctx.font = "bold 11px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(meta.label, p.x, p.y);
-      ctx.restore();
-    });
-
-    // Paddle
-    const paddleGrad = ctx.createLinearGradient(g.paddle.x, PADDLE_Y, g.paddle.x, PADDLE_Y + PADDLE_H);
-    paddleGrad.addColorStop(0, "#f0ebe3");
-    paddleGrad.addColorStop(1, "#a09a90");
-    ctx.save();
-    ctx.shadowColor = "rgba(240,235,227,0.5)";
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = paddleGrad;
-    ctx.beginPath();
-    (ctx as CanvasRenderingContext2D & { roundRect: (x:number,y:number,w:number,h:number,r:number)=>void }).roundRect(g.paddle.x, PADDLE_Y, g.paddle.w, PADDLE_H, 5);
-    ctx.fill();
-    ctx.restore();
-
-    // Balls
-    g.balls.forEach((ball) => {
-      ctx.save();
-      ctx.shadowColor = "#FFA586";
-      ctx.shadowBlur = 18;
-      ctx.fillStyle = "#FFA586";
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Active power-up indicators (top-left)
-    const indicators: string[] = [];
-    if (g.wideTimer > 0) indicators.push(`⚡ ${Math.ceil(g.wideTimer / 60)}s`);
-    if (g.slowTimer > 0) indicators.push(`🐢 ${Math.ceil(g.slowTimer / 60)}s`);
-    if (indicators.length) {
-      ctx.font = "11px sans-serif";
-      ctx.fillStyle = "#a09a90";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      indicators.forEach((txt, i) => ctx.fillText(txt, 6, 6 + i * 16));
-    }
-  }, []);
-
-  // ── RAF tick ──────────────────────────────────────────────────────────────
-  const tick = useCallback(() => {
-    const g = gsRef.current;
-    if (!g.running || g.over) return;
-
-    // Mouse paddle movement
-    if (mouseXRef.current !== null) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const scale = CW / rect.width;
-        const mx = (mouseXRef.current - rect.left) * scale;
-        g.paddle.x = Math.max(0, Math.min(CW - g.paddle.w, mx - g.paddle.w / 2));
-      }
-    }
-
-    const slowFactor = g.slowTimer > 0 ? 0.55 : 1;
-    const nextBalls: Ball[] = [];
-    let scoreGained = 0;
-
-    for (const ball of g.balls) {
-      let { x, y, vx, vy } = ball;
-      x += vx * slowFactor;
-      y += vy * slowFactor;
-
-      // Wall bounces
-      if (x - BALL_R <= 0) { x = BALL_R; vx = Math.abs(vx); }
-      if (x + BALL_R >= CW) { x = CW - BALL_R; vx = -Math.abs(vx); }
-      if (y - BALL_R <= 0) { y = BALL_R; vy = Math.abs(vy); }
-
-      // Paddle collision
-      if (
-        vy > 0 &&
-        y + BALL_R >= PADDLE_Y &&
-        y - BALL_R <= PADDLE_Y + PADDLE_H &&
-        x >= g.paddle.x &&
-        x <= g.paddle.x + g.paddle.w
-      ) {
-        y = PADDLE_Y - BALL_R;
-        const hitPos = (x - (g.paddle.x + g.paddle.w / 2)) / (g.paddle.w / 2);
-        const maxAngle = 70 * (Math.PI / 180);
-        const ang = hitPos * maxAngle;
-        const spd = Math.sqrt(vx * vx + vy * vy);
-        vx = spd * Math.sin(ang);
-        vy = -spd * Math.cos(ang);
-      }
-
-      // Brick collisions
-      for (const b of g.bricks) {
-        if (!b.alive) continue;
-        const nx = Math.max(b.x, Math.min(x, b.x + BRICK_W));
-        const ny = Math.max(b.y, Math.min(y, b.y + BRICK_H));
-        const dx = x - nx;
-        const dy = y - ny;
-        if (dx * dx + dy * dy <= BALL_R * BALL_R) {
-          b.alive = false;
-          b.hitFlash = 6;
-          scoreGained += b.pts;
-
-          if (Math.random() < POWERUP_CHANCE) {
-            const types: Array<"wide" | "multi" | "slow"> = ["wide", "multi", "slow"];
-            g.powerups.push({
-              x: b.x + BRICK_W / 2,
-              y: b.y + BRICK_H / 2,
-              type: types[Math.floor(Math.random() * 3)],
-              vy: POWERUP_SPEED,
-            });
-          }
-
-          const overlapX = BALL_R - Math.abs(dx);
-          const overlapY = BALL_R - Math.abs(dy);
-          if (overlapX < overlapY) { vx = -vx; } else { vy = -vy; }
-          break;
-        }
-      }
-
-      // Tick hit flash
-      for (const b of g.bricks) { if (b.hitFlash > 0) b.hitFlash--; }
-
-      // Ball lost?
-      if (y - BALL_R > CH) continue;
-      nextBalls.push({ x, y, vx, vy });
-    }
-
-    g.balls = nextBalls;
-
-    // No balls left → lose a life
-    if (g.balls.length === 0) {
-      g.lives -= 1;
-      if (g.lives <= 0) {
-        g.over = true;
-        g.running = false;
-        setIsOver(true);
-        setDisplayScore(g.score);
-        if (g.score > highScoreRef.current) {
-          const ns = g.score;
-          setHighScore(ns);
-          saveState("breakout_high", String(ns));
-        }
-        const ctx = canvasRef.current?.getContext("2d");
-        if (ctx) draw(ctx, g);
-        return;
-      }
-      g.balls = [spawnBall(g.level, g.paddle.x, g.paddle.w)];
-      g.running = false;
-      setDisplayLives(g.lives);
-      setLifeLost(true);
-      const ctx = canvasRef.current?.getContext("2d");
-      if (ctx) draw(ctx, g);
-      return;
-    }
-
-    // Update score
-    if (scoreGained > 0) {
-      g.score += scoreGained;
-      setDisplayScore(g.score);
-      if (g.score > highScoreRef.current) {
-        const ns = g.score;
-        setHighScore(ns);
-        saveState("breakout_high", String(ns));
-      }
-    }
-
-    // Power-up movement & collection
-    const nextPowerups: PowerUp[] = [];
-    for (const p of g.powerups) {
-      p.y += p.vy;
-      if (p.y > CH) continue;
-      if (
-        p.y + POWERUP_R >= PADDLE_Y &&
-        p.y - POWERUP_R <= PADDLE_Y + PADDLE_H &&
-        p.x >= g.paddle.x - POWERUP_R &&
-        p.x <= g.paddle.x + g.paddle.w + POWERUP_R
-      ) {
-        applyPowerUp(g, p.type);
-        continue;
-      }
-      nextPowerups.push(p);
-    }
-    g.powerups = nextPowerups;
-
-    // Power-up timers
-    if (g.wideTimer > 0) { g.wideTimer--; if (g.wideTimer === 0) g.paddle.w = PADDLE_W; }
-    if (g.slowTimer > 0) g.slowTimer--;
-
-    // Level clear?
-    if (g.bricks.every((b) => !b.alive)) {
-      const nextLevel = g.level + 1;
-      g.level = nextLevel;
-      g.bricks = makeBricks();
-      g.powerups = [];
-      g.balls = g.balls.map((b) => {
-        const spd = ballSpeed(nextLevel);
-        const angle = Math.atan2(-b.vy, b.vx);
-        return { ...b, vx: spd * Math.cos(angle), vy: -Math.abs(spd * Math.sin(angle)) };
-      });
-      setDisplayLevel(nextLevel);
-    }
-
-    const ctx = canvasRef.current?.getContext("2d");
-    if (ctx) draw(ctx, g);
-  }, [draw]);
-
-  // ── RAF loop ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let animId: number;
-    const loop = () => { tick(); animId = requestAnimationFrame(loop); };
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, [tick]);
-
-  // ── Initial draw ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    const ctx = canvasRef.current?.getContext("2d");
-    if (ctx) draw(ctx, gsRef.current);
-  }, [draw]);
-
-  // ── Keyboard ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const STEP = 18;
-    const handler = (e: KeyboardEvent) => {
-      const g = gsRef.current;
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        g.paddle.x = Math.max(0, g.paddle.x - STEP);
-        if (!g.running && !g.over) { g.running = true; setIsStarted(true); setLifeLost(false); }
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        g.paddle.x = Math.min(CW - g.paddle.w, g.paddle.x + STEP);
-        if (!g.running && !g.over) { g.running = true; setIsStarted(true); setLifeLost(false); }
-      }
+  const buildInitialState = useCallback((): GameState => {
+    return {
+      ball: initBall(1),
+      paddle: { x: W / 2 },
+      bricks: makeBricks(),
+      lives: 3,
+      score: 0,
+      level: 1,
+      phase: 'playing',
+      powerup: null,
+      powerupTimer: 0,
+      wideActive: false,
+      slowActive: false,
+      speedMult: 1,
+      keys: { left: false, right: false },
+      lastTime: performance.now(),
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-  const startOrResume = () => {
-    const g = gsRef.current;
-    if (g.over) return;
-    g.running = true;
-    setIsStarted(true);
-    setLifeLost(false);
-  };
+  // ── Render a single frame ─────────────────────────────────────────────────
 
-  const reset = () => {
-    const fresh = makeInitialState(1);
-    gsRef.current = fresh;
-    mouseXRef.current = null;
-    setDisplayScore(0);
-    setDisplayLives(3);
-    setDisplayLevel(1);
-    setIsOver(false);
-    setIsStarted(false);
-    setLifeLost(false);
-    const ctx = canvasRef.current?.getContext("2d");
-    if (ctx) draw(ctx, fresh);
-  };
-
-  // ── Mouse ─────────────────────────────────────────────────────────────────
-  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    mouseXRef.current = e.clientX;
-    const g = gsRef.current;
-    if (!g.running && !g.over) { g.running = true; setIsStarted(true); setLifeLost(false); }
-  };
-  const onMouseLeave = () => { mouseXRef.current = null; };
-
-  // ── Touch ─────────────────────────────────────────────────────────────────
-  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const g = gsRef.current;
+  const render = useCallback((gs: GameState) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const scale = CW / rect.width;
-    const tx = (e.touches[0].clientX - rect.left) * scale;
-    g.paddle.x = Math.max(0, Math.min(CW - g.paddle.w, tx - g.paddle.w / 2));
-    if (!g.running && !g.over) { g.running = true; setIsStarted(true); setLifeLost(false); }
-  };
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  // ── On-screen buttons ─────────────────────────────────────────────────────
-  const moveLeft = () => {
-    const g = gsRef.current;
-    g.paddle.x = Math.max(0, g.paddle.x - 20);
-    if (!g.running && !g.over) { g.running = true; setIsStarted(true); setLifeLost(false); }
-  };
-  const moveRight = () => {
-    const g = gsRef.current;
-    g.paddle.x = Math.min(CW - g.paddle.w, g.paddle.x + 20);
-    if (!g.running && !g.over) { g.running = true; setIsStarted(true); setLifeLost(false); }
-  };
+    // 1. Clear
+    ctx.fillStyle = '#141416';
+    ctx.fillRect(0, 0, W, H);
+
+    // 2. Bricks – crisp, NO shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (!gs.bricks[r][c]) continue;
+        const { x, y, w, h } = brickRect(r, c);
+        const color = ROW_COLORS[r];
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+        // 1px darker border
+        ctx.strokeStyle = darken(color);
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      }
+    }
+
+    // 3. Power-up falling circle
+    if (gs.powerup) {
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+      const puColor = gs.powerup.type === 'W' ? '#4aff9e' : '#4a9eff';
+      ctx.beginPath();
+      ctx.arc(gs.powerup.x, gs.powerup.y, POWERUP_R, 0, Math.PI * 2);
+      ctx.fillStyle = puColor;
+      ctx.fill();
+      ctx.fillStyle = '#141416';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(gs.powerup.type, gs.powerup.x, gs.powerup.y);
+    }
+
+    // 4. Paddle
+    const paddleW = gs.wideActive ? PADDLE_W_WIDE : PADDLE_W_NORMAL;
+    const px = gs.paddle.x - paddleW / 2;
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#f0ebe3';
+    ctx.fillRect(px, PADDLE_Y, paddleW, PADDLE_H);
+
+    // 5. Ball with glow
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#FFA586';
+    ctx.beginPath();
+    ctx.arc(gs.ball.x, gs.ball.y, BALL_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFA586';
+    ctx.fill();
+    // Reset shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+  }, []);
+
+  // ── Game loop tick ────────────────────────────────────────────────────────
+
+  const tick = useCallback(
+    (timestamp: number) => {
+      const gs = gsRef.current;
+      if (!gs || gs.phase !== 'playing') return;
+
+      const dt = Math.min(timestamp - gs.lastTime, 50); // cap at 50ms
+      gs.lastTime = timestamp;
+
+      const paddleW = gs.wideActive ? PADDLE_W_WIDE : PADDLE_W_NORMAL;
+
+      // Keyboard paddle movement
+      if (gs.keys.left) gs.paddle.x -= 8;
+      if (gs.keys.right) gs.paddle.x += 8;
+      gs.paddle.x = clampPaddle(gs.paddle.x, paddleW);
+
+      // Power-up timer
+      if (gs.powerupTimer > 0) {
+        gs.powerupTimer -= dt;
+        if (gs.powerupTimer <= 0) {
+          gs.wideActive = false;
+          gs.slowActive = false;
+          gs.powerupTimer = 0;
+        }
+      }
+
+      // Move ball
+      const speed = gs.slowActive ? gs.speedMult * 0.6 : gs.speedMult;
+      const stepX = gs.ball.vx * speed;
+      const stepY = gs.ball.vy * speed;
+      gs.ball.x += stepX;
+      gs.ball.y += stepY;
+
+      // Wall collisions
+      if (gs.ball.x - BALL_R < 0) {
+        gs.ball.x = BALL_R;
+        gs.ball.vx = Math.abs(gs.ball.vx);
+      }
+      if (gs.ball.x + BALL_R > W) {
+        gs.ball.x = W - BALL_R;
+        gs.ball.vx = -Math.abs(gs.ball.vx);
+      }
+      // Ceiling
+      if (gs.ball.y - BALL_R < 0) {
+        gs.ball.y = BALL_R;
+        gs.ball.vy = Math.abs(gs.ball.vy);
+      }
+
+      // Ball-paddle collision
+      if (
+        gs.ball.y + BALL_R >= PADDLE_Y &&
+        gs.ball.y + BALL_R <= PADDLE_Y + PADDLE_H + Math.abs(gs.ball.vy * speed) &&
+        gs.ball.vy > 0
+      ) {
+        const leftEdge = gs.paddle.x - paddleW / 2;
+        const rightEdge = gs.paddle.x + paddleW / 2;
+        if (gs.ball.x >= leftEdge - BALL_R && gs.ball.x <= rightEdge + BALL_R) {
+          const hitPos = (gs.ball.x - gs.paddle.x) / (paddleW / 2); // -1 to 1
+          gs.ball.vx = Math.max(-5, Math.min(5, hitPos * 5));
+          gs.ball.vy = -Math.abs(gs.ball.vy);
+          gs.ball.y = PADDLE_Y - BALL_R;
+        }
+      }
+
+      // Ball-brick collision (AABB)
+      let bricksLeft = 0;
+      outer: for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (!gs.bricks[r][c]) continue;
+          bricksLeft++;
+          const { x, y, w, h } = brickRect(r, c);
+          const bx = gs.ball.x;
+          const by = gs.ball.y;
+
+          // Expand brick by ball radius for collision
+          if (
+            bx >= x - BALL_R &&
+            bx <= x + w + BALL_R &&
+            by >= y - BALL_R &&
+            by <= y + h + BALL_R
+          ) {
+            gs.bricks[r][c] = false;
+            bricksLeft--;
+            gs.score += ROW_POINTS[r];
+
+            // Determine bounce axis
+            const overlapLeft = bx - (x - BALL_R);
+            const overlapRight = x + w + BALL_R - bx;
+            const overlapTop = by - (y - BALL_R);
+            const overlapBottom = y + h + BALL_R - by;
+
+            const minH = Math.min(overlapLeft, overlapRight);
+            const minV = Math.min(overlapTop, overlapBottom);
+
+            if (minV <= minH) {
+              gs.ball.vy = -gs.ball.vy;
+            } else {
+              gs.ball.vx = -gs.ball.vx;
+            }
+
+            // Spawn power-up (20% chance, only if none active falling)
+            if (!gs.powerup && Math.random() < 0.2) {
+              const type: 'W' | 'S' = Math.random() < 0.5 ? 'W' : 'S';
+              gs.powerup = {
+                x: x + w / 2,
+                y: y + h / 2,
+                type,
+              };
+            }
+
+            // Update React score sparingly
+            setScore(gs.score);
+            break outer;
+          }
+        }
+      }
+
+      // Move falling power-up
+      if (gs.powerup) {
+        gs.powerup.y += POWERUP_SPEED;
+        // Check paddle collection
+        const leftEdge = gs.paddle.x - paddleW / 2;
+        const rightEdge = gs.paddle.x + paddleW / 2;
+        if (
+          gs.powerup.y + POWERUP_R >= PADDLE_Y &&
+          gs.powerup.y - POWERUP_R <= PADDLE_Y + PADDLE_H &&
+          gs.powerup.x >= leftEdge &&
+          gs.powerup.x <= rightEdge
+        ) {
+          if (gs.powerup.type === 'W') {
+            gs.wideActive = true;
+            gs.slowActive = false;
+          } else {
+            gs.slowActive = true;
+            gs.wideActive = false;
+          }
+          gs.powerupTimer = WIDE_DURATION;
+          gs.powerup = null;
+        }
+        // Off screen
+        if (gs.powerup && gs.powerup.y > H + POWERUP_R) {
+          gs.powerup = null;
+        }
+      }
+
+      // Ball fell below canvas
+      if (gs.ball.y - BALL_R > H) {
+        gs.lives--;
+        setLives(gs.lives);
+        if (gs.lives <= 0) {
+          gs.phase = 'gameover';
+          setPhase('gameover');
+          const newHigh = Math.max(gs.score, highScore);
+          if (newHigh > highScore) {
+            setHighScore(newHigh);
+            saveState('breakout_high', String(newHigh));
+          }
+          render(gs);
+          return;
+        }
+        // Reset ball, keep everything else
+        gs.ball = initBall(gs.speedMult);
+        gs.powerup = null;
+        gs.wideActive = false;
+        gs.slowActive = false;
+        gs.powerupTimer = 0;
+      }
+
+      // Level complete
+      if (bricksLeft === 0) {
+        gs.phase = 'levelup';
+        gs.level++;
+        gs.speedMult *= 1.1;
+        setLevel(gs.level);
+        setPhase('levelup');
+        render(gs);
+
+        setTimeout(() => {
+          if (gsRef.current) {
+            gsRef.current.bricks = makeBricks();
+            gsRef.current.ball = initBall(gsRef.current.speedMult);
+            gsRef.current.powerup = null;
+            gsRef.current.wideActive = false;
+            gsRef.current.slowActive = false;
+            gsRef.current.powerupTimer = 0;
+            gsRef.current.phase = 'playing';
+            gsRef.current.lastTime = performance.now();
+            setPhase('playing');
+            rafRef.current = requestAnimationFrame(tick);
+          }
+        }, 1500);
+        return;
+      }
+
+      render(gs);
+      rafRef.current = requestAnimationFrame(tick);
+    },
+    [highScore, render],
+  );
+
+  // ── Start / Restart ───────────────────────────────────────────────────────
+
+  const startGame = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    const gs = buildInitialState();
+    gsRef.current = gs;
+    setScore(0);
+    setLives(3);
+    setLevel(1);
+    setPhase('playing');
+    render(gs);
+    rafRef.current = requestAnimationFrame(tick);
+  }, [buildInitialState, render, tick]);
+
+  // ── Cleanup on unmount ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  // ── Mouse / touch / keyboard controls ────────────────────────────────────
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const gs = gsRef.current;
+      if (!gs || gs.phase !== 'playing') return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;
+      const rawX = (e.clientX - rect.left) * scaleX;
+      const paddleW = gs.wideActive ? PADDLE_W_WIDE : PADDLE_W_NORMAL;
+      gs.paddle.x = clampPaddle(rawX, paddleW);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const gs = gsRef.current;
+      if (!gs || gs.phase !== 'playing') return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;
+      const touch = e.touches[0];
+      const rawX = (touch.clientX - rect.left) * scaleX;
+      const paddleW = gs.wideActive ? PADDLE_W_WIDE : PADDLE_W_NORMAL;
+      gs.paddle.x = clampPaddle(rawX, paddleW);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const gs = gsRef.current;
+      if (!gs) return;
+      if (e.key === 'ArrowLeft') gs.keys.left = true;
+      if (e.key === 'ArrowRight') gs.keys.right = true;
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const gs = gsRef.current;
+      if (!gs) return;
+      if (e.key === 'ArrowLeft') gs.keys.left = false;
+      if (e.key === 'ArrowRight') gs.keys.right = false;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // ── On-screen button refs ─────────────────────────────────────────────────
+
+  const leftHeld = useRef(false);
+  const rightHeld = useRef(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const gs = gsRef.current;
+      if (!gs || gs.phase !== 'playing') return;
+      const paddleW = gs.wideActive ? PADDLE_W_WIDE : PADDLE_W_NORMAL;
+      if (leftHeld.current) gs.paddle.x = clampPaddle(gs.paddle.x - 8, paddleW);
+      if (rightHeld.current) gs.paddle.x = clampPaddle(gs.paddle.x + 8, paddleW);
+    }, 16);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Render initial canvas background once ─────────────────────────────────
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#141416';
+    ctx.fillRect(0, 0, W, H);
+  }, []);
+
+  // ─── Hearts helper ──────────────────────────────────────────────────────
+
+  const heartsDisplay = Array.from({ length: 3 }, (_, i) => (
+    <span
+      key={i}
+      style={{ opacity: i < lives ? 1 : 0.2, fontSize: '1.1rem', lineHeight: 1 }}
+    >
+      ❤️
+    </span>
+  ));
+
+  // ─── JSX ────────────────────────────────────────────────────────────────
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen">
-      <div className="max-w-xl mx-auto px-4 py-8">
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#141416',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        padding: '24px 16px 32px',
+        fontFamily: 'sans-serif',
+      }}
+    >
+      {/* Top bar */}
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 400,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+        }}
+      >
         <Link
           to="/games"
-          className="inline-flex items-center gap-2 text-[#a09a90] hover:text-[#FFA586] transition-colors text-sm mb-6"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            color: '#a09a90',
+            textDecoration: 'none',
+            fontSize: '0.85rem',
+            transition: 'color 0.2s',
+          }}
+          onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) =>
+            (e.currentTarget.style.color = '#f0ebe3')
+          }
+          onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) =>
+            (e.currentTarget.style.color = '#a09a90')
+          }
         >
-          <ArrowLeft size={16} /> Zurück zu Games
+          <ArrowLeft size={16} /> Games
         </Link>
-
-        <div className="text-center mb-6">
-          <h1 className="font-serif font-black text-3xl mb-1">🧱 Breakout</h1>
-          <p className="text-[#a09a90] text-sm">Maus · Touch · Pfeiltasten — Zerstöre alle Blöcke!</p>
-        </div>
-
-        {/* HUD */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="border border-[rgba(240,235,227,0.12)] px-4 py-2 rounded">
-            <span className="text-xs text-[#a09a90] block">Score</span>
-            <div className="text-xl font-serif font-bold text-[#FFA586]">{displayScore}</div>
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="text-xs text-[#a09a90]">Leben</div>
-            <div className="flex gap-1 text-lg">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <span key={i} style={{ opacity: i < displayLives ? 1 : 0.2 }}>❤️</span>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-0.5">
-            <div className="border border-[rgba(240,235,227,0.12)] px-4 py-2 rounded text-right">
-              <span className="text-xs text-[#a09a90] block">Highscore</span>
-              <div className="text-xl font-serif font-bold text-[#f0ebe3]">{highScore}</div>
-            </div>
-            <div className="text-xs text-[#a09a90] pr-1">Level {displayLevel}</div>
-          </div>
-        </div>
-
-        {/* Canvas */}
-        <div
-          className="relative mx-auto border border-[rgba(240,235,227,0.12)] overflow-hidden rounded"
-          style={{ width: CW, maxWidth: "100%" }}
-          onMouseMove={onMouseMove}
-          onMouseLeave={onMouseLeave}
-          onTouchMove={onTouchMove}
-          onClick={startOrResume}
+        <span
+          style={{
+            fontSize: '0.75rem',
+            color: '#a09a90',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}
         >
-          <canvas
-            ref={canvasRef}
-            width={CW}
-            height={CH}
-            style={{ width: "100%", height: "auto", display: "block", cursor: "none" }}
-          />
-
-          {/* Start overlay */}
-          {!isStarted && !isOver && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#141416]/75 backdrop-blur-sm gap-5">
-              <div className="text-5xl">🧱</div>
-              <div className="text-center">
-                <div className="font-serif font-black text-2xl text-[#f0ebe3] mb-1">BREAKOUT</div>
-                <div className="text-[#a09a90] text-sm">Bewege die Maus oder tippe zum Starten</div>
-              </div>
-              <div className="flex flex-col gap-1.5 text-xs text-[#a09a90] text-center border border-[rgba(240,235,227,0.12)] px-5 py-3 rounded">
-                <span><span className="text-[#FFA586]">W</span> WIDE — Paddle 8s breiter</span>
-                <span><span className="text-[#4a9eff]">M</span> MULTI — 2 Extra-Bälle</span>
-                <span><span className="text-[#4aff9e]">S</span> SLOW — Ball 6s langsamer</span>
-              </div>
-              <button onClick={startOrResume} className="btn-main text-base mt-1">▶ Starten</button>
-            </div>
-          )}
-
-          {/* Life-lost overlay */}
-          {lifeLost && !isOver && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#141416]/70 backdrop-blur-sm gap-3">
-              <div className="font-serif font-black text-xl text-[#FFA586]">Ball verloren!</div>
-              <div className="flex gap-1 text-2xl">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <span key={i} style={{ opacity: i < displayLives ? 1 : 0.2 }}>❤️</span>
-                ))}
-              </div>
-              <button onClick={startOrResume} className="btn-main">▶ Weiter</button>
-            </div>
-          )}
-
-          {/* Game Over overlay */}
-          {isOver && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#141416]/85 backdrop-blur-sm gap-4">
-              <div className="text-4xl font-serif font-black text-[#B01A2B]">GAME OVER</div>
-              <div className="text-[#FFA586] text-lg font-bold">{displayScore} Punkte</div>
-              {displayScore > 0 && displayScore >= highScore && (
-                <div className="pill text-sm text-[#4aff9e]">🏆 Neuer Highscore!</div>
-              )}
-              <button onClick={reset} className="btn-main flex items-center gap-2">
-                <RotateCcw size={16} /> Nochmal
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Mobile D-pad */}
-        <div className="mt-6 flex justify-center gap-6">
-          <button
-            className="pill active:bg-[#FFA586] active:text-[#141416] w-16 h-12 flex items-center justify-center text-xl font-bold select-none"
-            onPointerDown={moveLeft}
-          >
-            ◀
-          </button>
-          <button
-            className="pill active:bg-[#FFA586] active:text-[#141416] w-16 h-12 flex items-center justify-center text-xl font-bold select-none"
-            onPointerDown={moveRight}
-          >
-            ▶
-          </button>
-        </div>
-
-        <div className="mt-4 flex justify-center">
-          <button
-            onClick={reset}
-            className="inline-flex items-center gap-2 text-[#a09a90] hover:text-[#FFA586] transition-colors text-sm"
-          >
-            <RotateCcw size={14} /> Neu starten
-          </button>
-        </div>
+          Best: {highScore}
+        </span>
       </div>
-    </motion.div>
+
+      {/* HUD */}
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 400,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 8,
+          padding: '6px 0',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 4 }}>{heartsDisplay}</div>
+        <span
+          style={{
+            color: '#f0ebe3',
+            fontWeight: 700,
+            fontSize: '1.1rem',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {score}
+        </span>
+        <span
+          style={{
+            color: '#a09a90',
+            fontSize: '0.8rem',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+          }}
+        >
+          Lvl {level}
+        </span>
+      </div>
+
+      {/* Canvas container */}
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 400,
+          border: '1px solid rgba(240,235,227,0.12)',
+          borderRadius: 8,
+          overflow: 'hidden',
+          background: '#141416',
+          lineHeight: 0,
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          width={W}
+          height={H}
+          style={{ display: 'block', width: '100%', height: 'auto', imageRendering: 'pixelated' }}
+        />
+
+        {/* Idle overlay */}
+        <AnimatePresence>
+          {phase === 'idle' && (
+            <motion.div
+              key="idle"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(20,20,22,0.88)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 24,
+              }}
+            >
+              <div style={{ textAlign: 'center' }}>
+                <h1
+                  className="font-serif"
+                  style={{
+                    color: '#FFA586',
+                    fontSize: '2.8rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    margin: 0,
+                    textShadow: '0 0 24px #FFA58680',
+                  }}
+                >
+                  BREAKOUT
+                </h1>
+                <p style={{ color: '#a09a90', fontSize: '0.82rem', marginTop: 6 }}>
+                  Move your mouse • Arrow keys • Touch
+                </p>
+              </div>
+
+              {/* Power-up legend */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 16,
+                  padding: '10px 18px',
+                  background: 'rgba(240,235,227,0.06)',
+                  borderRadius: 8,
+                  border: '1px solid rgba(240,235,227,0.12)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      background: '#4aff9e',
+                      color: '#141416',
+                      fontWeight: 700,
+                      fontSize: 13,
+                    }}
+                  >
+                    W
+                  </span>
+                  <span style={{ color: '#a09a90', fontSize: '0.78rem' }}>Wide paddle</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      background: '#4a9eff',
+                      color: '#141416',
+                      fontWeight: 700,
+                      fontSize: 13,
+                    }}
+                  >
+                    S
+                  </span>
+                  <span style={{ color: '#a09a90', fontSize: '0.78rem' }}>Slow ball</span>
+                </div>
+              </div>
+
+              <button
+                className="btn-main"
+                onClick={startGame}
+                style={{
+                  background: '#FFA586',
+                  color: '#141416',
+                  border: 'none',
+                  borderRadius: 999,
+                  padding: '12px 36px',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  letterSpacing: '0.06em',
+                  transition: 'transform 0.15s, box-shadow 0.15s',
+                  boxShadow: '0 0 20px #FFA58650',
+                }}
+                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.boxShadow = '0 0 32px #FFA58680';
+                }}
+                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 0 20px #FFA58650';
+                }}
+              >
+                Starten
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Game Over overlay */}
+        <AnimatePresence>
+          {phase === 'gameover' && (
+            <motion.div
+              key="gameover"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(20,20,22,0.92)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 20,
+              }}
+            >
+              <h2
+                style={{
+                  color: '#B01A2B',
+                  fontSize: '2rem',
+                  fontWeight: 700,
+                  margin: 0,
+                  letterSpacing: '0.1em',
+                }}
+              >
+                GAME OVER
+              </h2>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ color: '#f0ebe3', fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>
+                  {score}
+                </p>
+                <p style={{ color: '#a09a90', fontSize: '0.78rem', margin: '4px 0 0' }}>
+                  Best: {highScore}
+                </p>
+              </div>
+              <button
+                onClick={startGame}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: '#FFA586',
+                  color: '#141416',
+                  border: 'none',
+                  borderRadius: 999,
+                  padding: '10px 28px',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  letterSpacing: '0.06em',
+                  transition: 'transform 0.15s',
+                }}
+                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) =>
+                  (e.currentTarget.style.transform = 'scale(1.05)')
+                }
+                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) =>
+                  (e.currentTarget.style.transform = 'scale(1)')
+                }
+              >
+                <RotateCcw size={15} /> Nochmal
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Level Up overlay */}
+        <AnimatePresence>
+          {phase === 'levelup' && (
+            <motion.div
+              key="levelup"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(20,20,22,0.80)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                pointerEvents: 'none',
+              }}
+            >
+              <p style={{ color: '#4aff9e', fontSize: '1.8rem', fontWeight: 700, margin: 0 }}>
+                Level {level}! ▶
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* On-screen controls */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 16,
+          marginTop: 20,
+          width: '100%',
+          maxWidth: 400,
+          justifyContent: 'center',
+        }}
+      >
+        {(
+          [
+            { label: '◀', dir: 'left' },
+            { label: '▶', dir: 'right' },
+          ] as const
+        ).map(({ label, dir }) => (
+          <button
+            key={dir}
+            onPointerDown={() => {
+              if (dir === 'left') leftHeld.current = true;
+              else rightHeld.current = true;
+              const gs = gsRef.current;
+              if (gs) gs.keys[dir === 'left' ? 'left' : 'right'] = true;
+            }}
+            onPointerUp={() => {
+              if (dir === 'left') leftHeld.current = false;
+              else rightHeld.current = false;
+              const gs = gsRef.current;
+              if (gs) gs.keys[dir === 'left' ? 'left' : 'right'] = false;
+            }}
+            onPointerLeave={() => {
+              if (dir === 'left') leftHeld.current = false;
+              else rightHeld.current = false;
+              const gs = gsRef.current;
+              if (gs) gs.keys[dir === 'left' ? 'left' : 'right'] = false;
+            }}
+            style={{
+              flex: 1,
+              maxWidth: 120,
+              padding: '14px 0',
+              background: 'rgba(240,235,227,0.07)',
+              border: '1px solid rgba(240,235,227,0.12)',
+              borderRadius: 10,
+              color: '#f0ebe3',
+              fontSize: '1.4rem',
+              cursor: 'pointer',
+              userSelect: 'none',
+              touchAction: 'none',
+              transition: 'background 0.15s',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
