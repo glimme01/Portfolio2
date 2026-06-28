@@ -3,13 +3,25 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
 const games = [
-  { name: "Snake", emoji: "🐍", path: "/games/snake", desc: "Klassiker. Friss und wachse." },
-  { name: "Reaktionstest", emoji: "⚡", path: "/games/reaction", desc: "Wie schnell bist du wirklich?" },
-  { name: "Cookie Clicker", emoji: "🍪", path: "/games/cookie", desc: "Klick die Cookies. Kauf Upgrades." },
-  { name: "2048", emoji: "🧊", path: "/games/2048", desc: "Slide die Tiles bis zur 2048." },
-  { name: "Tic Tac Toe", emoji: "❌", path: "/games/tictactoe", desc: "Gegen nen Kumpel am selben Gerät." },
-  { name: "Flappy Bird", emoji: "🐦", path: "/games/flappy", desc: "Tipp dich durch die Pipes." },
+  // Klassiker
+  { name: "Snake", emoji: "🐍", path: "/games/snake", desc: "Klassiker. Friss und wachse.", category: "Klassiker" },
+  { name: "Flappy Bird", emoji: "🐦", path: "/games/flappy", desc: "Tipp dich durch die Pipes.", category: "Klassiker" },
+  { name: "Breakout", emoji: "🧱", path: "/games/breakout", desc: "Brick Breaker mit Power-ups.", category: "Klassiker" },
+  // Reflex
+  { name: "Reaktionstest", emoji: "⚡", path: "/games/reaction", desc: "Wie schnell bist du wirklich?", category: "Reflex" },
+  { name: "Timberman", emoji: "🪓", path: "/games/timberman", desc: "Holz hacken, Äste ausweichen.", category: "Reflex" },
+  // Puzzle
+  { name: "2048", emoji: "🧩", path: "/games/2048", desc: "Slide die Tiles bis zur 2048.", category: "Puzzle" },
+  { name: "Number Merge", emoji: "🔢", path: "/games/merge", desc: "Zahlen fallen und mergen.", category: "Puzzle" },
+  { name: "Hextris", emoji: "🔷", path: "/games/hextris", desc: "Hexagon drehen, Blöcke clearen.", category: "Puzzle" },
+  { name: "Word Scramble", emoji: "🔤", path: "/games/word", desc: "Buchstaben in 30 Sekunden ordnen.", category: "Puzzle" },
+  // Entspannung
+  { name: "Cookie Clicker", emoji: "🍪", path: "/games/cookie", desc: "Klick die Cookies. Kauf Upgrades.", category: "Entspannung" },
+  { name: "Bubble Shooter", emoji: "🫧", path: "/games/bubble", desc: "Bubbles abschießen und matchen.", category: "Entspannung" },
+  { name: "Tic Tac Toe", emoji: "❌", path: "/games/tictactoe", desc: "Gegen nen Kumpel am selben Gerät.", category: "Entspannung" },
 ];
+
+const categories = ["Klassiker", "Reflex", "Puzzle", "Entspannung"];
 
 export default function Games() {
   return (
@@ -25,44 +37,59 @@ export default function Games() {
               <span className="not-italic text-cream/40">Games</span>
             </h1>
           </div>
-          <p className="text-sm text-cream-dim max-w-xs pb-2">
-            Alle Games laufen direkt im Browser.
-            Kein Download, kein Login.
-          </p>
+          <div className="text-right">
+            <p className="text-sm text-cream-dim max-w-xs pb-2">
+              {games.length} Games — direkt im Browser.
+              <br />
+              Kein Download, kein Login.
+            </p>
+          </div>
         </div>
 
-        {/* Games List */}
-        <div className="border-t border-border">
-          {games.map((game, i) => (
-            <motion.div
-              key={game.name}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: i * 0.06 }}
-            >
-              <Link
-                to={game.path}
-                className="group flex items-center justify-between py-6 md:py-8 border-b border-border hover:bg-bg-light/50 transition-colors px-2 md:px-4"
-              >
-                <div className="flex items-center gap-5 md:gap-8">
-                  <span className="text-3xl md:text-4xl group-hover:scale-110 transition-transform inline-block">
-                    {game.emoji}
-                  </span>
-                  <div>
-                    <h3 className="font-serif text-xl md:text-2xl italic group-hover:text-accent transition-colors">
-                      {game.name}
-                    </h3>
-                    <p className="text-xs text-cream-dark mt-1 hidden sm:block">{game.desc}</p>
-                  </div>
-                </div>
+        {/* Games grouped by category */}
+        {categories.map((cat) => {
+          const catGames = games.filter((g) => g.category === cat);
+          return (
+            <div key={cat} className="mb-12">
+              <div className="label mb-4 flex items-center gap-3">
+                <span>{cat}</span>
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-cream-dark">{catGames.length}</span>
+              </div>
+              <div className="border-t border-border">
+                {catGames.map((game, i) => (
+                  <motion.div
+                    key={game.name}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <Link
+                      to={game.path}
+                      className="group flex items-center justify-between py-5 md:py-6 border-b border-border hover:bg-bg-light/50 transition-colors px-2 md:px-4"
+                    >
+                      <div className="flex items-center gap-5 md:gap-8">
+                        <span className="text-2xl md:text-3xl group-hover:scale-110 transition-transform inline-block">
+                          {game.emoji}
+                        </span>
+                        <div>
+                          <h3 className="font-serif text-lg md:text-xl italic group-hover:text-accent transition-colors">
+                            {game.name}
+                          </h3>
+                          <p className="text-xs text-cream-dark mt-0.5 hidden sm:block">{game.desc}</p>
+                        </div>
+                      </div>
 
-                <div className="w-10 h-10 rounded-full border border-border-strong flex items-center justify-center group-hover:bg-cream group-hover:text-bg transition-all duration-300 shrink-0">
-                  <ArrowRight size={16} strokeWidth={1.5} />
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
+                      <div className="w-9 h-9 rounded-full border border-border-strong flex items-center justify-center group-hover:bg-cream group-hover:text-bg transition-all duration-300 shrink-0">
+                        <ArrowRight size={15} strokeWidth={1.5} />
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </motion.div>
   );
