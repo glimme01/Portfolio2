@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, RotateCcw } from "lucide-react";
+import { loadState, saveState } from "../utils/storage";
 
 type Cell = "X" | "O" | null;
 
@@ -23,8 +24,8 @@ function getWinner(board: Cell[]): { winner: Cell; line: number[] | null } {
 export default function TicTacToe() {
   const [board, setBoard] = useState<Cell[]>(Array(9).fill(null));
   const [turn, setTurn] = useState<"X" | "O">("X");
-  const [scoreX, setScoreX] = useState(0);
-  const [scoreO, setScoreO] = useState(0);
+  const [scoreX, setScoreX] = useState(() => Number(loadState("ttt_x") || "0"));
+  const [scoreO, setScoreO] = useState(() => Number(loadState("ttt_o") || "0"));
   const { winner, line: winLine } = useMemo(() => getWinner(board), [board]);
   const isDraw = !winner && board.every(Boolean);
 
@@ -35,8 +36,8 @@ export default function TicTacToe() {
     setBoard(next);
 
     const result = getWinner(next);
-    if (result.winner === "X") setScoreX((s) => s + 1);
-    else if (result.winner === "O") setScoreO((s) => s + 1);
+    if (result.winner === "X") setScoreX((s) => { const n = s + 1; saveState("ttt_x", String(n)); return n; });
+    else if (result.winner === "O") setScoreO((s) => { const n = s + 1; saveState("ttt_o", String(n)); return n; });
 
     setTurn(turn === "X" ? "O" : "X");
   };
@@ -50,6 +51,8 @@ export default function TicTacToe() {
     reset();
     setScoreX(0);
     setScoreO(0);
+    saveState("ttt_x", "0");
+    saveState("ttt_o", "0");
   };
 
   return (

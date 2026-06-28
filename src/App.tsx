@@ -21,6 +21,7 @@ import Breakout from "./games/Breakout";
 import NumberMerge from "./games/NumberMerge";
 import WordScramble from "./games/WordScramble";
 import BubbleShooter from "./games/BubbleShooter";
+import CookieBanner from "./components/CookieBanner";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -56,6 +57,7 @@ export default function App() {
       <Layout>
         <AnimatedRoutes />
       </Layout>
+      <CookieBanner />
     </Router>
   );
 }
