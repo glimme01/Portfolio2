@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Trophy, BarChart3, Zap, Building2, Crown } from "lucide-react";
+import { ArrowLeft, Trophy, BarChart3, Zap, Building2, Crown, Settings } from "lucide-react";
 // Direct localStorage helpers (work regardless of cookie consent)
 function lsGet(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -99,6 +99,7 @@ interface GameState {
   playerName: string;
   lastRenamed: number;
   leaderboardOptIn?: boolean;
+  lastCaptchaTime?: number;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -262,7 +263,7 @@ export default function CookieClicker() {
   const [startTime] = useState(() => Date.now());
   const [lastSaveTime, setLastSaveTime] = useState(() => Date.now());
 
-  const [activeTab, setActiveTab] = useState<"buildings" | "clicks" | "achievements" | "stats" | "leaderboard">("buildings");
+  const [activeTab, setActiveTab] = useState<"buildings" | "clicks" | "achievements" | "stats" | "leaderboard" | "admin">("buildings");
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [goldenCookies, setGoldenCookies] = useState<GoldenCookie[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
@@ -289,6 +290,7 @@ export default function CookieClicker() {
   const [leaderboardOptIn, setLeaderboardOptIn] = useState(true);
   const [showCaptcha, setShowCaptcha] = useState(false);
   const [captchaQuestion, setCaptchaQuestion] = useState<{ num1: number; num2: number; options: number[] }>({ num1: 0, num2: 0, options: [] });
+  const [lastCaptchaTime, setLastCaptchaTime] = useState(() => Date.now());
 
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
@@ -315,6 +317,7 @@ export default function CookieClicker() {
   const totalBuildings = buildings.reduce((sum, b) => sum + b.owned, 0);
   const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
   const potentialHeavenly = Math.floor(Math.pow(totalCookies / 1e12, 0.5));
+  const isAdmin = playerName.toLowerCase() === "moritz" || playerName.toLowerCase() === "admin" || playerName.toLowerCase() === "moritzadmin";
 
   // ── Notification helper ──
   const showNotification = useCallback((msg: string) => {
@@ -387,6 +390,7 @@ export default function CookieClicker() {
         }
         setLastRenamed(state.lastRenamed || 0);
         setLeaderboardOptIn(state.leaderboardOptIn !== undefined ? state.leaderboardOptIn : true);
+        setLastCaptchaTime(state.lastCaptchaTime || Date.now());
 
         // Merge saved buildings
         if (state.buildings) {
@@ -454,7 +458,7 @@ export default function CookieClicker() {
       cookies, totalCookies, totalClicks, buildings, clickUpgrades, achievements,
       prestigeLevel, heavenlyChips, lastSaveTime: Date.now(), startTime,
       goldenClicked, easterEggsFound, cookieSkin, pirateMode, duckMode, grandmapocalypse,
-      playerName, lastRenamed, leaderboardOptIn,
+      playerName, lastRenamed, leaderboardOptIn, lastCaptchaTime,
     };
     lsSet("cc_save_v2", JSON.stringify(state));
     setLastSaveTime(Date.now());
@@ -485,7 +489,7 @@ export default function CookieClicker() {
         return updated;
       });
     }
-  }, [loaded, cookies, totalCookies, totalClicks, buildings, clickUpgrades, achievements, prestigeLevel, heavenlyChips, goldenClicked, easterEggsFound, cookieSkin, pirateMode, duckMode, grandmapocalypse, startTime, playerName, lastRenamed, leaderboardOptIn]);
+  }, [loaded, cookies, totalCookies, totalClicks, buildings, clickUpgrades, achievements, prestigeLevel, heavenlyChips, goldenClicked, easterEggsFound, cookieSkin, pirateMode, duckMode, grandmapocalypse, startTime, playerName, lastRenamed, leaderboardOptIn, lastCaptchaTime]);
 
   // ── Auto-save every 5s ──
   useEffect(() => {
@@ -923,11 +927,10 @@ export default function CookieClicker() {
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (showCaptcha) return;
 
-    // Autoclicker detection: > 32 clicks in 2 seconds (16 clicks/sec)
+    // Captcha verification check: if clicked after 5 hours since last solved/session start
     const now = Date.now();
-    clickTimesRef.current.push(now);
-    clickTimesRef.current = clickTimesRef.current.filter((t) => now - t < 2000);
-    if (clickTimesRef.current.length >= 32) {
+    const FIVE_HOURS = 5 * 60 * 60 * 1000;
+    if (now - lastCaptchaTime > FIVE_HOURS) {
       generateCaptcha();
       return;
     }
@@ -967,7 +970,7 @@ export default function CookieClicker() {
       setRainbowMode(true);
       setTimeout(() => setRainbowMode(false), 2000);
     }
-  }, [cpc, duckMode, unlock, findEasterEgg, showCaptcha, generateCaptcha]);
+  }, [cpc, duckMode, unlock, findEasterEgg, showCaptcha, generateCaptcha, lastCaptchaTime]);
 
   // ── Golden cookie click handler ──
   const handleGoldenClick = useCallback((gc: GoldenCookie) => {
@@ -1096,9 +1099,10 @@ export default function CookieClicker() {
     const trimmed = name.trim() || "Anonym";
     setNameError("");
 
-    // 30-day rename cooldown (only if already named and not first-time or from Anonym)
+    // 30-day rename cooldown (only if already named and not first-time or from Anonym, bypassed for admin)
     const isFirstTime = !playerName || playerName === "Anonym";
-    if (!isFirstTime && trimmed !== playerName && lastRenamed > 0) {
+    const currentIsAdmin = playerName.toLowerCase() === "moritz" || playerName.toLowerCase() === "admin" || playerName.toLowerCase() === "moritzadmin";
+    if (!isFirstTime && trimmed !== playerName && lastRenamed > 0 && !currentIsAdmin) {
       const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
       const elapsed = Date.now() - lastRenamed;
       if (elapsed < THIRTY_DAYS) {
@@ -1414,6 +1418,7 @@ export default function CookieClicker() {
                     onClick={() => {
                       if (opt === captchaQuestion.num1 + captchaQuestion.num2) {
                         setShowCaptcha(false);
+                        setLastCaptchaTime(Date.now());
                         clickTimesRef.current = []; // Reset click tracking
                         showNotification("✅ Verifiziert! Weiterspielen!");
                       } else {
@@ -1817,14 +1822,15 @@ export default function CookieClicker() {
 
           {/* ═══ RIGHT: Shop / Tabs ═══ */}
           <div className="border border-[rgba(240,235,227,0.12)] flex flex-col rounded-sm overflow-hidden">
-            {/* Tab bar (5 tabs) */}
-            <div className="grid grid-cols-5 border-b border-[rgba(240,235,227,0.12)] shrink-0">
+            {/* Tab bar */}
+            <div className={`grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} border-b border-[rgba(240,235,227,0.12)] shrink-0`}>
               {([
                 { key: "buildings" as const, icon: Building2, label: p("Gebäude") },
                 { key: "clicks" as const, icon: Zap, label: p("Klick") },
                 { key: "achievements" as const, icon: Trophy, label: "🏆" },
                 { key: "stats" as const, icon: BarChart3, label: "📊" },
                 { key: "leaderboard" as const, icon: Crown, label: "👑" },
+                ...(isAdmin ? [{ key: "admin" as const, icon: Settings, label: "⚙️" }] : []),
               ]).map((tab) => (
                 <button
                   key={tab.key}
@@ -2043,6 +2049,79 @@ export default function CookieClicker() {
                       })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ─── Admin Tab ─── */}
+              {activeTab === "admin" && isAdmin && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586] mb-2">⚙️ Admin Menü</h3>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setCookies((c) => c + 1000000);
+                        setTotalCookies((t) => t + 1000000);
+                        showNotification("🪄 Admin: +1M Cookies!");
+                      }}
+                      className="w-full py-2 bg-[#141416] hover:bg-[#FFA586]/20 border border-[rgba(240,235,227,0.15)] rounded-sm text-xs font-bold transition-all text-left px-3 flex items-center justify-between cursor-pointer"
+                    >
+                      <span>🍪 Gebe +1M Cookies</span>
+                      <span className="text-[#FFA586] font-mono">+1.0M</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCookies((c) => c + 1000000000);
+                        setTotalCookies((t) => t + 1000000000);
+                        showNotification("🪄 Admin: +1B Cookies!");
+                      }}
+                      className="w-full py-2 bg-[#141416] hover:bg-[#FFA586]/20 border border-[rgba(240,235,227,0.15)] rounded-sm text-xs font-bold transition-all text-left px-3 flex items-center justify-between cursor-pointer"
+                    >
+                      <span>🍪 Gebe +1B Cookies</span>
+                      <span className="text-[#FFA586] font-mono">+1.0B</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const nextId = ++goldenIdRef.current;
+                        const x = 10 + Math.random() * 70;
+                        const y = 15 + Math.random() * 60;
+                        setGoldenCookies((prev) => [...prev, { id: nextId, x, y, type: "clickFrenzy" }]);
+                        setTimeout(() => setGoldenCookies((prev) => prev.filter((g) => g.id !== nextId)), 13000);
+                        showNotification("🪄 Admin: Goldenen Cookie gespawnt!");
+                      }}
+                      className="w-full py-2 bg-[#141416] hover:bg-[#FFA586]/20 border border-[rgba(240,235,227,0.15)] rounded-sm text-xs font-bold transition-all text-left px-3 flex items-center justify-between cursor-pointer"
+                    >
+                      <span>✨ Goldener Cookie rufen</span>
+                      <span className="text-amber-400 font-mono">Spawn</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const deals = generateTraderDeals();
+                        if (deals.length > 0) {
+                          setTraderDeals(deals);
+                          setTraderVisible(true);
+                          setTraderTimer(60);
+                          buyingDealsRef.current.clear();
+                          showNotification("🪄 Admin: Händler gerufen!");
+                        }
+                      }}
+                      className="w-full py-2 bg-[#141416] hover:bg-[#FFA586]/20 border border-[rgba(240,235,227,0.15)] rounded-sm text-xs font-bold transition-all text-left px-3 flex items-center justify-between cursor-pointer"
+                    >
+                      <span>🧳 Händler rufen</span>
+                      <span className="text-emerald-400 font-mono">Spawn</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm("Möchtest du wirklich die gesamte Rangliste leeren?")) {
+                          resetServerLeaderboard();
+                          showNotification("🪄 Admin: Rangliste geleert!");
+                        }
+                      }}
+                      className="w-full py-2 bg-red-950/20 hover:bg-red-950/50 border border-red-500/30 rounded-sm text-xs font-bold transition-all text-left px-3 flex items-center justify-between text-red-400 cursor-pointer"
+                    >
+                      <span>⚠️ Gesamte Rangliste leeren</span>
+                      <span className="font-mono">RESET</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
