@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Trophy, BarChart3, Zap, Building2, Crown, Settings } from "lucide-react";
+import { ArrowLeft, Trophy, BarChart3, Zap, Building2, Crown, Settings, MessageCircle, Briefcase, Dice5, Send } from "lucide-react";
+import { SHOP_ITEMS } from "./cookie/data/shopItems";
+import { COOKIE_TO_EURO_RATE } from "./cookie/context/types";
+import { filterBadWords } from "./cookie/utils/badWordFilter";
+import { pickWheelSegment, WHEEL_SEGMENTS, WHEEL_COOLDOWN_MS } from "./cookie/data/wheelSegments";
 // Direct localStorage helpers (work regardless of cookie consent)
 function lsGet(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -51,6 +55,23 @@ interface GoldenCookie {
   x: number;
   y: number;
   type: "frenzy" | "clickFrenzy" | "lucky" | "storm" | "diamond";
+}
+
+interface ChatMessage {
+  id: string;
+  author: string;
+  text: string;
+  type: "user" | "system";
+  timestamp: number;
+  isFlex?: boolean;
+}
+
+interface FeedbackEntry {
+  id: string;
+  author: string;
+  text: string;
+  rating: number;
+  timestamp: number;
 }
 
 interface ClickParticle {
@@ -137,6 +158,7 @@ const COOKIE_SKINS: CookieSkin[] = [
   { id: "donut", name: "Schoko-Donut", emoji: "🍩", reqLevel: 1 },
   { id: "muffin", name: "Cupcake", emoji: "🧁", reqLevel: 2 },
   { id: "pizza", name: "Pizza-Cookie", emoji: "🍕", reqLevel: 3 },
+  { id: "cannabis", name: "Cannabis-Cookie", emoji: "🌿", reqLevel: 4 },
   { id: "planet", name: "Kosmisch", emoji: "🪐", reqLevel: 5 },
   { id: "diamond", name: "Diamant", emoji: "💎", reqLevel: 8 },
   { id: "royal", name: "Königlich", emoji: "👑", reqLevel: 12 },
@@ -235,6 +257,16 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
   { id: "sixty_seven_cps", name: "67 pro Sekunde", emoji: "🔄", desc: "Genau 67 CPS erreicht", unlocked: false, hidden: true },
   { id: "sixty_seven_cpc", name: "67 pro Klick", emoji: "⚡", desc: "Genau 67 CPC erreicht", unlocked: false, hidden: true },
   { id: "sixty_seven_code", name: "Geheimnis der 67", emoji: "🕵️", desc: "Secret Code: 67", unlocked: false, hidden: true },
+  // V1.2 Achievements
+  { id: "weed_mode", name: "420 Blaze It", emoji: "🌿", desc: "Cannabis-Cookie freigeschaltet", unlocked: false, hidden: true },
+  { id: "mode_420", name: "Stoner Cookie", emoji: "💨", desc: "420 Modus aktiviert", unlocked: false, hidden: true },
+  { id: "mode_161", name: "ACAB Cookie", emoji: "🤘", desc: "161 Punk Modus aktiviert", unlocked: false, hidden: true },
+  { id: "casino_win", name: "Jackpot!", emoji: "🎰", desc: "Im Casino gewonnen", unlocked: false, hidden: true },
+  { id: "casino_lose", name: "Pleite!", emoji: "😭", desc: "Alles im Casino verloren", unlocked: false, hidden: true },
+  { id: "rage_500", name: "RAGE MODE!", emoji: "💥", desc: "x500 Multiplier erlebt", unlocked: false, hidden: true },
+  { id: "storm_hunter", name: "Storm-Jäger", emoji: "🌪️", desc: "10 Cookies im Storm gefangen", unlocked: false, hidden: true },
+  { id: "big_spender", name: "Big Spender", emoji: "💸", desc: "100€ im Shop ausgegeben", unlocked: false, hidden: true },
+  { id: "first_chat", name: "Redseliger Bäcker", emoji: "💬", desc: "Erste Chat-Nachricht gesendet", unlocked: false, hidden: true },
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -338,7 +370,7 @@ export default function CookieClicker() {
   const [startTime] = useState(() => Date.now());
   const [lastSaveTime, setLastSaveTime] = useState(() => Date.now());
 
-  const [activeTab, setActiveTab] = useState<"buildings" | "clicks" | "achievements" | "stats" | "leaderboard" | "admin">("buildings");
+  const [activeTab, setActiveTab] = useState<"buildings" | "clicks" | "achievements" | "stats" | "leaderboard" | "admin" | "chat" | "casino" | "pocket" | "feedback">("buildings");
   const [buyMode, setBuyMode] = useState<1 | 10 | 100 | "max">(1);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [goldenCookies, setGoldenCookies] = useState<GoldenCookie[]>([]);
@@ -400,6 +432,140 @@ export default function CookieClicker() {
 
   const [showPatchlog, setShowPatchlog] = useState(false);
 
+  // ── V1.2 State ──
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackList, setFeedbackList] = useState<FeedbackEntry[]>([]);
+  const [rageMode, setRageMode] = useState(false);
+  const [rageCooldown, setRageCooldown] = useState(0);
+  const [stormMultiplier, setStormMultiplier] = useState(1);
+  const [stormHits, setStormHits] = useState(0);
+  const [coinFlipBet, setCoinFlipBet] = useState("");
+  const [casinoCooldown, setCasinoCooldown] = useState(0);
+  const [slotResult, setSlotResult] = useState<string[] | null>(null);
+  const [slotSpinning, setSlotSpinning] = useState(false);
+  const [pocketCash, setPocketCash] = useState(0);
+  const [pocketInventory, setPocketInventory] = useState<Array<{id: string; shopItemId: string; name: string; emoji: string; acquiredAt: number; used: boolean}>>([]); 
+  const [exchangeInput, setExchangeInput] = useState("");
+  const [nextClickMult, setNextClickMult] = useState(1);
+  const [goldenMagnet, setGoldenMagnet] = useState(false);
+  const [permanentCpsBonus, setPermanentCpsBonus] = useState(0);
+  const [lastSpinTimestamp, setLastSpinTimestamp] = useState(0);
+  const [extraSpins, setExtraSpins] = useState(0);
+  const [activeThemeId, setActiveThemeId] = useState<string>(() => {
+    return lsGet("cc_active_theme_id") || "classic";
+  });
+  const [customThemes, setCustomThemes] = useState<{
+    [id: string]: {
+      name: string;
+      accentColor: string;
+      panelBg: string;
+      bgColor: string;
+      textColor: string;
+    }
+  }>(() => {
+    const raw = lsGet("cc_custom_themes");
+    if (raw) {
+      try { return JSON.parse(raw); } catch { /* fallback */ }
+    }
+    return {};
+  });
+
+  const PRESET_THEMES = useMemo(() => [
+    {
+      id: "classic",
+      name: "Klassisch (Default)",
+      accentColor: "#FFA586",
+      panelBg: "#1c1c1f",
+      bgColor: "#141416",
+      textColor: "#f0ebe3",
+    },
+    {
+      id: "cyberpunk",
+      name: "Neon Cyberpunk",
+      accentColor: "#00ffcc",
+      panelBg: "#0f0f1b",
+      bgColor: "#050508",
+      textColor: "#00ffcc",
+    },
+    {
+      id: "sakura",
+      name: "Sakura Dream",
+      accentColor: "#ffb7c5",
+      panelBg: "#2d1a22",
+      bgColor: "#1c0f14",
+      textColor: "#ffeef2",
+    },
+    {
+      id: "toxic",
+      name: "Toxic Waste",
+      accentColor: "#39ff14",
+      panelBg: "#161b16",
+      bgColor: "#090b09",
+      textColor: "#e5ffe5",
+    },
+    {
+      id: "deepocean",
+      name: "Deep Ocean",
+      accentColor: "#00a8ff",
+      panelBg: "#0c192c",
+      bgColor: "#050c16",
+      textColor: "#e1f5fe",
+    },
+    {
+      id: "sunset",
+      name: "Sunset Glow",
+      accentColor: "#ff5e62",
+      panelBg: "#2b141e",
+      bgColor: "#180b11",
+      textColor: "#ffebee",
+    },
+  ], []);
+
+  const currentTheme = useMemo(() => {
+    if (activeThemeId === "classic") return PRESET_THEMES[0];
+    const preset = PRESET_THEMES.find(t => t.id === activeThemeId);
+    if (preset) return preset;
+    const custom = customThemes[activeThemeId];
+    if (custom) return custom;
+    return PRESET_THEMES[0]; // fallback
+  }, [activeThemeId, customThemes, PRESET_THEMES]);
+
+  useEffect(() => {
+    const root = document.querySelector(".cookie-clicker-root") as HTMLElement | null;
+    const el = root ?? document.documentElement;
+    el.style.setProperty("--cc-accent", currentTheme.accentColor);
+    el.style.setProperty("--cc-panel-bg", currentTheme.panelBg);
+    el.style.setProperty("--cc-bg", currentTheme.bgColor);
+    el.style.setProperty("--cc-text", currentTheme.textColor);
+    el.style.setProperty("--cc-text-dim", `color-mix(in srgb, ${currentTheme.textColor} 70%, transparent)`);
+    el.style.setProperty("--cc-text-dark", `color-mix(in srgb, ${currentTheme.textColor} 40%, transparent)`);
+    lsSet("cc_active_theme_id", activeThemeId);
+  }, [currentTheme, activeThemeId]);
+
+  // Chat QoL refs/states
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [tempNameInput, setTempNameInput] = useState("");
+  const [notifyChat, setNotifyChat] = useState<boolean>(() => {
+    return lsGet("cc_notify_chat") !== "false";
+  });
+  const [notifyMentions, setNotifyMentions] = useState<boolean>(() => {
+    return lsGet("cc_notify_mentions") !== "false";
+  });
+  const [chatNotifications, setChatNotifications] = useState<Array<{
+    id: string;
+    author: string;
+    text: string;
+    isMention: boolean;
+  }>>([]);
+
+  const [wheelSpinning, setWheelSpinning] = useState(false);
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [wheelResult, setWheelResult] = useState<string | null>(null);
+
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
   const secretWordRef = useRef("");
@@ -418,15 +584,17 @@ export default function CookieClicker() {
   const prestigeMultiplier = 1 + heavenlyChips * 0.1;
   const nightBonus = isNightTime() ? 2 : 1;
   const frenzyMultiplier = activeEffects.frenzy > 0 ? 2 : 1;
+  const permanentBonus = 1 + permanentCpsBonus / 100;
   const baseCps = buildings.reduce((sum, b) => sum + b.cps * b.owned, 0);
-  const cps = baseCps * prestigeMultiplier * nightBonus * frenzyMultiplier;
+  const cps = baseCps * prestigeMultiplier * nightBonus * frenzyMultiplier * permanentBonus * stormMultiplier;
   const clickFrenzyMultiplier = activeEffects.clickFrenzy > 0 ? 10 : 1;
+  const rageMult = rageMode ? 500 : 1;
   const baseCpc = 1 + clickUpgrades.reduce((sum, u) => sum + u.cpcAdd * u.owned, 0);
-  const cpc = baseCpc * prestigeMultiplier * clickFrenzyMultiplier;
+  const cpc = baseCpc * prestigeMultiplier * clickFrenzyMultiplier * rageMult * nextClickMult;
   const totalBuildings = buildings.reduce((sum, b) => sum + b.owned, 0);
   const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
   const nextChipLevel = heavenlyChips + 1;
-  const nextChipThreshold = 1000000 * nextChipLevel;
+  const nextChipThreshold = Math.floor(1000000 * Math.pow(1.56, heavenlyChips));
   const canAscend = totalCookies >= nextChipThreshold && heavenlyChips < 100;
   const potentialHeavenly = canAscend ? nextChipLevel : heavenlyChips;
   const isAdmin = isAdminUnlocked;
@@ -437,6 +605,17 @@ export default function CookieClicker() {
     setNotification(msg);
     notifTimerRef.current = setTimeout(() => setNotification(null), 4000);
   }, []);
+
+  const deleteCustomTheme = useCallback((id: string) => {
+    setCustomThemes(prev => {
+      const updated = { ...prev };
+      delete updated[id];
+      lsSet("cc_custom_themes", JSON.stringify(updated));
+      return updated;
+    });
+    setActiveThemeId("classic");
+    showNotification("🗑️ Custom-Theme gelöscht!");
+  }, [showNotification]);
 
   const addCookies = useCallback((amount: number) => {
     setCookies((c) => c + amount);
@@ -636,9 +815,24 @@ export default function CookieClicker() {
       }
 
       // Check for Patchlog
-      if (!lsGet("cc_patchlog_v1_1")) {
+      if (!lsGet("cc_patchlog_v1_2")) {
         setShowPatchlog(true);
       }
+
+      // V1.2: Load pocket data
+      const pocketRaw = lsGet("cc_pocket_v12");
+      if (pocketRaw) {
+        try {
+          const pocket = JSON.parse(pocketRaw);
+          setPocketCash(pocket.cash || 0);
+          setPocketInventory(pocket.inventory || []);
+          setLastSpinTimestamp(pocket.lastSpinTimestamp || 0);
+          setPermanentCpsBonus(pocket.permanentCpsBonus || 0);
+        } catch { /* ignore */ }
+      }
+
+      // V1.2: Auto-unlock skins for players who already have the required prestige level
+      // (so new skins added in updates are auto-unlocked if player is already past that level)
     } catch (e) {
       console.warn("Failed to load save:", e);
       setShowNameModal(true);
@@ -659,6 +853,14 @@ export default function CookieClicker() {
     };
     lsSet("cc_save_v2", JSON.stringify(state));
     setLastSaveTime(Date.now());
+
+    // V1.2: Save pocket data separately
+    lsSet("cc_pocket_v12", JSON.stringify({
+      cash: pocketCash,
+      inventory: pocketInventory,
+      lastSpinTimestamp,
+      permanentCpsBonus,
+    }));
 
     // Update leaderboard (skip anonymous players)
     if (playerName && playerName !== "Anonym") {
@@ -938,6 +1140,186 @@ export default function CookieClicker() {
     }
   }, [activeEffects.clickFrenzy]);
 
+  // V1.2: Rage cooldown countdown
+  useEffect(() => {
+    if (rageCooldown <= 0) return;
+    const id = setInterval(() => {
+      setRageCooldown(prev => {
+        if (prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [rageCooldown > 0]);
+
+  // V1.2: Chat polling (every 3s)
+  useEffect(() => {
+    if (!loaded) return;
+    const API = '/.netlify/functions';
+    const fetchChat = async () => {
+      try {
+        const res = await fetch(`${API}/chat`);
+        if (res.ok) {
+          const msgs: ChatMessage[] = await res.json();
+          setChatMessages(msgs);
+          return;
+        }
+      } catch { /* ignore */ }
+
+      // Fallback: load local chat if empty or server offline
+      const localRaw = lsGet("cc_local_chat");
+      if (localRaw) {
+        try {
+          const parsed = JSON.parse(localRaw);
+          setChatMessages(parsed);
+        } catch { /* ignore */ }
+      } else {
+        // Pre-populate with a welcome message from Oma if first time
+        const initialMsgs: ChatMessage[] = [
+          {
+            id: "welcome_1",
+            author: "Keks-Oma 👵",
+            text: "Willkommen im Chat! Backe mir ein paar leckere Kekse. 🍪",
+            type: "system",
+            timestamp: Date.now() - 60000
+          }
+        ];
+        setChatMessages(initialMsgs);
+        lsSet("cc_local_chat", JSON.stringify(initialMsgs));
+      }
+    };
+    fetchChat();
+    const id = setInterval(fetchChat, 3000);
+    return () => clearInterval(id);
+  }, [loaded]);
+
+  // Chat auto-scroll
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  // Chat notification toast handler (bottom-left)
+  const lastProcessedChatMsgIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loaded || chatMessages.length === 0) return;
+
+    const latestMsg = chatMessages[chatMessages.length - 1];
+
+    if (latestMsg.id !== lastProcessedChatMsgIdRef.current) {
+      const isNewMsg = lastProcessedChatMsgIdRef.current !== null;
+      lastProcessedChatMsgIdRef.current = latestMsg.id;
+
+      if (isNewMsg && latestMsg.author !== playerName) {
+        const hasMention = playerName && latestMsg.text.toLowerCase().includes(`@${playerName.toLowerCase()}`);
+        
+        // Settings flags
+        const showAll = notifyChat;
+        const showMentions = notifyMentions;
+
+        const shouldNotify = hasMention ? showMentions : showAll;
+
+        if (shouldNotify) {
+          const newNotif = {
+            id: latestMsg.id,
+            author: latestMsg.author,
+            text: latestMsg.text,
+            isMention: !!hasMention
+          };
+          setChatNotifications(prev => [...prev, newNotif].slice(-3));
+
+          setTimeout(() => {
+            setChatNotifications(prev => prev.filter(n => n.id !== latestMsg.id));
+          }, 5000);
+        }
+      }
+    }
+  }, [chatMessages, playerName, loaded, notifyChat, notifyMentions]);
+
+  // V1.2: Chat Online Player Simulation (falls back to local only if server functions are offline/404)
+  useEffect(() => {
+    if (!loaded) return;
+
+    const simulateMsg = () => {
+      const users = ["Alessandro", "Kekser_99", "CookieGirl", "Luca", "Lara", "Bäcker_Pro", "OmasLiebling"];
+      const messages = [
+        "Wie viele Cookies habt ihr so? Ich hab grad die Fabrik freigeschaltet! 🏭",
+        "Hat jemand schon das goldene Ticket beim Glücksrad gewonnen? 🎫",
+        "Wer von euch backt auch nachts? 🌙",
+        "Mein Klick-Finger tut weh... 😂",
+        "Das Keks-Schild ist Lebensretter im Casino! 🛡️",
+        "Gleich Prestige-Level up! 🚀",
+        "Was bringt die Zeitmaschine?",
+        "Spielt jemand mit Cannabis-Cookie Skin? Der sieht echt cool aus 🌿",
+        playerName ? `Hey @${playerName}, hast du schon den neuen Rekord geknackt?` : "Wer ist hier der beste Bäcker?",
+        "Goldener Cookie gespawned! Schnell klicken! ✨",
+      ];
+
+      const randomUser = users[Math.floor(Math.random() * users.length)];
+      const randomText = messages[Math.floor(Math.random() * messages.length)];
+
+      const newMsg: ChatMessage = {
+        id: `sim_${Date.now()}`,
+        author: randomUser,
+        text: randomText,
+        type: "user",
+        timestamp: Date.now(),
+      };
+
+      const API = '/.netlify/functions';
+      fetch(`${API}/chat`)
+        .then(res => {
+          if (!res.ok) {
+            setChatMessages(prev => {
+              const updated = [...prev, newMsg].slice(-50);
+              lsSet("cc_local_chat", JSON.stringify(updated));
+              return updated;
+            });
+          }
+        })
+        .catch(() => {
+          setChatMessages(prev => {
+            const updated = [...prev, newMsg].slice(-50);
+            lsSet("cc_local_chat", JSON.stringify(updated));
+            return updated;
+          });
+        });
+    };
+
+    const firstTimer = setTimeout(simulateMsg, 15000);
+    const interval = setInterval(simulateMsg, 40000);
+
+    return () => {
+      clearTimeout(firstTimer);
+      clearInterval(interval);
+    };
+  }, [loaded, playerName]);
+
+  // V1.2: Golden Magnet — golden cookies spawn 2x faster
+  useEffect(() => {
+    if (!goldenMagnet) return;
+    let timerId: ReturnType<typeof setTimeout>;
+    const spawn = () => {
+      const id = ++goldenIdRef.current;
+      const types: GoldenCookie["type"][] = ["frenzy", "clickFrenzy", "lucky"];
+      const type = types[Math.floor(Math.random() * types.length)];
+      const x = 10 + Math.random() * 70;
+      const y = 15 + Math.random() * 60;
+      setGoldenCookies((prev) => [...prev, { id, x, y, type }]);
+      setTimeout(() => setGoldenCookies((prev) => prev.filter((g) => g.id !== id)), 13000);
+    };
+    const scheduleExtra = () => {
+      const delay = 30000 + Math.random() * 60000;
+      timerId = setTimeout(() => {
+        spawn();
+        scheduleExtra();
+      }, delay);
+    };
+    scheduleExtra();
+    return () => clearTimeout(timerId);
+  }, [goldenMagnet]);
+
   // ── Achievement checker ──
   useEffect(() => {
     if (!loaded) return;
@@ -1107,6 +1489,41 @@ export default function CookieClicker() {
           findEasterEgg("sixty_seven_code", "Secret 67 Code!");
           secretWordRef.current = "";
         }
+        // V1.2: "weed" code → Cannabis Cookie Skin
+        if (word.endsWith("weed")) {
+          unlock("weed_mode");
+          findEasterEgg("weed_mode", "420 Blaze It! 🌿 Cannabis-Cookie freigeschaltet!");
+          setCookieSkin("🌿");
+          showNotification("🌿 Cannabis-Cookie Skin freigeschaltet!");
+          secretWordRef.current = "";
+        }
+        // V1.2: "420" code → 420 Mode
+        if (word.endsWith("420")) {
+          unlock("mode_420");
+          findEasterEgg("mode_420", "Stoner Cookie Mode! 💨");
+          setCookieSkin("🌿");
+          showNotification("💨 420 MODE! Alles wird grün für 4:20 Minuten!");
+          // Green tint effect for 4:20 minutes
+          document.body.style.filter = "hue-rotate(90deg)";
+          setTimeout(() => {
+            document.body.style.filter = "";
+            showNotification("💨 420 Mode vorbei...");
+          }, 260000); // 4:20 = 260 seconds
+          secretWordRef.current = "";
+        }
+        // V1.2: "161" code → Punk Mode (extended)
+        if (word.endsWith("161")) {
+          unlock("mode_161");
+          findEasterEgg("mode_161", "ACAB Cookie! 🤘 Punk Mode!");
+          showNotification("🤘 161 PUNK MODE! ACAB Cookie aktiviert!");
+          setCookieSkin("✊");
+          document.body.style.filter = "contrast(1.5) saturate(1.5)";
+          setTimeout(() => {
+            document.body.style.filter = "";
+            if (!getSeasonalEmoji()) setCookieSkin("🍪");
+          }, 60000);
+          secretWordRef.current = "";
+        }
       }
     };
 
@@ -1148,7 +1565,27 @@ export default function CookieClicker() {
 
     playClickSound(soundEnabled);
 
-    addCookies(cpc);
+    // V1.2: Rage Mode — 0.1% chance for x500, 3s duration, 60s cooldown
+    if (!rageMode && rageCooldown <= 0 && Math.random() < 0.001) {
+      setRageMode(true);
+      unlock("rage_500");
+      findEasterEgg("rage_500", "RAGE MODE! x500 für 3 Sekunden! 💥");
+      showNotification("💥🔥 RAGE MODE! x500 MULTIPLIER FÜR 3 SEKUNDEN! 🔥💥");
+      setTimeout(() => {
+        setRageMode(false);
+        setRageCooldown(60);
+        showNotification("💨 Rage Mode vorbei... 60s Cooldown");
+      }, 3000);
+    }
+
+    // V1.2: Consume next-click multiplier
+    if (nextClickMult > 1) {
+      addCookies(cpc);
+      setNextClickMult(1);
+      showNotification(`💣 BOOM! x${nextClickMult} Klick!`);
+    } else {
+      addCookies(cpc);
+    }
     const newTotalClicks = totalClicks + 1;
     setTotalClicks(newTotalClicks);
 
@@ -1215,8 +1652,14 @@ export default function CookieClicker() {
       }
       case "storm":
         setCookieStorm(true);
-        showNotification("🌧️ COOKIE STORM! Fang die Cookies!");
-        setTimeout(() => setCookieStorm(false), 5000);
+        setStormMultiplier(1);
+        setStormHits(0);
+        showNotification("🌧️ COOKIE STORM! Fang die Cookies für x100!");
+        setTimeout(() => {
+          setCookieStorm(false);
+          setStormMultiplier(1);
+          setStormHits(0);
+        }, 5000);
         break;
       case "diamond": {
         const bonus2 = Math.max(cps * 180, cookies * 0.15);
@@ -1344,8 +1787,424 @@ export default function CookieClicker() {
       setGrandmapocalypse(false);
       numberEggsTriggeredRef.current.clear();
       lsRemove("cc_save_v2");
+      lsRemove("cc_pocket_v12");
+      setPocketCash(0);
+      setPocketInventory([]);
+      setPermanentCpsBonus(0);
     }
   }, []);
+
+  // ── V1.2: Chat send ──
+  const sendChatMessage = useCallback(async (text: string, isFlex = false) => {
+    if (!text.trim() || !playerName) return;
+    const filtered = filterBadWords(text.trim().slice(0, 100));
+
+    const newMsg: ChatMessage = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      author: playerName,
+      text: filtered,
+      type: "user",
+      timestamp: Date.now(),
+      isFlex,
+    };
+
+    try {
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ author: playerName, text: filtered, type: "user", isFlex }),
+      });
+      if (res.ok) {
+        const msgs: ChatMessage[] = await res.json();
+        setChatMessages(msgs);
+        setChatInput("");
+        unlock("first_chat");
+        findEasterEgg("first_chat", "Erste Nachricht gesendet! 💬");
+        return;
+      }
+    } catch (err) {
+      console.warn("Netlify function failed, falling back to local chat:", err);
+    }
+
+    // Fallback: local-only chat simulation
+    setChatMessages(prev => {
+      const updated = [...prev, newMsg].slice(-50);
+      lsSet("cc_local_chat", JSON.stringify(updated));
+      return updated;
+    });
+    setChatInput("");
+    unlock("first_chat");
+    findEasterEgg("first_chat", "Erste Nachricht gesendet! 💬");
+  }, [playerName, unlock, findEasterEgg]);
+
+  // ── V1.2: Glücksrad Spin Handler ──
+  const spinWheel = useCallback(() => {
+    if (wheelSpinning) return;
+    const now = Date.now();
+    const timeSinceLast = now - lastSpinTimestamp;
+    const canSpin = timeSinceLast >= WHEEL_COOLDOWN_MS || extraSpins > 0;
+
+    if (!canSpin) {
+      const remainingMs = WHEEL_COOLDOWN_MS - timeSinceLast;
+      const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+      const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      showNotification(`⏳ Glücksrad Cooldown: Noch ${hours}h ${minutes}m`);
+      return;
+    }
+
+    // Pick segment
+    const { segment, index } = pickWheelSegment();
+
+    // Consume spin
+    if (timeSinceLast < WHEEL_COOLDOWN_MS && extraSpins > 0) {
+      setExtraSpins((s) => s - 1);
+    } else {
+      setLastSpinTimestamp(now);
+    }
+
+    // Spin animation: segment angle in degrees
+    const len = WHEEL_SEGMENTS.length;
+    const segmentAngle = 360 / len;
+    const angle = 360 - (index * segmentAngle) - (segmentAngle / 2);
+    const newRotation = wheelRotation + 1800 + angle; // Spin 5 full rounds + segment angle offset
+
+    setWheelRotation(newRotation);
+    setWheelSpinning(true);
+    setWheelResult(null);
+
+    setTimeout(() => {
+      setWheelSpinning(false);
+      setWheelResult(segment.label);
+
+      // Apply reward
+      const rew = segment.reward;
+      switch (rew.type) {
+        case "cookies_mult": {
+          const bonus = cookies * (rew.value - 1);
+          if (bonus > 0) {
+            setCookies((c) => c + bonus);
+            setTotalCookies((t) => t + bonus);
+          }
+          showNotification(`🎡 +${rew.value}x Cookies!`);
+          break;
+        }
+        case "cash": {
+          setPocketCash((c) => c + rew.value);
+          showNotification(`🎡 +${rew.value.toFixed(2)}€ gewonnen!`);
+          break;
+        }
+        case "skin": {
+          let skinEmoji = "🍪";
+          if (rew.skinId === "gold") skinEmoji = "🌟";
+          if (rew.skinId === "cannabis") {
+            skinEmoji = "🌿";
+            unlock("weed_mode");
+          }
+          setCookieSkin(skinEmoji);
+          showNotification(`🎡 Neuer Keks-Skin: ${segment.label}!`);
+          break;
+        }
+        case "loss": {
+          const hasShield = pocketInventory.some((i) => !i.used && i.shopItemId === "cookie_shield");
+          if (hasShield) {
+            setPocketInventory((prev) => {
+              const idx = prev.findIndex((i) => !i.used && i.shopItemId === "cookie_shield");
+              if (idx >= 0) {
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], used: true };
+                return copy;
+              }
+              return prev;
+            });
+            showNotification("🛡️ Keks-Schild hat dich vor Keksverlust bewahrt!");
+          } else {
+            const lost = cookies * rew.percent;
+            setCookies((c) => Math.max(0, c - lost));
+            showNotification(`💀 Oh nein! -${Math.floor(rew.percent * 100)}% Cookies verloren!`);
+          }
+          break;
+        }
+        case "rage": {
+          setRageMode(true);
+          unlock("rage_500");
+          findEasterEgg("rage_500", "RAGE MODE! x500 für 3 Sekunden! 💥");
+          showNotification("💥🔥 RAGE MODE! x500 MULTIPLIER FÜR 3 SEKUNDEN! 🔥💥");
+          setTimeout(() => {
+            setRageMode(false);
+            setRageCooldown(60);
+            showNotification("💨 Rage Mode vorbei... 60s Cooldown");
+          }, rew.durationMs);
+          break;
+        }
+        case "cps_mult": {
+          setStormMultiplier(rew.value);
+          showNotification(`⚡ x${rew.value} CPS für ${rew.durationMs / 1000}s!`);
+          setTimeout(() => setStormMultiplier(1), rew.durationMs);
+          break;
+        }
+        case "extra_spin": {
+          setExtraSpins((s) => s + 1);
+          showNotification("🔄 Nochmal drehen! Extra Spin!");
+          break;
+        }
+      }
+      doSave();
+    }, 4000);
+  }, [
+    wheelSpinning,
+    lastSpinTimestamp,
+    extraSpins,
+    wheelRotation,
+    cookies,
+    pocketInventory,
+    showNotification,
+    unlock,
+    findEasterEgg,
+    doSave,
+  ]);
+
+  // ── V1.2: Casino — Coin Flip ──
+  const playCoinFlip = useCallback(() => {
+    if (casinoCooldown > 0) {
+      showNotification(`⏳ Casino Cooldown: ${casinoCooldown}s`);
+      return;
+    }
+    const betAmount = parseInt(coinFlipBet, 10);
+    if (!betAmount || betAmount <= 0 || betAmount > cookies) {
+      showNotification("❌ Ungültiger Einsatz!");
+      return;
+    }
+    const won = Math.random() < 0.5;
+    if (won) {
+      addCookies(betAmount);
+      unlock("casino_win");
+      showNotification(`🎰 GEWONNEN! +${formatNumber(betAmount)} Cookies! 🎉`);
+    } else {
+      // Check gamble shield
+      const hasShield = pocketInventory.some(i => !i.used && i.shopItemId === "cookie_shield");
+      if (hasShield) {
+        // Use shield
+        setPocketInventory(prev => {
+          const idx = prev.findIndex(i => !i.used && i.shopItemId === "cookie_shield");
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], used: true };
+            return copy;
+          }
+          return prev;
+        });
+        showNotification("🛡️ Keks-Schild hat dich gerettet!");
+      } else {
+        setCookies(c => Math.max(0, c - betAmount));
+        if (cookies - betAmount <= 0) {
+          unlock("casino_lose");
+        }
+        showNotification(`💀 VERLOREN! -${formatNumber(betAmount)} Cookies...`);
+      }
+    }
+    setCoinFlipBet("");
+    setCasinoCooldown(5);
+    const timer = setInterval(() => {
+      setCasinoCooldown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [cookies, coinFlipBet, casinoCooldown, pocketInventory, addCookies, showNotification, unlock]);
+
+  // ── V1.2: Casino — Slot Machine ──
+  const SLOT_SYMBOLS = ["🍪", "🍩", "🧁", "💎", "🌟", "💀", "🔥"];
+  const playSlots = useCallback(() => {
+    if (casinoCooldown > 0) {
+      showNotification(`⏳ Casino Cooldown: ${casinoCooldown}s`);
+      return;
+    }
+    const betAmount = parseInt(coinFlipBet, 10);
+    if (!betAmount || betAmount <= 0 || betAmount > cookies) {
+      showNotification("❌ Ungültiger Einsatz!");
+      return;
+    }
+    setCookies(c => c - betAmount);
+    setSlotSpinning(true);
+    setTimeout(() => {
+      const r1 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+      const r2 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+      const r3 = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+      setSlotResult([r1, r2, r3]);
+      setSlotSpinning(false);
+
+      if (r1 === r2 && r2 === r3) {
+        // Jackpot! x10
+        const winnings = betAmount * 10;
+        addCookies(winnings);
+        unlock("casino_win");
+        showNotification(`🎰🎰🎰 JACKPOT! x10! +${formatNumber(winnings)} Cookies!`);
+      } else if (r1 === r2 || r2 === r3 || r1 === r3) {
+        // Two match — x3
+        const winnings = betAmount * 3;
+        addCookies(winnings);
+        showNotification(`🎰 Doppel! x3! +${formatNumber(winnings)} Cookies!`);
+      } else {
+        // Lost
+        showNotification(`💀 Keine Übereinstimmung. -${formatNumber(betAmount)} Cookies`);
+        if (cookies - betAmount <= 0) unlock("casino_lose");
+      }
+    }, 1500);
+
+    setCoinFlipBet("");
+    setCasinoCooldown(5);
+    const timer = setInterval(() => {
+      setCasinoCooldown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [cookies, coinFlipBet, casinoCooldown, addCookies, showNotification, unlock]);
+
+  // ── V1.2: Pocket — Exchange cookies for cash ──
+  const exchangeCookiesForCash = useCallback(() => {
+    const amount = parseInt(exchangeInput, 10);
+    if (!amount || amount <= 0) {
+      showNotification("❌ Ungültige Menge!");
+      return;
+    }
+    if (amount > cookies) {
+      showNotification("❌ Nicht genug Cookies!");
+      return;
+    }
+    const euros = amount / COOKIE_TO_EURO_RATE;
+    setCookies(c => c - amount);
+    setPocketCash(c => c + euros);
+    showNotification(`💱 ${euros.toFixed(2)}€ erhalten für ${formatNumber(amount)} Cookies!`);
+    setExchangeInput("");
+    doSave();
+  }, [cookies, exchangeInput, showNotification, doSave]);
+
+  // ── V1.2: Pocket — Buy shop item ──
+  const buyPocketItem = useCallback((shopItemId: string) => {
+    const item = SHOP_ITEMS.find(s => s.id === shopItemId);
+    if (!item) return;
+    if (pocketCash < item.price) {
+      showNotification(`❌ Nicht genug Cash! (${item.price.toFixed(2)}€ benötigt)`);
+      return;
+    }
+    setPocketCash(c => c - item.price);
+    setPocketInventory(prev => [...prev, {
+      id: `${shopItemId}_${Date.now()}`,
+      shopItemId: item.id,
+      name: item.name,
+      emoji: item.emoji,
+      acquiredAt: Date.now(),
+      used: false,
+    }]);
+    showNotification(`🛒 ${item.name} gekauft!`);
+    // Big spender achievement
+    const totalSpent = SHOP_ITEMS.filter(s => pocketInventory.some(i => i.shopItemId === s.id)).reduce((sum, s) => sum + s.price, 0) + item.price;
+    if (totalSpent >= 100) unlock("big_spender");
+    doSave();
+  }, [pocketCash, pocketInventory, showNotification, unlock, doSave]);
+
+  // ── V1.2: Pocket — Activate item ──
+  const activatePocketItem = useCallback((itemId: string) => {
+    const entry = pocketInventory.find(i => i.id === itemId && !i.used);
+    if (!entry) return;
+    const shopDef = SHOP_ITEMS.find(s => s.id === entry.shopItemId);
+    if (!shopDef) return;
+
+    const eff = shopDef.effect;
+    if (eff.type === "cps_mult") {
+      showNotification(`⚡ ${shopDef.name} aktiv! x${eff.value} CPS für ${eff.durationMs / 1000}s`);
+      // Will be handled via stormMultiplier
+      setStormMultiplier(eff.value);
+      setTimeout(() => setStormMultiplier(1), eff.durationMs);
+    } else if (eff.type === "gamble_shield") {
+      showNotification("🛡️ Keks-Schild bereit!");
+      // Shield is checked in casino
+    } else if (eff.type === "instant_production") {
+      const earned = cps * eff.hours * 3600;
+      addCookies(earned);
+      showNotification(`⏰ +${eff.hours}h Produktion = +${formatNumber(earned)} Cookies!`);
+    } else if (eff.type === "permanent_cps_bonus") {
+      setPermanentCpsBonus(prev => prev + eff.percent);
+      showNotification(`💎 Permanenter +${eff.percent}% CPS Bonus!`);
+    } else if (eff.type === "extra_spin") {
+      setExtraSpins(prev => prev + 1);
+      setLastSpinTimestamp(0);
+      showNotification("🎫 Extra Spin freigeschaltet!");
+    } else if (eff.type === "golden_magnet") {
+      setGoldenMagnet(true);
+      showNotification(`🧲 Goldene Cookies 2x häufiger für ${eff.durationMs / 60000} Min!`);
+      setTimeout(() => setGoldenMagnet(false), eff.durationMs);
+    } else if (eff.type === "next_click_mult") {
+      setNextClickMult(eff.value);
+      showNotification(`💣 Nächster Klick x${eff.value}!`);
+    } else if (eff.type === "cookie_storm") {
+      setCookieStorm(true);
+      setStormHits(0);
+      showNotification("🌪️ Cookie Storm aktiviert!");
+      setTimeout(() => {
+        setCookieStorm(false);
+        setStormMultiplier(1);
+      }, eff.durationMs);
+    }
+
+    setPocketInventory(prev => prev.map(i => i.id === itemId ? { ...i, used: true } : i));
+    doSave();
+  }, [pocketInventory, cps, cpc, addCookies, showNotification, doSave]);
+
+  // ── V1.2: Feedback submit ──
+  const submitFeedback = useCallback(async () => {
+    if (!feedbackText.trim()) {
+      showNotification("❌ Bitte Text eingeben!");
+      return;
+    }
+    try {
+      const res = await fetch("/.netlify/functions/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          author: playerName || "Anonym",
+          text: feedbackText.trim().slice(0, 500),
+          rating: feedbackRating,
+        }),
+      });
+      if (res.ok) {
+        showNotification("✅ Feedback gesendet! Danke! 🙏");
+        setFeedbackText("");
+        setFeedbackRating(5);
+        setShowFeedbackModal(false);
+      }
+    } catch { showNotification("❌ Feedback-Fehler"); }
+  }, [feedbackText, feedbackRating, playerName, showNotification]);
+
+  // ── V1.2: Load feedback (admin) ──
+  const loadFeedback = useCallback(async () => {
+    try {
+      const res = await fetch("/.netlify/functions/feedback");
+      if (res.ok) {
+        const data: FeedbackEntry[] = await res.json();
+        setFeedbackList(data);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // ── V1.2: 420 Easter Egg (exact cookie count) ──
+  useEffect(() => {
+    if (cookies === 420) {
+      unlock("mode_420");
+      findEasterEgg("mode_420", "Genau 420 Cookies! 💨");
+      showNotification("💨 420! Genau 420 Cookies gehabt!");
+    }
+  }, [cookies, unlock, findEasterEgg, showNotification]);
+
+  // ── V1.2: 161 Easter Egg (exact cookie count) ──
+  useEffect(() => {
+    if (cookies === 161) {
+      unlock("mode_161");
+      findEasterEgg("mode_161", "161! ACAB Cookie! 🤘");
+      showNotification("🤘 161! Punk Mode kurz aktiviert!");
+    }
+  }, [cookies, unlock, findEasterEgg, showNotification]);
 
   // ── Pirate text helper ──
   const p = useCallback((text: string) => {
@@ -1669,7 +2528,7 @@ export default function CookieClicker() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-[100dvh] relative select-none bg-[#141416] text-[#f0ebe3]"
+      className="min-h-[100dvh] relative select-none bg-[#141416] text-[#f0ebe3] cookie-clicker-root"
       style={{ WebkitTapHighlightColor: "transparent" }}
     >
       {/* Grandmapocalypse background */}
@@ -1701,7 +2560,21 @@ export default function CookieClicker() {
                 initial={{ x: `${Math.random() * 100}vw`, y: -50 }}
                 animate={{ y: "110vh", rotate: 360 * (Math.random() > 0.5 ? 1 : -1) }}
                 transition={{ duration: 2 + Math.random() * 3, delay: Math.random() * 3, ease: "linear" }}
-                onClick={() => addCookies(cps * 5 + cpc * 10)}
+                onClick={() => {
+                 // V1.2: Storm cookies give x100 multiplier per hit
+                 const stormBonus = cps * 5 + cpc * 10;
+                 addCookies(stormBonus * 100);
+                 setStormHits(prev => {
+                   const newHits = prev + 1;
+                   if (newHits >= 10) {
+                     unlock("storm_hunter");
+                     findEasterEgg("storm_hunter", "Storm-Jäger! 10 Cookies im Storm! 🌪️");
+                   }
+                   return newHits;
+                 });
+                 setStormMultiplier(100);
+                 setTimeout(() => setStormMultiplier(1), 5000);
+               }}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
                 🍪
@@ -1942,43 +2815,52 @@ export default function CookieClicker() {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-[#1e1c1a] border-2 border-[#d4af37] p-6 rounded-xl max-w-md w-full shadow-[0_0_50px_rgba(212,175,55,0.2)] text-left"
+              className="bg-[#1e1c1a] border-2 border-[#FFA586] p-6 rounded-xl max-w-md w-full shadow-[0_0_50px_rgba(255,165,134,0.2)] text-left"
             >
-              <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#FFA500] mb-2 text-center uppercase tracking-widest drop-shadow-lg">
-                UPDATE v1.1
+              <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#FFA586] to-[#FF8C5F] mb-2 text-center uppercase tracking-widest drop-shadow-lg">
+                UPDATE v1.2
               </h2>
               <p className="text-[#a09a90] text-sm mb-4 text-center">Was ist neu im Cookie Clicker?</p>
               
-              <div className="space-y-4 text-sm text-[#f0ebe3] bg-black/30 p-4 rounded-lg border border-white/5 max-h-[50vh] overflow-y-auto custom-scrollbar">
+              <div className="space-y-4 text-xs text-[#f0ebe3] bg-black/30 p-4 rounded-lg border border-white/5 max-h-[50vh] overflow-y-auto custom-scrollbar">
                 <div>
-                  <h3 className="font-bold text-[#d4af37] text-base mb-1">⚖️ Balancing</h3>
-                  <ul className="list-disc pl-5 space-y-1 text-[#d4af37]/80">
-                    <li>Powerups (Frenzy & Click Frenzy) wurden rebalanced, damit sie nicht zu OP sind.</li>
-                    <li>Das Ascend-System wurde gefixt: Keine unendlichen Level-Stacks mehr, man bekommt nun faire +1 Level pro Ascend.</li>
-                  </ul>
+                  <h3 className="font-bold text-[#FFA586] text-sm mb-1">💬 Globaler Chat</h3>
+                  <p className="text-[#a09a90]">
+                    Chatte live mit anderen Bäckern und teile deine Erfolge mit dem neuen Flex-Button!
+                  </p>
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#d4af37] text-base mb-1">🥚 67 Easter Eggs & Skins</h3>
-                  <ul className="list-disc pl-5 space-y-1 text-[#d4af37]/80">
-                    <li>Level 100 Skin hinzugefügt: <strong>Der 67 Cookie (6️⃣7️⃣)</strong>.</li>
-                    <li>5 neue versteckte Easter Eggs rund um die magische Zahl 67 hinzugefügt. Schaffst du es, sie alle zu finden?</li>
-                  </ul>
+                  <h3 className="font-bold text-[#FFA586] text-sm mb-1">🎰 Casino & Glücksrad</h3>
+                  <p className="text-[#a09a90]">
+                    Drehe das tägliche Glücksrad für kostenlose Belohnungen (wie die x500 Chance) oder zocke Coin Flip und Slots!
+                  </p>
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#d4af37] text-base mb-1">🐛 Bugfixes</h3>
-                  <ul className="list-disc pl-5 space-y-1 text-[#d4af37]/80">
-                    <li>Der Animations-Bug der goldenen Cookies (bleibende Sterne auf dem Bildschirm) wurde behoben.</li>
-                    <li>Cloud-Speichern wurde stabilisiert.</li>
-                  </ul>
+                  <h3 className="font-bold text-[#FFA586] text-sm mb-1">👖 Hosentasche (Pocket)</h3>
+                  <p className="text-[#a09a90]">
+                    Wechsle deine Kekse in Geld (€) um und kaufe starke Power-Ups wie den Keks-Magnet oder Turbo-Booster!
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#FFA586] text-sm mb-1">🌿 Cannabis & Easter Eggs</h3>
+                  <p className="text-[#a09a90]">
+                    Entdecke den 420er & 161er Punk Modus, tippe "weed" für den Cannabis-Skin oder suche nach weiteren Secrets!
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#FFA586] text-sm mb-1">💥 Rage Mode & Cookie Storm</h3>
+                  <p className="text-[#a09a90]">
+                    Erlebe den ultra-seltenen x500 Rage Mode bei Klicks oder fange fallende Kekse im Cookie Storm für x100 CPS!
+                  </p>
                 </div>
               </div>
 
               <button
                 onClick={() => {
-                  lsSet("cc_patchlog_v1_1", "true");
+                  lsSet("cc_patchlog_v1_2", "true");
                   setShowPatchlog(false);
                 }}
-                className="w-full mt-6 py-3 font-bold text-black uppercase tracking-wider bg-gradient-to-r from-[#d4af37] to-[#e5c158] hover:from-[#e5c158] hover:to-[#f6d369] rounded shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all active:scale-95"
+                className="w-full mt-6 py-3 font-bold text-black uppercase tracking-wider bg-gradient-to-r from-[#FFA586] to-[#FF8C5F] hover:from-[#FF8C5F] hover:to-[#FFA586] rounded shadow-[0_0_15px_rgba(255,165,134,0.4)] transition-all active:scale-95 cursor-pointer text-center"
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
                 Gelesen & Loslegen!
@@ -2003,7 +2885,7 @@ export default function CookieClicker() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.8, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-[#1c1c1f] border border-[rgba(240,235,227,0.15)] p-6 max-w-sm w-full mx-4 rounded-lg space-y-5"
+              className="bg-[#1c1c1f] border border-[rgba(240,235,227,0.15)] p-6 max-w-md w-full mx-4 rounded-lg space-y-5 max-h-[85vh] overflow-y-auto scrollbar-thin"
             >
               <div className="flex items-center justify-between border-b border-[rgba(240,235,227,0.1)] pb-3">
                 <h2 className="font-serif text-xl font-bold text-[#FFA586]">⚙️ Einstellungen</h2>
@@ -2088,7 +2970,248 @@ export default function CookieClicker() {
                 </button>
               </div>
 
-              
+              {/* Chat Notifications Settings */}
+              <div className="space-y-3 pt-3 border-t border-[rgba(240,235,227,0.06)]">
+                <label className="text-[10px] text-[#a09a90] uppercase tracking-wider block font-bold">🔔 Benachrichtigungen</label>
+                
+                {/* Chat notifications toggle */}
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <span className="text-xs font-semibold block text-[#f0ebe3]">Chat-Nachrichten 💬</span>
+                    <span className="text-[8px] text-[#a09a90]">Benachrichtigung bei neuen Chat-Nachrichten</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const next = !notifyChat;
+                      setNotifyChat(next);
+                      lsSet("cc_notify_chat", next.toString());
+                    }}
+                    className={`text-[10px] font-bold px-3 py-1 border rounded-full transition-all cursor-pointer ${
+                      notifyChat
+                        ? "border-green-500/30 text-green-400 bg-green-500/10"
+                        : "border-red-500/30 text-red-400 bg-red-500/10"
+                    }`}
+                  >
+                    {notifyChat ? "AN" : "AUS"}
+                  </button>
+                </div>
+                
+                {/* Mention notifications toggle */}
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <span className="text-xs font-semibold block text-[#f0ebe3]">Erwähnungen (@Name) 📢</span>
+                    <span className="text-[8px] text-[#a09a90]">Benachrichtigung wenn du markiert wirst</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const next = !notifyMentions;
+                      setNotifyMentions(next);
+                      lsSet("cc_notify_mentions", next.toString());
+                    }}
+                    className={`text-[10px] font-bold px-3 py-1 border rounded-full transition-all cursor-pointer ${
+                      notifyMentions
+                        ? "border-green-500/30 text-green-400 bg-green-500/10"
+                        : "border-red-500/30 text-red-400 bg-red-500/10"
+                    }`}
+                  >
+                    {notifyMentions ? "AN" : "AUS"}
+                  </button>
+                </div>
+              </div>
+
+              {/* ─── Themes & Styles ─── */}
+              <div className="space-y-3 pt-3 border-t border-[rgba(240,235,227,0.06)]">
+                <label className="text-[10px] text-[#a09a90] uppercase tracking-wider block font-bold">🎨 Themes & Design</label>
+                
+                {/* Theme presets grid */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {PRESET_THEMES.map((theme) => (
+                    <button
+                      key={theme.id}
+                      onClick={() => setActiveThemeId(theme.id)}
+                      className={`py-1.5 px-1 text-[9px] font-bold border rounded-sm transition-all text-center truncate cursor-pointer ${
+                        activeThemeId === theme.id
+                          ? "border-[#FFA586] text-[#FFA586] bg-[#FFA586]/10"
+                          : "border-[rgba(240,235,227,0.12)] text-[#a09a90] hover:text-[#f0ebe3] bg-transparent"
+                      }`}
+                    >
+                      {theme.name.split(" ")[0]}
+                    </button>
+                  ))}
+                  {Object.keys(customThemes).map((id) => (
+                    <button
+                      key={id}
+                      onClick={() => setActiveThemeId(id)}
+                      className={`py-1.5 px-1 text-[9px] font-bold border rounded-sm transition-all text-center truncate cursor-pointer ${
+                        activeThemeId === id
+                          ? "border-[#FFA586] text-[#FFA586] bg-[#FFA586]/10"
+                          : "border-[rgba(240,235,227,0.12)] text-[#a09a90] hover:text-[#f0ebe3] bg-transparent"
+                      }`}
+                    >
+                      {customThemes[id].name}
+                    </button>
+                  ))}
+                  
+                  {/* Plus button to add custom theme */}
+                  <button
+                    onClick={() => {
+                      const id = `custom_${Date.now()}`;
+                      const newColors = {
+                        name: `Custom ${Object.keys(customThemes).length + 1}`,
+                        accentColor: currentTheme.accentColor,
+                        panelBg: currentTheme.panelBg,
+                        bgColor: currentTheme.bgColor,
+                        textColor: currentTheme.textColor,
+                      };
+                      setCustomThemes(prev => {
+                        const updated = { ...prev, [id]: newColors };
+                        lsSet("cc_custom_themes", JSON.stringify(updated));
+                        return updated;
+                      });
+                      setActiveThemeId(id);
+                      showNotification("🎨 Neues Custom Theme erstellt!");
+                    }}
+                    className="py-1.5 px-1 text-[9px] font-bold border border-dashed border-[rgba(240,235,227,0.2)] text-[#a09a90] hover:text-[#f0ebe3] bg-transparent rounded-sm text-center cursor-pointer"
+                  >
+                    ➕ Neu
+                  </button>
+                </div>
+
+                {/* Custom theme color pickers */}
+                {activeThemeId.startsWith("custom_") && customThemes[activeThemeId] && (
+                  <div className="p-3 border border-[rgba(240,235,227,0.1)] bg-[#141416]/40 rounded-sm space-y-2 mt-2">
+                    <div className="flex justify-between items-center text-[9px] border-b border-[rgba(240,235,227,0.06)] pb-1 mb-1">
+                      <span className="text-[#FFA586] font-bold">Custom Theme bearbeiten:</span>
+                      <button
+                        onClick={() => deleteCustomTheme(activeThemeId)}
+                        className="text-red-400 hover:text-red-300 font-bold cursor-pointer"
+                      >
+                        Löschen 🗑️
+                      </button>
+                    </div>
+                    
+                    {/* Name input */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[8px] text-[#a09a90] uppercase">Name</label>
+                      <input
+                        type="text"
+                        value={customThemes[activeThemeId].name}
+                        onChange={(e) => {
+                          const updatedName = e.target.value;
+                          setCustomThemes(prev => {
+                            const updated = {
+                              ...prev,
+                              [activeThemeId]: {
+                                ...prev[activeThemeId],
+                                name: updatedName,
+                              }
+                            };
+                            lsSet("cc_custom_themes", JSON.stringify(updated));
+                            return updated;
+                          });
+                        }}
+                        className="bg-[#141416] text-[#f0ebe3] text-[10px] px-2 py-1 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Color inputs grid */}
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={customThemes[activeThemeId].bgColor}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomThemes(prev => {
+                              const updated = {
+                                ...prev,
+                                [activeThemeId]: {
+                                  ...prev[activeThemeId],
+                                  bgColor: val,
+                                }
+                              };
+                              lsSet("cc_custom_themes", JSON.stringify(updated));
+                              return updated;
+                            });
+                          }}
+                          className="w-5 h-5 rounded-full border border-neutral-700 cursor-pointer overflow-hidden"
+                        />
+                        <span className="text-[9px] text-[#a09a90]">Hintergrund</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={customThemes[activeThemeId].panelBg}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomThemes(prev => {
+                              const updated = {
+                                ...prev,
+                                [activeThemeId]: {
+                                  ...prev[activeThemeId],
+                                  panelBg: val,
+                                }
+                              };
+                              lsSet("cc_custom_themes", JSON.stringify(updated));
+                              return updated;
+                            });
+                          }}
+                          className="w-5 h-5 rounded-full border border-neutral-700 cursor-pointer overflow-hidden"
+                        />
+                        <span className="text-[9px] text-[#a09a90]">Panel-Bg</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={customThemes[activeThemeId].accentColor}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomThemes(prev => {
+                              const updated = {
+                                ...prev,
+                                [activeThemeId]: {
+                                  ...prev[activeThemeId],
+                                  accentColor: val,
+                                }
+                              };
+                              lsSet("cc_custom_themes", JSON.stringify(updated));
+                              return updated;
+                            });
+                          }}
+                          className="w-5 h-5 rounded-full border border-neutral-700 cursor-pointer overflow-hidden"
+                        />
+                        <span className="text-[9px] text-[#a09a90]">Akzent</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={customThemes[activeThemeId].textColor}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomThemes(prev => {
+                              const updated = {
+                                ...prev,
+                                [activeThemeId]: {
+                                  ...prev[activeThemeId],
+                                  textColor: val,
+                                }
+                              };
+                              lsSet("cc_custom_themes", JSON.stringify(updated));
+                              return updated;
+                            });
+                          }}
+                          className="w-5 h-5 rounded-full border border-neutral-700 cursor-pointer overflow-hidden"
+                        />
+                        <span className="text-[9px] text-[#a09a90]">Textfarbe</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Cloud Sync Setting */}
               <div className="pt-2 border-t border-[rgba(240,235,227,0.06)]">
                 <span className="text-xs font-semibold block text-[#f0ebe3] mb-2">Cloud-Save (Geräte-Sync) ☁️</span>
@@ -2141,6 +3264,86 @@ export default function CookieClicker() {
                   className="w-full py-2 bg-[rgba(240,235,227,0.04)] hover:bg-[#FFA586]/10 border border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/30 text-xs font-bold transition-all rounded-sm cursor-pointer text-center text-[#f0ebe3]"
                 >
                   👤 Spielername ändern
+                </button>
+              </div>
+              
+              {/* Feedback option */}
+              <div className="pt-2">
+                <button
+                  onClick={() => {
+                    setShowSettingsModal(false);
+                    setShowFeedbackModal(true);
+                  }}
+                  className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-xs font-bold transition-all rounded-sm cursor-pointer text-center text-emerald-400"
+                >
+                  📝 Feedback senden
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+        {showFeedbackModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowFeedbackModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#1c1c1f] border border-[rgba(240,235,227,0.15)] p-6 max-w-sm w-full mx-4 rounded-lg space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-[rgba(240,235,227,0.1)] pb-3">
+                <h2 className="font-serif text-lg font-bold text-[#FFA586]">📝 Feedback senden</h2>
+                <button 
+                  onClick={() => setShowFeedbackModal(false)}
+                  className="text-xs text-[#a09a90] hover:text-[#f0ebe3] cursor-pointer"
+                >
+                  Schließen
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] text-[#a09a90] uppercase tracking-wider block mb-1">Deine Bewertung</label>
+                  <div className="flex items-center gap-1 text-yellow-500 text-lg">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setFeedbackRating(star)}
+                        className="cursor-pointer hover:scale-110 transition-transform"
+                      >
+                        {star <= feedbackRating ? "★" : "☆"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#a09a90] uppercase tracking-wider block mb-1">Dein Feedback</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Was gefällt dir? Was können wir verbessern? (max 500 Zeichen)"
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    className="w-full bg-[#141416] text-[#f0ebe3] text-xs px-3 py-2 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none focus:border-[#FFA586] transition-colors resize-none"
+                    maxLength={500}
+                  />
+                </div>
+
+                <button
+                  onClick={submitFeedback}
+                  className="w-full py-2 bg-[#FFA586] hover:bg-[#FFB99A] text-[#141416] font-bold text-xs rounded transition-colors"
+                >
+                  Absenden 🚀
                 </button>
               </div>
             </motion.div>
@@ -2217,6 +3420,16 @@ export default function CookieClicker() {
             {activeEffects.clickFrenzy > 0 && (
               <span className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full animate-pulse">
                 ⚡ x10
+              </span>
+            )}
+            {rageMode && (
+              <span className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-red-600/30 text-red-500 border border-red-500/40 rounded-full animate-pulse font-bold">
+                💥 RAGE MODE (x500!)
+              </span>
+            )}
+            {rageCooldown > 0 && (
+              <span className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-neutral-800 text-neutral-400 border border-neutral-700 rounded-full font-mono">
+                ⏳ Rage Cooldown: {rageCooldown}s
               </span>
             )}
             {isNightTime() && (
@@ -2486,10 +3699,13 @@ export default function CookieClicker() {
           {/* ═══ RIGHT: Shop / Tabs ═══ */}
           <div className="border border-[rgba(240,235,227,0.12)] flex flex-col rounded-sm overflow-hidden">
             {/* Tab bar */}
-            <div className={`grid ${isAdmin ? "grid-cols-6" : "grid-cols-5"} border-b border-[rgba(240,235,227,0.12)] shrink-0`}>
+            <div className="flex overflow-x-auto border-b border-[rgba(240,235,227,0.12)] shrink-0 scrollbar-hide">
               {([
                 { key: "buildings" as const, icon: Building2, label: p("Gebäude") },
                 { key: "clicks" as const, icon: Zap, label: p("Klick") },
+                { key: "casino" as const, icon: Dice5, label: "🎰" },
+                { key: "pocket" as const, icon: Briefcase, label: "👖" },
+                { key: "chat" as const, icon: MessageCircle, label: "💬" },
                 { key: "achievements" as const, icon: Trophy, label: "🏆" },
                 { key: "stats" as const, icon: BarChart3, label: "📊" },
                 { key: "leaderboard" as const, icon: Crown, label: "👑" },
@@ -2497,8 +3713,11 @@ export default function CookieClicker() {
               ]).map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`py-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider transition-colors flex flex-col items-center gap-0.5 ${
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    if (tab.key === "admin" && isAdmin) loadFeedback();
+                  }}
+                  className={`py-2 px-2 min-w-[48px] text-[9px] md:text-[10px] font-bold uppercase tracking-wider transition-colors flex flex-col items-center gap-0.5 shrink-0 ${
                     activeTab === tab.key
                       ? "bg-[rgba(240,235,227,0.05)] text-[#FFA586]"
                       : "text-[#a09a90] hover:text-[#f0ebe3]"
@@ -2722,7 +3941,7 @@ export default function CookieClicker() {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586] mt-4 mb-2">🎨 Cookie Skins</h3>
                   <div className="grid grid-cols-3 gap-1.5">
                     {COOKIE_SKINS.map((skin) => {
-                      const isUnlocked = prestigeLevel >= skin.reqLevel;
+                      const isUnlocked = prestigeLevel >= skin.reqLevel || (skin.id === "cannabis" && achievements.find(a => a.id === "weed_mode")?.unlocked);
                       const isEquipped = cookieSkin === skin.emoji;
                       return (
                         <button
@@ -2805,6 +4024,394 @@ export default function CookieClicker() {
                         );
                       })}
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── Casino Tab ─── */}
+              {activeTab === "casino" && (
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586] mb-1">🎰 Casino</h3>
+                  <p className="text-[10px] text-[#a09a90] mb-3">Setze deine Cookies aufs Spiel! Aber Vorsicht: Alles kann verloren gehen!</p>
+                  
+                  {/* Daily Wheel Section */}
+                  <div className="relative flex flex-col items-center justify-center p-3 border border-[rgba(240,235,227,0.12)] bg-[#141416]/40 rounded-sm space-y-3">
+                    <div className="text-[10px] text-[#a09a90] uppercase tracking-wider font-bold">🎡 Tägliches Glücksrad</div>
+                    
+                    <div className="relative">
+                      {/* Pointer */}
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2.5 z-10 text-xl pointer-events-none">
+                        👇
+                      </div>
+                      {/* Spinning SVG */}
+                      <motion.div
+                        animate={{ rotate: wheelRotation }}
+                        transition={{ type: "spring", stiffness: 20, damping: 10, mass: 1 }}
+                        className="w-36 h-36 relative"
+                      >
+                        <svg viewBox="0 0 100 100" className="w-full h-full rounded-full border-2 border-neutral-700 shadow-lg">
+                          {WHEEL_SEGMENTS.map((seg, i) => {
+                            const angle = 360 / WHEEL_SEGMENTS.length;
+                            const startAngle = i * angle - 90;
+                            const endAngle = startAngle + angle;
+                            const x1 = 50 + 50 * Math.cos((startAngle * Math.PI) / 180);
+                            const y1 = 50 + 50 * Math.sin((startAngle * Math.PI) / 180);
+                            const x2 = 50 + 50 * Math.cos((endAngle * Math.PI) / 180);
+                            const y2 = 50 + 50 * Math.sin((endAngle * Math.PI) / 180);
+                            const d = `M 50 50 L ${x1} ${y1} A 50 50 0 0 1 ${x2} ${y2} Z`;
+                            
+                            const midAngle = startAngle + angle / 2;
+                            const tx = 50 + 35 * Math.cos((midAngle * Math.PI) / 180);
+                            const ty = 50 + 35 * Math.sin((midAngle * Math.PI) / 180);
+
+                            return (
+                              <g key={seg.id}>
+                                <path d={d} fill={seg.color} className="opacity-90 hover:opacity-100 transition-opacity" />
+                                <text
+                                  x={tx}
+                                  y={ty}
+                                  fill="#fff"
+                                  fontSize="6"
+                                  fontWeight="black"
+                                  textAnchor="middle"
+                                  dominantBaseline="central"
+                                  transform={`rotate(${midAngle + 90}, ${tx}, ${ty})`}
+                                >
+                                  {seg.emoji}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      </motion.div>
+                    </div>
+
+                    {wheelResult && (
+                      <div className="text-xs font-bold text-center text-amber-400">
+                        Ergebnis: {wheelResult}! 🎉
+                      </div>
+                    )}
+
+                    <button
+                      onClick={spinWheel}
+                      disabled={wheelSpinning || (Date.now() - lastSpinTimestamp < WHEEL_COOLDOWN_MS && extraSpins <= 0)}
+                      className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-[#141416] font-bold text-xs rounded transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer w-full text-center"
+                    >
+                      {wheelSpinning ? "Dreht..." : extraSpins > 0 ? `Jetzt drehen! (Extra: ${extraSpins})` : "Kostenlos drehen!"}
+                    </button>
+                    
+                    {Date.now() - lastSpinTimestamp < WHEEL_COOLDOWN_MS && extraSpins <= 0 && (
+                      <div className="text-[8px] text-[#a09a90] font-mono">
+                        Nächster gratis Spin in: {(() => {
+                          const diff = WHEEL_COOLDOWN_MS - (Date.now() - lastSpinTimestamp);
+                          const h = Math.floor(diff / 3600000);
+                          const m = Math.floor((diff % 3600000) / 60000);
+                          return `${h}h ${m}m`;
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Cooldown visual indicator */}
+                  {casinoCooldown > 0 && (
+                    <div className="p-2 border border-red-500/20 bg-red-500/5 text-red-400 text-center rounded-sm text-xs font-bold animate-pulse">
+                      ⏳ Cooldown aktiv: {casinoCooldown}s
+                    </div>
+                  )}
+
+                  {/* Bet Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-[#a09a90] uppercase tracking-wider">Einsatz (Cookies)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="Menge eingeben..."
+                        value={coinFlipBet}
+                        disabled={casinoCooldown > 0 || slotSpinning}
+                        onChange={(e) => setCoinFlipBet(e.target.value)}
+                        className="flex-1 bg-[#141416] text-[#f0ebe3] text-sm px-3 py-1.5 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none focus:border-[#FFA586] font-mono"
+                      />
+                      <button
+                        onClick={() => setCoinFlipBet(Math.floor(cookies).toString())}
+                        disabled={casinoCooldown > 0 || slotSpinning}
+                        className="px-3 py-1.5 bg-[rgba(240,235,227,0.06)] hover:bg-[#FFA586]/10 border border-[rgba(240,235,227,0.12)] text-[#f0ebe3] font-bold text-xs rounded-sm transition-colors"
+                      >
+                        MAX
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Games selection */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Coin Flip */}
+                    <button
+                      onClick={playCoinFlip}
+                      disabled={casinoCooldown > 0 || slotSpinning || !coinFlipBet}
+                      className="p-3 bg-[#141416]/60 border border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/40 hover:bg-[#FFA586]/5 transition-all text-center rounded-sm flex flex-col items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-2xl">🪙</span>
+                      <span className="text-xs font-bold text-[#f0ebe3]">Coin Flip</span>
+                      <span className="text-[8px] text-[#a09a90]">50% Chance / x2 Gewinnt</span>
+                    </button>
+
+                    {/* Slot Machine */}
+                    <button
+                      onClick={playSlots}
+                      disabled={casinoCooldown > 0 || slotSpinning || !coinFlipBet}
+                      className="p-3 bg-[#141416]/60 border border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/40 hover:bg-[#FFA586]/5 transition-all text-center rounded-sm flex flex-col items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-2xl">🎰</span>
+                      <span className="text-xs font-bold text-[#f0ebe3]">Slot Machine</span>
+                      <span className="text-[8px] text-[#a09a90]">Double: x3 | Triple: x10</span>
+                    </button>
+                  </div>
+
+                  {/* Slots display */}
+                  {(slotSpinning || slotResult) && (
+                    <div className="p-4 border border-[rgba(240,235,227,0.12)] bg-[#141416] text-center rounded-sm space-y-2">
+                      <div className="text-[10px] text-[#a09a90] uppercase tracking-wider">Slots Ergebnis</div>
+                      <div className="flex justify-center gap-4 text-3xl font-bold py-2">
+                        {slotSpinning ? (
+                          <>
+                            <span className="animate-bounce">🌀</span>
+                            <span className="animate-bounce [animation-delay:0.2s]">🌀</span>
+                            <span className="animate-bounce [animation-delay:0.4s]">🌀</span>
+                          </>
+                        ) : (
+                          slotResult?.map((symbol, i) => (
+                            <motion.span
+                              key={i}
+                              initial={{ scale: 0.5, rotate: -45 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              className="bg-neutral-800 p-2 rounded-sm"
+                            >
+                              {symbol}
+                            </motion.span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shield warning */}
+                  {pocketInventory.some(i => !i.used && i.shopItemId === "cookie_shield") && (
+                    <div className="p-2 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-center rounded-sm text-[9px] flex items-center justify-center gap-1.5">
+                      <span>🛡️ Keks-Schild aktiv! Nächster Verlust wird geschützt.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── Pocket Tab ─── */}
+              {activeTab === "pocket" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[rgba(240,235,227,0.1)] pb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586]">👖 Hosentasche</h3>
+                    <span className="text-sm font-mono font-bold text-emerald-400">{pocketCash.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</span>
+                  </div>
+
+                  {/* Exchange Cookies to Cash */}
+                  <div className="p-3 border border-[rgba(240,235,227,0.12)] bg-[#141416]/40 rounded-sm space-y-2">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-[#a09a90] uppercase tracking-wider font-mono">Kekse wechseln:</span>
+                      <span className="text-emerald-400/80 font-mono">1.0M 🍪 = 1,00€</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="Menge an Cookies..."
+                        value={exchangeInput}
+                        onChange={(e) => setExchangeInput(e.target.value)}
+                        className="flex-1 bg-[#141416] text-[#f0ebe3] text-xs px-2.5 py-1.5 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none focus:border-[#FFA586] font-mono"
+                      />
+                      <button
+                        onClick={exchangeCookiesForCash}
+                        className="px-3 py-1.5 bg-[#FFA586] text-[#141416] font-bold text-xs rounded-sm hover:bg-[#FFB99A] transition-colors"
+                      >
+                        Wechseln
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pocket Shop */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] text-[#a09a90] uppercase tracking-wider">Großer Shop</h4>
+                    <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                      {SHOP_ITEMS.map((item) => {
+                        const canBuy = pocketCash >= item.price;
+                        return (
+                          <div
+                            key={item.id}
+                            className={`flex items-center gap-2 p-2 border rounded-sm transition-all text-left ${
+                              canBuy
+                                ? "bg-[#141416]/60 border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/20"
+                                : "bg-transparent opacity-40 border-[rgba(240,235,227,0.06)]"
+                            }`}
+                          >
+                            <span className="text-2xl shrink-0">{item.emoji}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-bold text-[#f0ebe3] truncate">{item.name}</div>
+                              <div className="text-[8px] text-[#a09a90] leading-normal">{item.desc}</div>
+                            </div>
+                            <button
+                              disabled={!canBuy}
+                              onClick={() => buyPocketItem(item.id)}
+                              className={`px-2 py-1 text-[9px] font-bold rounded-sm font-mono transition-colors shrink-0 ${
+                                canBuy
+                                  ? "bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer"
+                                  : "bg-neutral-800 text-neutral-500 cursor-not-allowed"
+                              }`}
+                            >
+                              {item.price.toFixed(2)}€
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Player Inventory (Hosentasche) */}
+                  <div className="space-y-2 pt-2 border-t border-[rgba(240,235,227,0.1)]">
+                    <h4 className="text-[10px] text-[#a09a90] uppercase tracking-wider">Dein Inventar</h4>
+                    {pocketInventory.filter(i => !i.used).length === 0 ? (
+                      <p className="text-[9px] text-[#706b63] italic">Keine ungenutzten Gegenstände vorhanden.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {pocketInventory.filter(i => !i.used).map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => activatePocketItem(item.id)}
+                            className="p-2 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-between gap-1 rounded-sm text-[9px] font-semibold cursor-pointer select-none"
+                          >
+                            <span className="flex items-center gap-1">
+                              <span>{item.emoji}</span>
+                              <span className="truncate max-w-[80px]">{item.name}</span>
+                            </span>
+                            <span>Nutzen</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Chat Tab ─── */}
+              {activeTab === "chat" && (
+                <div className="flex flex-col h-[400px] space-y-2">
+                  <div className="flex justify-between items-center border-b border-[rgba(240,235,227,0.1)] pb-1.5 shrink-0">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586]">💬 Globaler Chat</h3>
+                    <button
+                      onClick={() => sendChatMessage(`Ich habe gerade ${formatNumber(cookies)} Cookies! 🚀`, true)}
+                      disabled={!playerName}
+                      className="text-[8px] font-bold px-2 py-0.5 border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 rounded-sm disabled:opacity-40"
+                    >
+                      🍪 Cookies teilen (Flex)
+                    </button>
+                  </div>
+
+                  {!playerName ? (
+                    <div className="flex-1 flex flex-col items-center justify-center border border-[rgba(240,235,227,0.08)] bg-[#141416]/20 p-4 rounded-sm space-y-3 min-h-0 text-center">
+                      <span className="text-xl">👤</span>
+                      <p className="text-[10px] text-[#a09a90] max-w-[200px]">Lege einen Spielernamen fest, um am globalen Chat teilnehmen zu können:</p>
+                      <div className="flex gap-2 w-full max-w-xs justify-center">
+                        <input
+                          type="text"
+                          placeholder="Dein Bäcker-Name..."
+                          value={tempNameInput}
+                          onChange={(e) => setTempNameInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && tempNameInput.trim()) {
+                              setPlayerName(tempNameInput.trim());
+                              doSave();
+                              showNotification(`👤 Name gesetzt: ${tempNameInput.trim()}!`);
+                            }
+                          }}
+                          className="bg-[#141416] text-[#f0ebe3] text-xs px-2.5 py-1.5 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none focus:border-[#FFA586] w-2/3"
+                        />
+                        <button
+                          onClick={() => {
+                            if (tempNameInput.trim()) {
+                              setPlayerName(tempNameInput.trim());
+                              doSave();
+                              showNotification(`👤 Name gesetzt: ${tempNameInput.trim()}!`);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-[#FFA586] text-[#141416] font-bold text-xs rounded-sm hover:bg-[#FFB99A] cursor-pointer"
+                        >
+                          Setzen
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Messages container */}
+                      <div
+                        ref={chatContainerRef}
+                        className="flex-1 overflow-y-auto border border-[rgba(240,235,227,0.08)] bg-[#141416]/20 p-2 rounded-sm space-y-2 min-h-0 scrollbar-thin"
+                      >
+                        {chatMessages.length === 0 ? (
+                          <div className="text-center text-[10px] text-[#706b63] italic py-8">Keine Nachrichten vorhanden. Schreib was!</div>
+                        ) : (
+                          chatMessages.map((msg) => {
+                            const isSelf = msg.author === playerName;
+                            const isSystem = msg.type === "system";
+                            return (
+                              <div key={msg.id} className={`flex flex-col ${isSelf ? "items-end" : "items-start"}`}>
+                                <div className="flex items-center gap-1.5 mb-0.5 text-[8px] text-[#a09a90]">
+                                  <span className="font-semibold text-neutral-300">{msg.author}</span>
+                                  <span>•</span>
+                                  <span>{new Date(msg.timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+                                </div>
+                                <div className={`p-2 rounded max-w-[85%] text-[10px] leading-relaxed break-words ${
+                                  isSystem
+                                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 text-center w-full"
+                                    : msg.isFlex
+                                    ? "bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                                    : isSelf
+                                    ? "bg-[#FFA586]/10 text-[#FFA586] border border-[#FFA586]/20"
+                                    : "bg-neutral-800/60 text-[#f0ebe3] border border-neutral-700/30"
+                                }`}>
+                                  {msg.text}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Chat Input */}
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          sendChatMessage(chatInput);
+                        }}
+                        className="flex gap-1.5 shrink-0"
+                      >
+                        <input
+                          type="text"
+                          placeholder="Schreibe eine Nachricht..."
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (chatInput.trim()) {
+                                sendChatMessage(chatInput);
+                              }
+                            }
+                          }}
+                          className="flex-1 bg-[#141416] text-[#f0ebe3] text-xs px-2.5 py-1.5 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none focus:border-[#FFA586]"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!chatInput.trim()}
+                          className="p-1.5 bg-[#FFA586] hover:bg-[#FFB99A] text-[#141416] rounded-sm transition-colors flex items-center justify-center disabled:opacity-40 cursor-pointer"
+                        >
+                          <Send size={14} />
+                        </button>
+                      </form>
+                    </>
                   )}
                 </div>
               )}
@@ -2976,11 +4583,66 @@ export default function CookieClicker() {
                       })}
                     </div>
                   )}
+
+                  {/* Feedback Manager */}
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586] mt-4 mb-2">📝 Feedback einsehen</h3>
+                  {feedbackList.length === 0 ? (
+                    <p className="text-[9px] text-[#706b63] italic text-center py-4">Kein Feedback vorhanden.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {feedbackList.map((entry) => (
+                        <div key={entry.id} className="p-2 border border-[rgba(240,235,227,0.06)] bg-[#141416]/20 rounded-sm text-left">
+                          <div className="flex justify-between items-center text-[8px] text-[#a09a90] mb-1">
+                            <span className="font-bold text-[#f0ebe3]">{entry.author}</span>
+                            <span className="text-yellow-500">{"★".repeat(entry.rating)}{"☆".repeat(5 - entry.rating)}</span>
+                          </div>
+                          <p className="text-[9px] text-[#f0ebe3] break-words">{entry.text}</p>
+                          <span className="text-[7px] text-[#706b63] block mt-1">
+                            {new Date(entry.timestamp).toLocaleString("de-DE")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Bottom-left Chat Notifications */}
+      <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 pointer-events-none max-w-xs md:max-w-sm">
+        <AnimatePresence>
+          {chatNotifications.map((notif) => (
+            <motion.div
+              key={notif.id}
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -20, scale: 0.9 }}
+              className={`p-3 rounded-lg border pointer-events-auto shadow-lg backdrop-blur-md flex flex-col gap-1 ${
+                notif.isMention
+                  ? "bg-purple-950/80 border-purple-500/40 text-purple-200"
+                  : "bg-neutral-900/95 border-neutral-700/50 text-[#f0ebe3]"
+              }`}
+            >
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-[10px] font-bold text-[#FFA586] uppercase tracking-wider">
+                  {notif.isMention ? "🔔 Erwähnung von" : "💬 Neue Nachricht von"} {notif.author}
+                </span>
+                <button
+                  onClick={() => setChatNotifications(prev => prev.filter(n => n.id !== notif.id))}
+                  className="text-[9px] text-[#a09a90] hover:text-[#f0ebe3] cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-[11px] leading-relaxed break-words font-medium">
+                {notif.text}
+              </p>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </motion.div>
   );

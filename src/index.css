@@ -165,4 +165,17 @@
     background: var(--color-cream-dark);
     border-radius: 2px;
   }
+
+  .cookie-clicker-root {
+    --color-bg: var(--cc-bg, #141416) !important;
+    --color-bg-light: var(--cc-panel-bg, #1c1c1f) !important;
+    --color-surface: var(--cc-panel-bg, #222225) !important;
+    --color-accent: var(--cc-accent, #FFA586) !important;
+    --color-cream: var(--cc-text, #f0ebe3) !important;
+    --color-cream-dim: var(--cc-text-dim, rgba(240, 235, 227, 0.7)) !important;
+    --color-cream-dark: var(--cc-text-dark, rgba(240, 235, 227, 0.4)) !important;
+
+    background-color: var(--color-bg) !important;
+    color: var(--color-cream) !important;
+  }
 }
