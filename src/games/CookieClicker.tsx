@@ -388,9 +388,8 @@ export default function CookieClicker() {
     return s !== "false";
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showPatchlog, setShowPatchlog] = useState(false);
-  const [syncPassword, setSyncPassword] = useState("");
-  const [syncUsername, setSyncUsername] = useState("");
+  const [syncPassword, setSyncPassword] = useState(() => lsGet("cc_sync_password") || "");
+  const [syncUsername, setSyncUsername] = useState(() => lsGet("cc_sync_username") || "");
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error?: string; success?: string }>({ loading: false });
 
   useEffect(() => {
@@ -398,6 +397,8 @@ export default function CookieClicker() {
       setSyncUsername(playerName);
     }
   }, [playerName]);
+
+  const [showPatchlog, setShowPatchlog] = useState(false);
 
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
@@ -518,12 +519,12 @@ export default function CookieClicker() {
     }
   }, [setCookies, setTotalCookies, setCookiesBakedAllTime, setTotalClicks, setPrestigeLevel, setHeavenlyChips, setGoldenClicked, setEasterEggsFound, setCookieSkin, setPirateMode, setDuckMode, setGrandmapocalypse, setLastSaveTime, setPlayerName, setLastRenamed, setLeaderboardOptIn, setLastCaptchaTime, setBuildings, setClickUpgrades, setAchievements]);
 
-  const handleCloudSync = async (mode: 'save' | 'load') => {
+  const handleCloudSync = async (mode: 'save' | 'load', isAuto = false) => {
     if (!syncUsername || !syncPassword) {
-      setSyncStatus({ loading: false, error: "Bitte Name und Passwort eingeben!" });
+      if (!isAuto) setSyncStatus({ loading: false, error: "Bitte Name und Passwort eingeben!" });
       return;
     }
-    setSyncStatus({ loading: true, error: undefined, success: undefined });
+    if (!isAuto) setSyncStatus({ loading: true, error: undefined, success: undefined });
     
     try {
       const crypto = window.crypto || (window as any).msCrypto;
@@ -557,14 +558,29 @@ export default function CookieClicker() {
       if (!res.ok) throw new Error(json.error || 'Netzwerkfehler');
 
       if (mode === 'load' && json.state) {
-        loadState(json.state);
-        setTimeout(() => doSave(), 500); // Trigger save to local storage
+        const cloudTime = json.state.lastSaveTime || 0;
+        const localSaveRaw = lsGet("cc_save_v2");
+        const localTime = localSaveRaw ? (JSON.parse(localSaveRaw).lastSaveTime || 0) : 0;
+        
+        if (!isAuto || cloudTime > localTime) {
+          loadState(json.state);
+          setTimeout(() => doSave(), 500); // Trigger save to local storage
+          if (isAuto) {
+            showNotification("☁️ Spielstand automatisch geladen!");
+          }
+        }
       } else if (mode === 'save') {
         setPlayerName(syncUsername);
         setTimeout(() => doSave(), 500);
       }
 
-      setSyncStatus({ loading: false, success: mode === 'save' ? 'Erfolgreich gespeichert!' : 'Spielstand geladen!' });
+      if (!isAuto) {
+        setSyncStatus({ loading: false, success: mode === 'save' ? 'Erfolgreich gespeichert!' : 'Spielstand geladen!' });
+      }
+      
+      // Save credentials for auto sync
+      lsSet("cc_sync_username", syncUsername);
+      lsSet("cc_sync_password", syncPassword);
 
       // Unlock admin automatically if master password is used
       if (syncPassword === 'moritz2026') {
@@ -1611,6 +1627,28 @@ export default function CookieClicker() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, lastSaveTime]);
+
+  // Live Auto Sync (Save to Cloud on Local Save)
+  const lastCloudSaveRef = useRef(0);
+  useEffect(() => {
+    if (!loaded || !syncUsername || !syncPassword) return;
+    const now = Date.now();
+    if (now - lastCloudSaveRef.current > 15000) { // Throttle to 15s
+      lastCloudSaveRef.current = now;
+      handleCloudSync('save', true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, lastSaveTime, syncUsername, syncPassword]);
+
+  // Live Auto Sync (Pull from Cloud periodically)
+  useEffect(() => {
+    if (!loaded || !syncUsername || !syncPassword) return;
+    const interval = setInterval(() => {
+      handleCloudSync('load', true);
+    }, 20000); // Poll every 20s
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, syncUsername, syncPassword]);
 
   // ═══════════════════════════════════════════════════════
   //  RENDER
