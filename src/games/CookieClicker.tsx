@@ -298,6 +298,7 @@ export default function CookieClicker() {
   const notifTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const numberEggsTriggeredRef = useRef<Set<string>>(new Set());
   const lastSyncRef = useRef(0);
+  const buyingDealsRef = useRef<Set<string>>(new Set());
 
   // ── Derived values ──
   const prestigeMultiplier = 1 + prestigeLevel * 0.1;
@@ -574,7 +575,10 @@ export default function CookieClicker() {
 
   // ── Handle trader deal ──
   const buyDeal = useCallback((deal: TraderDeal) => {
+    if (buyingDealsRef.current.has(deal.id)) return;
     if (cookies < deal.cost) return;
+    
+    buyingDealsRef.current.add(deal.id);
     setCookies((c) => c - deal.cost);
 
     switch (deal.effect) {
@@ -627,6 +631,7 @@ export default function CookieClicker() {
     let countdownTimer: ReturnType<typeof setInterval>;
 
     const spawnTrader = () => {
+      buyingDealsRef.current.clear();
       const deals = generateTraderDeals();
       if (deals.length === 0 || cps <= 0) {
         scheduleNext();
