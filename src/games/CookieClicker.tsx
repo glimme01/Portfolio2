@@ -255,6 +255,29 @@ function getCost(baseCost: number, owned: number): number {
   return Math.floor(baseCost * Math.pow(1.15, owned));
 }
 
+function getBulkCost(baseCost: number, owned: number, count: number): number {
+  let total = 0;
+  for (let i = 0; i < count; i++) {
+    total += Math.floor(baseCost * Math.pow(1.15, owned + i));
+  }
+  return total;
+}
+
+function getMaxAffordable(baseCost: number, owned: number, cookies: number): { count: number; cost: number } {
+  let count = 0;
+  let totalCost = 0;
+  while (true) {
+    const nextCost = Math.floor(baseCost * Math.pow(1.15, owned + count));
+    if (totalCost + nextCost <= cookies) {
+      totalCost += nextCost;
+      count++;
+    } else {
+      break;
+    }
+  }
+  return { count, cost: totalCost };
+}
+
 function getSeasonalEmoji(): string | null {
   const now = new Date();
   const m = now.getMonth();
@@ -304,6 +327,7 @@ export default function CookieClicker() {
   const [lastSaveTime, setLastSaveTime] = useState(() => Date.now());
 
   const [activeTab, setActiveTab] = useState<"buildings" | "clicks" | "achievements" | "stats" | "leaderboard" | "admin">("buildings");
+  const [buyMode, setBuyMode] = useState<1 | 10 | 100 | "max">(1);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [goldenCookies, setGoldenCookies] = useState<GoldenCookie[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
@@ -1081,24 +1105,62 @@ export default function CookieClicker() {
     setBuildings((prev) => {
       const b = prev.find((x) => x.id === id);
       if (!b) return prev;
-      const cost = getCost(b.baseCost, b.owned);
-      if (cookies < cost) return prev;
+      
+      let count = 0;
+      let cost = 0;
+      
+      if (buyMode === 1) {
+        count = 1;
+        cost = getCost(b.baseCost, b.owned);
+      } else if (buyMode === 10) {
+        count = 10;
+        cost = getBulkCost(b.baseCost, b.owned, 10);
+      } else if (buyMode === 100) {
+        count = 100;
+        cost = getBulkCost(b.baseCost, b.owned, 100);
+      } else {
+        // "max"
+        const maxStats = getMaxAffordable(b.baseCost, b.owned, cookies);
+        count = maxStats.count;
+        cost = maxStats.cost;
+      }
+      
+      if (count <= 0 || cookies < cost) return prev;
       setCookies((c) => c - cost);
-      return prev.map((x) => (x.id === id ? { ...x, owned: x.owned + 1 } : x));
+      return prev.map((x) => (x.id === id ? { ...x, owned: x.owned + count } : x));
     });
-  }, [cookies]);
+  }, [cookies, buyMode]);
 
   // ── Buy click upgrade ──
   const buyClickUpgrade = useCallback((id: string) => {
     setClickUpgrades((prev) => {
       const u = prev.find((x) => x.id === id);
       if (!u) return prev;
-      const cost = getCost(u.baseCost, u.owned);
-      if (cookies < cost) return prev;
+      
+      let count = 0;
+      let cost = 0;
+      
+      if (buyMode === 1) {
+        count = 1;
+        cost = getCost(u.baseCost, u.owned);
+      } else if (buyMode === 10) {
+        count = 10;
+        cost = getBulkCost(u.baseCost, u.owned, 10);
+      } else if (buyMode === 100) {
+        count = 100;
+        cost = getBulkCost(u.baseCost, u.owned, 100);
+      } else {
+        // "max"
+        const maxStats = getMaxAffordable(u.baseCost, u.owned, cookies);
+        count = maxStats.count;
+        cost = maxStats.cost;
+      }
+      
+      if (count <= 0 || cookies < cost) return prev;
       setCookies((c) => c - cost);
-      return prev.map((x) => (x.id === id ? { ...x, owned: x.owned + 1 } : x));
+      return prev.map((x) => (x.id === id ? { ...x, owned: x.owned + count } : x));
     });
-  }, [cookies]);
+  }, [cookies, buyMode]);
 
   // ── Ascend / Prestige ──
   const ascend = useCallback(() => {
@@ -2133,19 +2195,59 @@ export default function CookieClicker() {
               ))}
             </div>
 
+            {/* Buy Mode Selector */}
+            {(activeTab === "buildings" || activeTab === "clicks") && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-[rgba(240,235,227,0.02)] border-b border-[rgba(240,235,227,0.08)] shrink-0">
+                <span className="text-[9px] text-[#a09a90] uppercase tracking-wider font-mono">Menge kaufen:</span>
+                <div className="flex gap-1">
+                  {([1, 10, 100, "max"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setBuyMode(mode)}
+                      className={`px-2 py-0.5 text-[9px] font-bold font-mono border rounded-sm transition-all cursor-pointer ${
+                        buyMode === mode
+                          ? "border-[#FFA586] text-[#FFA586] bg-[#FFA586]/10"
+                          : "border-[rgba(240,235,227,0.08)] text-[#a09a90] hover:text-[#f0ebe3] bg-transparent"
+                      }`}
+                    >
+                      {mode === "max" ? "MAX" : `x${mode}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Tab content (scrollable) */}
             <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5">
               {/* ─── Buildings Tab ─── */}
               {activeTab === "buildings" && buildings.map((b) => {
                 const cost = getCost(b.baseCost, b.owned);
-                const canBuy = cookies >= cost;
+                let bulkCount = 1;
+                let bulkCost = cost;
+                let canBuyBulk = cookies >= cost;
+                
+                if (buyMode === 10) {
+                  bulkCount = 10;
+                  bulkCost = getBulkCost(b.baseCost, b.owned, 10);
+                  canBuyBulk = cookies >= bulkCost;
+                } else if (buyMode === 100) {
+                  bulkCount = 100;
+                  bulkCost = getBulkCost(b.baseCost, b.owned, 100);
+                  canBuyBulk = cookies >= bulkCost;
+                } else if (buyMode === "max") {
+                  const stats = getMaxAffordable(b.baseCost, b.owned, cookies);
+                  bulkCount = Math.max(1, stats.count);
+                  bulkCost = stats.count > 0 ? stats.cost : cost;
+                  canBuyBulk = stats.count > 0;
+                }
+
                 return (
                   <button
                     key={b.id}
                     onClick={() => buyBuilding(b.id)}
-                    disabled={!canBuy}
+                    disabled={!canBuyBulk}
                     className={`w-full flex items-center gap-2 md:gap-3 p-3 transition-all text-left border rounded-sm min-h-[56px] ${
-                      canBuy
+                      canBuyBulk
                         ? "bg-[#141416]/60 hover:bg-[#FFA586]/10 border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/30 cursor-pointer"
                         : "bg-transparent opacity-30 cursor-not-allowed border-[rgba(240,235,227,0.06)]"
                     }`}
@@ -2155,11 +2257,13 @@ export default function CookieClicker() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[11px] md:text-xs font-semibold truncate text-[#f0ebe3]">{p(b.name)}</div>
                       <div className="text-[9px] text-[#a09a90] font-mono mt-0.5">
-                        +{formatNumber(b.cps * prestigeMultiplier * nightBonus)}/s · {formatNumber(cost)} 🍪
+                        +{formatNumber(b.cps * prestigeMultiplier * nightBonus * bulkCount)}/s · {formatNumber(bulkCost)} 🍪
                       </div>
                       <div className="text-[8px] text-[#706b63] mt-0.5 hidden sm:block">{b.desc}</div>
                     </div>
-                    <span className="text-xs md:text-sm font-serif font-black text-[#a09a90] px-1 md:px-2 shrink-0">x{b.owned}</span>
+                    <span className="text-xs md:text-sm font-serif font-black text-[#a09a90] px-1 md:px-2 shrink-0">
+                      {buyMode !== 1 && bulkCount > 0 ? `+${bulkCount} ` : ""}x{b.owned}
+                    </span>
                   </button>
                 );
               })}
@@ -2167,14 +2271,32 @@ export default function CookieClicker() {
               {/* ─── Click Upgrades Tab ─── */}
               {activeTab === "clicks" && clickUpgrades.map((u) => {
                 const cost = getCost(u.baseCost, u.owned);
-                const canBuy = cookies >= cost;
+                let bulkCount = 1;
+                let bulkCost = cost;
+                let canBuyBulk = cookies >= cost;
+                
+                if (buyMode === 10) {
+                  bulkCount = 10;
+                  bulkCost = getBulkCost(u.baseCost, u.owned, 10);
+                  canBuyBulk = cookies >= bulkCost;
+                } else if (buyMode === 100) {
+                  bulkCount = 100;
+                  bulkCost = getBulkCost(u.baseCost, u.owned, 100);
+                  canBuyBulk = cookies >= bulkCost;
+                } else if (buyMode === "max") {
+                  const stats = getMaxAffordable(u.baseCost, u.owned, cookies);
+                  bulkCount = Math.max(1, stats.count);
+                  bulkCost = stats.count > 0 ? stats.cost : cost;
+                  canBuyBulk = stats.count > 0;
+                }
+
                 return (
                   <button
                     key={u.id}
                     onClick={() => buyClickUpgrade(u.id)}
-                    disabled={!canBuy}
+                    disabled={!canBuyBulk}
                     className={`w-full flex items-center gap-2 md:gap-3 p-3 transition-all text-left border rounded-sm min-h-[56px] ${
-                      canBuy
+                      canBuyBulk
                         ? "bg-[#141416]/60 hover:bg-[#FFA586]/10 border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/30 cursor-pointer"
                         : "bg-transparent opacity-30 cursor-not-allowed border-[rgba(240,235,227,0.06)]"
                     }`}
@@ -2184,10 +2306,12 @@ export default function CookieClicker() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[11px] md:text-xs font-semibold truncate text-[#f0ebe3]">{u.name}</div>
                       <div className="text-[9px] text-[#a09a90] font-mono mt-0.5">
-                        +{formatNumber(u.cpcAdd * prestigeMultiplier)}/klick · {formatNumber(cost)} 🍪
+                        +{formatNumber(u.cpcAdd * prestigeMultiplier * bulkCount)}/klick · {formatNumber(bulkCost)} 🍪
                       </div>
                     </div>
-                    <span className="text-xs md:text-sm font-serif font-black text-[#a09a90] px-1 md:px-2 shrink-0">x{u.owned}</span>
+                    <span className="text-xs md:text-sm font-serif font-black text-[#a09a90] px-1 md:px-2 shrink-0">
+                      {buyMode !== 1 && bulkCount > 0 ? `+${bulkCount} ` : ""}x{u.owned}
+                    </span>
                   </button>
                 );
               })}
