@@ -102,6 +102,27 @@ interface GameState {
   lastCaptchaTime?: number;
 }
 
+const playClickSound = (soundEnabled: boolean) => {
+  if (!soundEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(450, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(700, ctx.currentTime + 0.08);
+    
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    
+    osc.start();
+    osc.stop(ctx.currentTime + 0.09);
+  } catch { /* ignored */ }
+};
+
 interface CookieSkin {
   id: string;
   name: string;
@@ -316,6 +337,19 @@ export default function CookieClicker() {
   const [lastCaptchaTime, setLastCaptchaTime] = useState(() => Date.now());
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const titleClicksRef = useRef(0);
+  const [uiScale, setUiScale] = useState<number>(() => {
+    const s = lsGet("cc_ui_scale");
+    return s ? parseFloat(s) : 1.0;
+  });
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    const s = lsGet("cc_sound_enabled");
+    return s !== "false";
+  });
+  const [bgEffectsEnabled, setBgEffectsEnabled] = useState<boolean>(() => {
+    const s = lsGet("cc_bg_effects_enabled");
+    return s !== "false";
+  });
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
@@ -962,6 +996,8 @@ export default function CookieClicker() {
       return;
     }
 
+    playClickSound(soundEnabled);
+
     setCookies((c) => c + cpc);
     setTotalCookies((t) => t + cpc);
     setTotalClicks((c) => c + 1);
@@ -997,7 +1033,7 @@ export default function CookieClicker() {
       setRainbowMode(true);
       setTimeout(() => setRainbowMode(false), 2000);
     }
-  }, [cpc, duckMode, unlock, findEasterEgg, showCaptcha, generateCaptcha, lastCaptchaTime]);
+  }, [cpc, duckMode, unlock, findEasterEgg, showCaptcha, generateCaptcha, lastCaptchaTime, soundEnabled]);
 
   // ── Golden cookie click handler ──
   const handleGoldenClick = useCallback((gc: GoldenCookie) => {
@@ -1616,6 +1652,124 @@ export default function CookieClicker() {
         )}
       </AnimatePresence>
 
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettingsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowSettingsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#1c1c1f] border border-[rgba(240,235,227,0.15)] p-6 max-w-sm w-full mx-4 rounded-lg space-y-5"
+            >
+              <div className="flex items-center justify-between border-b border-[rgba(240,235,227,0.1)] pb-3">
+                <h2 className="font-serif text-xl font-bold text-[#FFA586]">⚙️ Einstellungen</h2>
+                <button 
+                  onClick={() => setShowSettingsModal(false)}
+                  className="text-xs text-[#a09a90] hover:text-[#f0ebe3] cursor-pointer"
+                >
+                  Schließen
+                </button>
+              </div>
+
+              {/* UI Scale Setting */}
+              <div className="space-y-2">
+                <label className="text-[10px] text-[#a09a90] uppercase tracking-wider block">UI-Skalierung (Größe)</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {([
+                    { label: "100%", val: 1.0 },
+                    { label: "115%", val: 1.15 },
+                    { label: "130%", val: 1.3 },
+                    { label: "145%", val: 1.45 },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.val}
+                      onClick={() => {
+                        setUiScale(opt.val);
+                        lsSet("cc_ui_scale", opt.val.toString());
+                      }}
+                      className={`py-1.5 text-[10px] font-bold border rounded-sm transition-all cursor-pointer ${
+                        uiScale === opt.val
+                          ? "border-[#FFA586] text-[#FFA586] bg-[#FFA586]/10"
+                          : "border-[rgba(240,235,227,0.12)] text-[#a09a90] hover:text-[#f0ebe3] bg-transparent"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sound Effects Setting */}
+              <div className="flex items-center justify-between py-2 border-b border-[rgba(240,235,227,0.06)]">
+                <div>
+                  <span className="text-xs font-semibold block text-[#f0ebe3]">Sound-Effekte 🔊</span>
+                  <span className="text-[8px] text-[#a09a90]">Spielt Klick-Töne beim Keksklicken</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const next = !soundEnabled;
+                    setSoundEnabled(next);
+                    lsSet("cc_sound_enabled", next.toString());
+                    if (next) playClickSound(true);
+                  }}
+                  className={`text-[10px] font-bold px-3 py-1 border rounded-full transition-all cursor-pointer ${
+                    soundEnabled
+                      ? "border-green-500/30 text-green-400 bg-green-500/10"
+                      : "border-red-500/30 text-red-400 bg-red-500/10"
+                  }`}
+                >
+                  {soundEnabled ? "AN" : "AUS"}
+                </button>
+              </div>
+
+              {/* Background Effects Setting */}
+              <div className="flex items-center justify-between py-2 border-b border-[rgba(240,235,227,0.06)]">
+                <div>
+                  <span className="text-xs font-semibold block text-[#f0ebe3]">Hintergrund-Kekse 🍪</span>
+                  <span className="text-[8px] text-[#a09a90]">Fliegende Kekse im Hintergrund</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const next = !bgEffectsEnabled;
+                    setBgEffectsEnabled(next);
+                    lsSet("cc_bg_effects_enabled", next.toString());
+                  }}
+                  className={`text-[10px] font-bold px-3 py-1 border rounded-full transition-all cursor-pointer ${
+                    bgEffectsEnabled
+                      ? "border-green-500/30 text-green-400 bg-green-500/10"
+                      : "border-red-500/30 text-red-400 bg-red-500/10"
+                  }`}
+                >
+                  {bgEffectsEnabled ? "AN" : "AUS"}
+                </button>
+              </div>
+
+              {/* Profile rename option */}
+              <div className="pt-2">
+                <button
+                  onClick={() => {
+                    setShowSettingsModal(false);
+                    setNameInput(playerName);
+                    setShowNameModal(true);
+                  }}
+                  className="w-full py-2 bg-[rgba(240,235,227,0.04)] hover:bg-[#FFA586]/10 border border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/30 text-xs font-bold transition-all rounded-sm cursor-pointer text-center text-[#f0ebe3]"
+                >
+                  👤 Spielername ändern
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Ascend Modal */}
       <AnimatePresence>
         {showAscendModal && (
@@ -1669,7 +1823,7 @@ export default function CookieClicker() {
       </AnimatePresence>
 
       {/* ═══ MAIN LAYOUT ═══ */}
-      <div className="max-w-[1200px] mx-auto px-3 md:px-6 py-3 md:py-4">
+      <div className="max-w-[1200px] mx-auto px-3 md:px-6 py-3 md:py-4" style={{ zoom: uiScale }}>
         {/* Header */}
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <Link to="/games" className="inline-flex items-center gap-2 text-[#a09a90] hover:text-[#FFA586] transition-colors text-sm">
@@ -1708,6 +1862,15 @@ export default function CookieClicker() {
                 👤 {playerName}{renameCooldownDays > 0 ? ` (${renameCooldownDays}d)` : ''}
               </button>
             )}
+            {/* Settings button */}
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-[rgba(240,235,227,0.05)] text-[#a09a90] hover:text-[#FFA586] border border-[rgba(240,235,227,0.12)] rounded-full transition-colors cursor-pointer flex items-center justify-center gap-1 min-h-[26px]"
+              title="Einstellungen öffnen"
+              style={{ WebkitTapHighlightColor: "transparent" }}
+            >
+              ⚙️ <span className="hidden sm:inline">Einstellungen</span>
+            </button>
           </div>
         </div>
 
@@ -1715,7 +1878,7 @@ export default function CookieClicker() {
           {/* ═══ LEFT: Cookie Clicker Area ═══ */}
           <div className="flex flex-col items-center text-center py-3 md:py-4 px-3 md:px-5 border border-[rgba(240,235,227,0.12)] bg-[#141416]/40 relative overflow-hidden rounded-sm">
             {/* Background floating cookies (max 8) */}
-            {bgCookieCount > 0 && (
+            {bgCookieCount > 0 && bgEffectsEnabled && (
               <div className="absolute inset-0 pointer-events-none">
                 {Array.from({ length: bgCookieCount }).map((_, i) => (
                   <motion.div
