@@ -287,6 +287,8 @@ export default function CookieClicker() {
   const [traderTimer, setTraderTimer] = useState(0);
   const [saveFlash, setSaveFlash] = useState(false);
   const [leaderboardOptIn, setLeaderboardOptIn] = useState(true);
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [captchaQuestion, setCaptchaQuestion] = useState<{ num1: number; num2: number; options: number[] }>({ num1: 0, num2: 0, options: [] });
 
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
@@ -299,6 +301,7 @@ export default function CookieClicker() {
   const numberEggsTriggeredRef = useRef<Set<string>>(new Set());
   const lastSyncRef = useRef(0);
   const buyingDealsRef = useRef<Set<string>>(new Set());
+  const clickedGoldenIdsRef = useRef<Set<number>>(new Set());
 
   // ── Derived values ──
   const prestigeMultiplier = 1 + prestigeLevel * 0.1;
@@ -675,11 +678,12 @@ export default function CookieClicker() {
   useEffect(() => {
     if (cps <= 0) return;
     const id = setInterval(() => {
+      if (showCaptcha) return;
       setCookies((c) => c + cps / 10);
       setTotalCookies((t) => t + cps / 10);
     }, 100);
     return () => clearInterval(id);
-  }, [cps]);
+  }, [cps, showCaptcha]);
 
   // ── Golden cookie spawner ──
   useEffect(() => {
@@ -702,18 +706,18 @@ export default function CookieClicker() {
     const expireTimers: ReturnType<typeof setTimeout>[] = [];
 
     const scheduleNext = () => {
-      const delay = 60000 + Math.random() * 120000;
+      const delay = 120000 + Math.random() * 180000; // 120s - 300s (2-5 mins)
       timerId = setTimeout(() => {
         spawn();
         scheduleNext();
       }, delay);
     };
 
-    // First spawn after 30-60s
+    // First spawn after 90-180s
     timerId = setTimeout(() => {
       spawn();
       scheduleNext();
-    }, 30000 + Math.random() * 30000);
+    }, 90000 + Math.random() * 90000);
 
     return () => {
       clearTimeout(timerId);
@@ -895,8 +899,39 @@ export default function CookieClicker() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [unlock, findEasterEgg]);
 
+  // ── Anti-autoclick captcha generator ──
+  const generateCaptcha = useCallback(() => {
+    const num1 = Math.floor(Math.random() * 8) + 2; // 2 to 9
+    const num2 = Math.floor(Math.random() * 8) + 2; // 2 to 9
+    const answer = num1 + num2;
+
+    const choices = new Set<number>();
+    choices.add(answer);
+    while (choices.size < 3) {
+      const wrong = answer + (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 4) + 1);
+      if (wrong > 0 && wrong !== answer) {
+        choices.add(wrong);
+      }
+    }
+    const options = Array.from(choices).sort(() => Math.random() - 0.5);
+
+    setCaptchaQuestion({ num1, num2, options });
+    setShowCaptcha(true);
+  }, []);
+
   // ── Click handler ──
   const handleClick = useCallback((e: React.MouseEvent) => {
+    if (showCaptcha) return;
+
+    // Autoclicker detection: > 32 clicks in 2 seconds (16 clicks/sec)
+    const now = Date.now();
+    clickTimesRef.current.push(now);
+    clickTimesRef.current = clickTimesRef.current.filter((t) => now - t < 2000);
+    if (clickTimesRef.current.length >= 32) {
+      generateCaptcha();
+      return;
+    }
+
     setCookies((c) => c + cpc);
     setTotalCookies((t) => t + cpc);
     setTotalClicks((c) => c + 1);
@@ -919,7 +954,6 @@ export default function CookieClicker() {
     setTimeout(() => setShakeIntensity(0), 100);
 
     // Speed demon check
-    const now = Date.now();
     clickTimesRef.current.push(now);
     clickTimesRef.current = clickTimesRef.current.filter((t) => now - t < 5000);
     if (clickTimesRef.current.length >= 50) {
@@ -933,10 +967,13 @@ export default function CookieClicker() {
       setRainbowMode(true);
       setTimeout(() => setRainbowMode(false), 2000);
     }
-  }, [cpc, duckMode, unlock, findEasterEgg]);
+  }, [cpc, duckMode, unlock, findEasterEgg, showCaptcha, generateCaptcha]);
 
   // ── Golden cookie click handler ──
   const handleGoldenClick = useCallback((gc: GoldenCookie) => {
+    if (clickedGoldenIdsRef.current.has(gc.id)) return;
+    clickedGoldenIdsRef.current.add(gc.id);
+
     setGoldenCookies((prev) => prev.filter((g) => g.id !== gc.id));
     setGoldenClicked((c) => c + 1);
 
@@ -1343,6 +1380,57 @@ export default function CookieClicker() {
             {gc.type === "diamond" ? "💎" : "✨"}
           </motion.button>
         ))}
+      </AnimatePresence>
+
+      {/* Captcha Modal */}
+      <AnimatePresence>
+        {showCaptcha && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+              className="bg-[#1c1c1f] border-2 border-red-500/50 p-6 max-w-sm w-full mx-4 rounded-lg text-center shadow-[0_0_50px_rgba(239,68,68,0.3)]"
+            >
+              <div className="text-4xl mb-3">🤖</div>
+              <h2 className="font-serif text-xl font-bold mb-2 text-red-400">Autoklicker-Schutz</h2>
+              <p className="text-xs text-[#a09a90] mb-4">
+                Bist du noch da? Bitte löse diese kleine Rechenaufgabe, um weiterzuspielen:
+              </p>
+              
+              <div className="text-2xl font-serif font-black text-[#f0ebe3] my-4 p-3 bg-black/40 rounded-sm border border-[rgba(240,235,227,0.08)]">
+                {captchaQuestion.num1} + {captchaQuestion.num2} = ?
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                {captchaQuestion.options.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => {
+                      if (opt === captchaQuestion.num1 + captchaQuestion.num2) {
+                        setShowCaptcha(false);
+                        clickTimesRef.current = []; // Reset click tracking
+                        showNotification("✅ Verifiziert! Weiterspielen!");
+                      } else {
+                        // Wrong answer, generate new captcha
+                        generateCaptcha();
+                        showNotification("❌ Falsch! Versuche es noch einmal.");
+                      }
+                    }}
+                    className="py-2.5 px-3 bg-[#141416] hover:bg-[#FFA586] hover:text-[#141416] border border-[rgba(240,235,227,0.15)] rounded-sm text-sm font-bold transition-all cursor-pointer"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Name Entry Modal */}
