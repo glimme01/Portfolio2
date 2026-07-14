@@ -1838,7 +1838,7 @@ export default function CookieClicker() {
             )}
             {activeEffects.clickFrenzy > 0 && (
               <span className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full animate-pulse">
-                ⚡ x777
+                ⚡ x77
               </span>
             )}
             {isNightTime() && (
