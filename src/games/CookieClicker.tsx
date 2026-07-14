@@ -34,6 +34,7 @@ interface ClickUpgrade {
   baseCost: number;
   cpcAdd: number;
   owned: number;
+  maxOwned?: number;
 }
 
 interface Achievement {
@@ -141,6 +142,10 @@ const COOKIE_SKINS: CookieSkin[] = [
   { id: "royal", name: "Königlich", emoji: "👑", reqLevel: 12 },
   { id: "blackhole", name: "Singularität", emoji: "🌌", reqLevel: 18 },
   { id: "portal", name: "Dimension", emoji: "🌀", reqLevel: 25 },
+  { id: "ghost", name: "Geist", emoji: "👻", reqLevel: 35 },
+  { id: "alien", name: "Alien", emoji: "👽", reqLevel: 50 },
+  { id: "angel", name: "Engel", emoji: "👼", reqLevel: 75 },
+  { id: "god", name: "67 Cookie", emoji: "6️⃣7️⃣", reqLevel: 100 },
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -171,16 +176,16 @@ const BUILDINGS: Building[] = [
 ];
 
 const CLICK_UPGRADES: ClickUpgrade[] = [
-  { id: "click1", name: "Super-Finger", emoji: "⚡", baseCost: 50, cpcAdd: 1, owned: 0 },
-  { id: "click2", name: "Mega-Finger", emoji: "🚀", baseCost: 500, cpcAdd: 5, owned: 0 },
-  { id: "click3", name: "Hyper-Finger", emoji: "💥", baseCost: 5000, cpcAdd: 25, owned: 0 },
-  { id: "click4", name: "Ultra-Finger", emoji: "🪐", baseCost: 50000, cpcAdd: 120, owned: 0 },
-  { id: "click5", name: "Omega-Finger", emoji: "👑", baseCost: 500000, cpcAdd: 600, owned: 0 },
-  { id: "click6", name: "Göttlicher Finger", emoji: "✨", baseCost: 5000000, cpcAdd: 3000, owned: 0 },
-  { id: "click7", name: "Kosmo-Finger", emoji: "🌠", baseCost: 50000000, cpcAdd: 15000, owned: 0 },
-  { id: "click8", name: "Quanten-Finger", emoji: "🔆", baseCost: 500000000, cpcAdd: 80000, owned: 0 },
-  { id: "click9", name: "Infinity-Finger", emoji: "♾️", baseCost: 5000000000, cpcAdd: 450000, owned: 0 },
-  { id: "click10", name: "ÜBER-Finger", emoji: "🫳", baseCost: 50000000000, cpcAdd: 2500000, owned: 0 },
+  { id: "click1", name: "Super-Finger", emoji: "⚡", baseCost: 50, cpcAdd: 1, owned: 0, maxOwned: 999 },
+  { id: "click2", name: "Mega-Finger", emoji: "🚀", baseCost: 500, cpcAdd: 5, owned: 0, maxOwned: 999 },
+  { id: "click3", name: "Hyper-Finger", emoji: "💥", baseCost: 5000, cpcAdd: 25, owned: 0, maxOwned: 999 },
+  { id: "click4", name: "Ultra-Finger", emoji: "🪐", baseCost: 50000, cpcAdd: 120, owned: 0, maxOwned: 999 },
+  { id: "click5", name: "Omega-Finger", emoji: "👑", baseCost: 500000, cpcAdd: 600, owned: 0, maxOwned: 999 },
+  { id: "click6", name: "Göttlicher Finger", emoji: "✨", baseCost: 5000000, cpcAdd: 3000, owned: 0, maxOwned: 999 },
+  { id: "click7", name: "Kosmo-Finger", emoji: "🌠", baseCost: 50000000, cpcAdd: 15000, owned: 0, maxOwned: 999 },
+  { id: "click8", name: "Quanten-Finger", emoji: "🔆", baseCost: 500000000, cpcAdd: 80000, owned: 0, maxOwned: 999 },
+  { id: "click9", name: "Infinity-Finger", emoji: "♾️", baseCost: 5000000000, cpcAdd: 450000, owned: 0, maxOwned: 999 },
+  { id: "click10", name: "ÜBER-Finger", emoji: "🫳", baseCost: 50000000000, cpcAdd: 2500000, owned: 0, maxOwned: 999 },
 ];
 
 const INITIAL_ACHIEVEMENTS: Achievement[] = [
@@ -225,6 +230,11 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
   { id: "snake", name: "Wrong Game!", emoji: "🐍", desc: "Secret Code: snake", unlocked: false, hidden: true },
   { id: "elite_time", name: "Elite Baker", emoji: "⏰", desc: "Um genau 13:37 Uhr gespielt", unlocked: false, hidden: true },
   { id: "diamond", name: "Diamond Cookie!", emoji: "💎", desc: "Seltenen Diamond Cookie gefunden", unlocked: false, hidden: true },
+  { id: "sixty_seven_clicks", name: "Die 67 Klicks", emoji: "🖱️", desc: "Genau 67 mal geklickt", unlocked: false, hidden: true },
+  { id: "sixty_seven_cookies", name: "Der 67. Keks", emoji: "🍪", desc: "Genau 67 Cookies besessen", unlocked: false, hidden: true },
+  { id: "sixty_seven_cps", name: "67 pro Sekunde", emoji: "🔄", desc: "Genau 67 CPS erreicht", unlocked: false, hidden: true },
+  { id: "sixty_seven_cpc", name: "67 pro Klick", emoji: "⚡", desc: "Genau 67 CPC erreicht", unlocked: false, hidden: true },
+  { id: "sixty_seven_code", name: "Geheimnis der 67", emoji: "🕵️", desc: "Secret Code: 67", unlocked: false, hidden: true },
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -346,6 +356,7 @@ export default function CookieClicker() {
   const [playerName, setPlayerName] = useState("");
   const [lastRenamed, setLastRenamed] = useState(0);
   const [showNameModal, setShowNameModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(() => localStorage.getItem("cc_tutorial_seen") !== "true");
   const [nameInput, setNameInput] = useState("");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [nameError, setNameError] = useState("");
@@ -362,6 +373,7 @@ export default function CookieClicker() {
   const [captchaQuestion, setCaptchaQuestion] = useState<{ num1: number; num2: number; options: number[] }>({ num1: 0, num2: 0, options: [] });
   const [lastCaptchaTime, setLastCaptchaTime] = useState(() => Date.now());
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
   const titleClicksRef = useRef(0);
   const [uiScale, setUiScale] = useState<number>(() => {
     const s = lsGet("cc_ui_scale");
@@ -376,6 +388,9 @@ export default function CookieClicker() {
     return s !== "false";
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showPatchlog, setShowPatchlog] = useState(false);
+  const [syncPassword, setSyncPassword] = useState("");
+  const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error?: string; success?: string }>({ loading: false });
 
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
@@ -394,17 +409,18 @@ export default function CookieClicker() {
   // ── Derived values ──
   const prestigeMultiplier = 1 + heavenlyChips * 0.1;
   const nightBonus = isNightTime() ? 2 : 1;
-  const frenzyMultiplier = activeEffects.frenzy > 0 ? 4 : 1;
+  const frenzyMultiplier = activeEffects.frenzy > 0 ? 2 : 1;
   const baseCps = buildings.reduce((sum, b) => sum + b.cps * b.owned, 0);
   const cps = baseCps * prestigeMultiplier * nightBonus * frenzyMultiplier;
-  const clickFrenzyMultiplier = activeEffects.clickFrenzy > 0 ? 77 : 1;
+  const clickFrenzyMultiplier = activeEffects.clickFrenzy > 0 ? 10 : 1;
   const baseCpc = 1 + clickUpgrades.reduce((sum, u) => sum + u.cpcAdd * u.owned, 0);
   const cpc = baseCpc * prestigeMultiplier * clickFrenzyMultiplier;
   const totalBuildings = buildings.reduce((sum, b) => sum + b.owned, 0);
   const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
-  const potentialHeavenly = Math.floor(Math.pow(cookiesBakedAllTime / 1000000, 0.5));
-  const nextChipLevel = Math.max(potentialHeavenly, heavenlyChips) + 1;
-  const nextChipThreshold = 1000000 * Math.pow(nextChipLevel, 2);
+  const nextChipLevel = heavenlyChips + 1;
+  const nextChipThreshold = 1000000 * nextChipLevel;
+  const canAscend = totalCookies >= nextChipThreshold && heavenlyChips < 100;
+  const potentialHeavenly = canAscend ? nextChipLevel : heavenlyChips;
   const isAdmin = isAdminUnlocked;
 
   // ── Notification helper ──
@@ -440,6 +456,117 @@ export default function CookieClicker() {
   }, [showNotification]);
 
   // ── Load save ──
+
+  const loadState = useCallback((state: GameState) => {
+    setCookies(state.cookies || 0);
+    setTotalCookies(state.totalCookies || 0);
+    const loadedAllTime = state.cookiesBakedAllTime !== undefined
+      ? state.cookiesBakedAllTime
+      : (state.totalCookies || 0) + 1000000 * Math.pow(state.heavenlyChips || 0, 2);
+    setCookiesBakedAllTime(loadedAllTime);
+    setTotalClicks(state.totalClicks || 0);
+    setPrestigeLevel(state.prestigeLevel || 0);
+    setHeavenlyChips(state.heavenlyChips || 0);
+    setGoldenClicked(state.goldenClicked || 0);
+    setEasterEggsFound(state.easterEggsFound || []);
+    setCookieSkin(state.cookieSkin || "🍪");
+    setPirateMode(state.pirateMode || false);
+    setDuckMode(state.duckMode || false);
+    setGrandmapocalypse(state.grandmapocalypse || false);
+    setLastSaveTime(state.lastSaveTime || Date.now());
+
+    if (state.easterEggsFound) {
+      const numEggs = ["nice", "blaze", "devil", "leet"];
+      numEggs.forEach((e) => {
+        if (state.easterEggsFound.includes(e)) numberEggsTriggeredRef.current.add(e);
+      });
+    }
+
+    if (state.playerName) {
+      setPlayerName(state.playerName);
+    } else {
+      setShowNameModal(true);
+    }
+    setLastRenamed(state.lastRenamed || 0);
+    setLeaderboardOptIn(state.leaderboardOptIn !== undefined ? state.leaderboardOptIn : true);
+    setLastCaptchaTime(state.lastCaptchaTime || Date.now());
+
+    if (state.buildings) {
+      setBuildings((prev) => prev.map((b) => {
+        const sb = state.buildings.find((x) => x.id === b.id);
+        return sb ? { ...b, owned: sb.owned } : b;
+      }));
+    }
+    if (state.clickUpgrades) {
+      setClickUpgrades((prev) => prev.map((u) => {
+        const su = state.clickUpgrades.find((x) => x.id === u.id);
+        return su ? { ...u, owned: su.owned } : u;
+      }));
+    }
+    if (state.achievements) {
+      setAchievements((prev) => prev.map((a) => {
+        const sa = state.achievements.find((x) => x.id === a.id);
+        return sa ? { ...a, unlocked: sa.unlocked } : a;
+      }));
+    }
+  }, [setCookies, setTotalCookies, setCookiesBakedAllTime, setTotalClicks, setPrestigeLevel, setHeavenlyChips, setGoldenClicked, setEasterEggsFound, setCookieSkin, setPirateMode, setDuckMode, setGrandmapocalypse, setLastSaveTime, setPlayerName, setLastRenamed, setLeaderboardOptIn, setLastCaptchaTime, setBuildings, setClickUpgrades, setAchievements]);
+
+  const handleCloudSync = async (mode: 'save' | 'load') => {
+    if (!playerName || !syncPassword) {
+      setSyncStatus({ loading: false, error: "Bitte Name und Passwort eingeben!" });
+      return;
+    }
+    setSyncStatus({ loading: true, error: undefined, success: undefined });
+    
+    try {
+      const crypto = window.crypto || (window as any).msCrypto;
+      const encoder = new TextEncoder();
+      const data = encoder.encode(syncPassword);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      const url = `/.netlify/functions/savegame`;
+      
+      const stateToSave = mode === 'save' ? {
+        cookies, totalCookies, cookiesBakedAllTime, totalClicks, buildings, clickUpgrades,
+        achievements, prestigeLevel, heavenlyChips, cookieSkin, startTime, goldenClicked,
+        easterEggsFound, pirateMode, duckMode, grandmapocalypse, lastSaveTime: Date.now(),
+        playerName, lastRenamed, leaderboardOptIn, lastCaptchaTime
+      } : null;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: mode,
+          name: playerName,
+          password: syncPassword,
+          state: stateToSave
+        })
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Netzwerkfehler');
+
+      if (mode === 'load' && json.state) {
+        loadState(json.state);
+        setTimeout(() => doSave(), 500); // Trigger save to local storage
+      }
+
+      setSyncStatus({ loading: false, success: mode === 'save' ? 'Erfolgreich gespeichert!' : 'Spielstand geladen!' });
+
+      // Unlock admin automatically if master password is used
+      if (syncPassword === 'moritz2026') {
+        setIsAdminUnlocked(true);
+        setAdminPassword('moritz2026');
+        showNotification("🪄 Admin-Modus freigeschaltet!");
+      }
+    } catch (e: any) {
+      setSyncStatus({ loading: false, error: e.message });
+    }
+  };
+
   useEffect(() => {
     try {
       // Load leaderboard (filter inactive 20 days)
@@ -456,65 +583,7 @@ export default function CookieClicker() {
       const saved = lsGet("cc_save_v2");
       if (saved) {
         const state: GameState = JSON.parse(saved);
-        setCookies(state.cookies || 0);
-        setTotalCookies(state.totalCookies || 0);
-        const loadedAllTime = state.cookiesBakedAllTime !== undefined
-          ? state.cookiesBakedAllTime
-          : (state.totalCookies || 0) + 1000000 * Math.pow(state.heavenlyChips || 0, 2);
-        setCookiesBakedAllTime(loadedAllTime);
-        setTotalClicks(state.totalClicks || 0);
-        setPrestigeLevel(state.prestigeLevel || 0);
-        setHeavenlyChips(state.heavenlyChips || 0);
-        setGoldenClicked(state.goldenClicked || 0);
-        setEasterEggsFound(state.easterEggsFound || []);
-        setCookieSkin(state.cookieSkin || "🍪");
-        setPirateMode(state.pirateMode || false);
-        setDuckMode(state.duckMode || false);
-        setGrandmapocalypse(state.grandmapocalypse || false);
-        setLastSaveTime(state.lastSaveTime || Date.now());
-
-        // Populate number eggs triggered ref from existing easter eggs
-        if (state.easterEggsFound) {
-          const numEggs = ["nice", "blaze", "devil", "leet"];
-          numEggs.forEach((e) => {
-            if (state.easterEggsFound.includes(e)) numberEggsTriggeredRef.current.add(e);
-          });
-        }
-
-        if (state.playerName) {
-          setPlayerName(state.playerName);
-        } else {
-          setShowNameModal(true);
-        }
-        setLastRenamed(state.lastRenamed || 0);
-        setLeaderboardOptIn(state.leaderboardOptIn !== undefined ? state.leaderboardOptIn : true);
-        setLastCaptchaTime(state.lastCaptchaTime || Date.now());
-
-        // Merge saved buildings
-        if (state.buildings) {
-          setBuildings((prev) =>
-            prev.map((b) => {
-              const sb = state.buildings.find((x) => x.id === b.id);
-              return sb ? { ...b, owned: sb.owned } : b;
-            })
-          );
-        }
-        if (state.clickUpgrades) {
-          setClickUpgrades((prev) =>
-            prev.map((u) => {
-              const su = state.clickUpgrades.find((x) => x.id === u.id);
-              return su ? { ...u, owned: su.owned } : u;
-            })
-          );
-        }
-        if (state.achievements) {
-          setAchievements((prev) =>
-            prev.map((a) => {
-              const sa = state.achievements.find((x) => x.id === a.id);
-              return sa ? { ...a, unlocked: sa.unlocked } : a;
-            })
-          );
-        }
+        loadState(state);
 
         // Offline earnings
         if (state.lastSaveTime) {
@@ -538,6 +607,11 @@ export default function CookieClicker() {
         }
       } else {
         setShowNameModal(true);
+      }
+
+      // Check for Patchlog
+      if (!lsGet("cc_patchlog_v1_1")) {
+        setShowPatchlog(true);
       }
     } catch (e) {
       console.warn("Failed to load save:", e);
@@ -691,11 +765,11 @@ export default function CookieClicker() {
         showNotification(`📦 +${formatNumber(deal.value)} Cookies vom Händler!`);
         break;
       case "cps_mult":
-        setActiveEffects((e) => ({ ...e, frenzy: Math.max(e.frenzy, Date.now() + 30000) }));
+        setActiveEffects((e) => ({ ...e, frenzy: Math.max(e.frenzy, Date.now() + 5000) }));
         showNotification(`⚡ ${deal.value}x CPS Boost für 30s!`);
         break;
       case "cpc_mult":
-        setActiveEffects((e) => ({ ...e, clickFrenzy: Math.max(e.clickFrenzy, Date.now() + 30000) }));
+        setActiveEffects((e) => ({ ...e, clickFrenzy: Math.max(e.clickFrenzy, Date.now() + 5000) }));
         showNotification(`💪 ${deal.value}x Klick-Power für 30s!`);
         break;
       case "golden_rush":
@@ -886,6 +960,18 @@ export default function CookieClicker() {
       numberEggsTriggeredRef.current.add("devil");
       unlock("devil"); findEasterEgg("devil", "The Devil's Dozen 💀");
     }
+    if (floored === 67 && !numberEggsTriggeredRef.current.has("sixty_seven_cookies")) {
+      numberEggsTriggeredRef.current.add("sixty_seven_cookies");
+      unlock("sixty_seven_cookies"); findEasterEgg("sixty_seven_cookies", "Der 67. Keks!");
+    }
+    if (Math.floor(cps) === 67 && !numberEggsTriggeredRef.current.has("sixty_seven_cps")) {
+      numberEggsTriggeredRef.current.add("sixty_seven_cps");
+      unlock("sixty_seven_cps"); findEasterEgg("sixty_seven_cps", "Exakt 67 Cookies pro Sekunde!");
+    }
+    if (Math.floor(cpc) === 67 && !numberEggsTriggeredRef.current.has("sixty_seven_cpc")) {
+      numberEggsTriggeredRef.current.add("sixty_seven_cpc");
+      unlock("sixty_seven_cpc"); findEasterEgg("sixty_seven_cpc", "Exakt 67 Cookies pro Klick!");
+    }
     if (floored === 1337 && !numberEggsTriggeredRef.current.has("leet")) {
       numberEggsTriggeredRef.current.add("leet");
       unlock("leet"); findEasterEgg("leet", "L33T BAKER 💻");
@@ -924,7 +1010,7 @@ export default function CookieClicker() {
       findEasterEgg("halloween", "Spooky Baker 🎃");
       setCookieSkin("🎃");
     }
-  }, [loaded, totalCookies, totalClicks, totalBuildings, cookies, buildings, clickUpgrades, goldenClicked, unlock, findEasterEgg]);
+  }, [loaded, totalCookies, totalClicks, totalBuildings, cookies, cps, cpc, buildings, clickUpgrades, goldenClicked, unlock, findEasterEgg]);
 
   // ── Keyboard listener for Konami + secret words ──
   useEffect(() => {
@@ -990,6 +1076,11 @@ export default function CookieClicker() {
           setTimeout(() => { if (!getSeasonalEmoji()) setCookieSkin("🍪"); }, 8000);
           secretWordRef.current = "";
         }
+        if (word.endsWith("67")) {
+          unlock("sixty_seven_code");
+          findEasterEgg("sixty_seven_code", "Secret 67 Code!");
+          secretWordRef.current = "";
+        }
       }
     };
 
@@ -1032,7 +1123,13 @@ export default function CookieClicker() {
     playClickSound(soundEnabled);
 
     addCookies(cpc);
-    setTotalClicks((c) => c + 1);
+    const newTotalClicks = totalClicks + 1;
+    setTotalClicks(newTotalClicks);
+
+    if (newTotalClicks === 67) {
+      unlock("sixty_seven_clicks");
+      findEasterEgg("sixty_seven_clicks", "Die magischen 67 Klicks!");
+    }
 
     // Particle (max 5)
     const pid = ++particleIdRef.current;
@@ -1077,12 +1174,12 @@ export default function CookieClicker() {
 
     switch (gc.type) {
       case "frenzy":
-        setActiveEffects((e) => ({ ...e, frenzy: 15000 }));
-        showNotification("🔥 FRENZY! 2x Produktion für 15 Sekunden!");
+        setActiveEffects((e) => ({ ...e, frenzy: 5000 }));
+        showNotification("🔥 FRENZY! 2x Produktion für 5 Sekunden!");
         break;
       case "clickFrenzy":
-        setActiveEffects((e) => ({ ...e, clickFrenzy: 5000 }));
-        showNotification("⚡ CLICK FRENZY! 10x Klick-Power für 5 Sekunden!");
+        setActiveEffects((e) => ({ ...e, clickFrenzy: 2000 }));
+        showNotification("⚡ CLICK FRENZY! 10x Klick-Power für 2 Sekunden!");
         break;
       case "lucky": {
         const bonus = Math.max(cps * 30, cookies * 0.05);
@@ -1125,7 +1222,6 @@ export default function CookieClicker() {
         count = 100;
         cost = getBulkCost(b.baseCost, b.owned, 100);
       } else {
-        // "max"
         const maxStats = getMaxAffordable(b.baseCost, b.owned, cookies);
         count = maxStats.count;
         cost = maxStats.cost;
@@ -1146,6 +1242,9 @@ export default function CookieClicker() {
       let count = 0;
       let cost = 0;
       
+      let maxCanBuy = u.maxOwned !== undefined ? u.maxOwned - u.owned : Infinity;
+      if (maxCanBuy <= 0) return prev;
+      
       if (buyMode === 1) {
         count = 1;
         cost = getCost(u.baseCost, u.owned);
@@ -1156,10 +1255,14 @@ export default function CookieClicker() {
         count = 100;
         cost = getBulkCost(u.baseCost, u.owned, 100);
       } else {
-        // "max"
         const maxStats = getMaxAffordable(u.baseCost, u.owned, cookies);
         count = maxStats.count;
         cost = maxStats.cost;
+      }
+      
+      if (count > maxCanBuy) {
+        count = maxCanBuy;
+        cost = getBulkCost(u.baseCost, u.owned, count);
       }
       
       if (count <= 0 || cookies < cost) return prev;
@@ -1280,6 +1383,7 @@ export default function CookieClicker() {
       const pw = prompt("Admin-Passwort eingeben:");
       if (pw === "moritz2026") {
         setIsAdminUnlocked(true);
+        setAdminPassword(pw);
         setActiveTab("admin");
         showNotification("🪄 Admin-Modus freigeschaltet!");
       } else if (pw !== null) {
@@ -1328,7 +1432,7 @@ export default function CookieClicker() {
       const res = await fetch(`${API_BASE}/leaderboard`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clearAll: true }),
+        body: JSON.stringify({ clearAll: true, adminPassword }),
       });
       if (res.ok) {
         const remote: LeaderboardEntry[] = await res.json();
@@ -1580,13 +1684,13 @@ export default function CookieClicker() {
             key={gc.id}
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: [1, 1.15, 1], rotate: 0 }}
-            exit={{ scale: 0, rotate: 180 }}
+            exit={{ scale: 0, opacity: 0, transition: { duration: 0.3, repeat: 0 } }}
             transition={{ scale: { repeat: Infinity, duration: 1.5 } }}
             onClick={() => handleGoldenClick(gc)}
             className="fixed z-40 text-5xl md:text-6xl cursor-pointer hover:scale-125 transition-transform select-none drop-shadow-[0_0_20px_rgba(255,215,0,0.6)] p-2"
             style={{ left: `${gc.x}%`, top: `${gc.y}%`, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
           >
-            {gc.type === "diamond" ? "💎" : "✨"}
+            {gc.type === "diamond" ? "💎" : "🎁"}
           </motion.button>
         ))}
       </AnimatePresence>
@@ -1638,6 +1742,60 @@ export default function CookieClicker() {
                   </button>
                 ))}
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      
+      {/* Tutorial Modal */}
+      <AnimatePresence>
+        {showTutorial && !showNameModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 20 }}
+              className="bg-[#1c1c1f] border border-[#FFA586]/30 p-6 max-w-md w-full mx-auto rounded-lg space-y-4"
+            >
+              <h2 className="text-2xl font-bold text-[#FFA586] mb-2">🍪 Willkommen bei Cookie Clicker!</h2>
+              <div className="space-y-3 text-sm text-[#f0ebe3]">
+                <p>Willkommen zu deinem neuen Lieblings-Klicker-Spiel! Hier ist eine kurze Erklärung:</p>
+                
+                <div className="bg-[#141416] p-3 rounded border border-[rgba(240,235,227,0.1)]">
+                  <h3 className="font-bold text-amber-400 mb-1">👆 1. Klicken & Sammeln</h3>
+                  <p className="text-[#a09a90] text-xs">Klicke auf den großen Keks in der Mitte, um Kekse zu produzieren.</p>
+                </div>
+
+                <div className="bg-[#141416] p-3 rounded border border-[rgba(240,235,227,0.1)]">
+                  <h3 className="font-bold text-emerald-400 mb-1">🏭 2. Upgrades Kaufen</h3>
+                  <p className="text-[#a09a90] text-xs">Gehe in den <b>Gebäude-Tab</b> (🏭), um passive Produktion zu kaufen. Im <b>Klick-Tab</b> (⚡) stärkst du deine Mausklicks.</p>
+                </div>
+
+                <div className="bg-[#141416] p-3 rounded border border-[rgba(240,235,227,0.1)]">
+                  <h3 className="font-bold text-indigo-400 mb-1">☁️ 3. Cloud Sync</h3>
+                  <p className="text-[#a09a90] text-xs">Du kannst deinen Spielstand in der Cloud speichern! Öffne die <b>Einstellungen</b> (⚙️ oben rechts) und erstelle ein Passwort für dein Gerät.</p>
+                </div>
+
+                <div className="bg-[#141416] p-3 rounded border border-[rgba(240,235,227,0.1)]">
+                  <h3 className="font-bold text-rose-400 mb-1">🛡️ 4. Anti-Autoclicker</h3>
+                  <p className="text-[#a09a90] text-xs">Nach 5 Stunden aktiver Spielzeit musst du eine kleine Rechenaufgabe lösen, um weiterklicken zu können.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTutorial(false);
+                  localStorage.setItem("cc_tutorial_seen", "true");
+                }}
+                className="w-full mt-4 py-3 bg-[#FFA586] hover:bg-[#FFB99A] text-[#141416] font-bold rounded transition-colors"
+              >
+                Loslegen! 🚀
+              </button>
             </motion.div>
           </motion.div>
         )}
@@ -1718,6 +1876,65 @@ export default function CookieClicker() {
                   Abbrechen
                 </button>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Patchlog Modal */}
+      <AnimatePresence>
+        {showPatchlog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#1e1c1a] border-2 border-[#d4af37] p-6 rounded-xl max-w-md w-full shadow-[0_0_50px_rgba(212,175,55,0.2)] text-left"
+            >
+              <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#FFA500] mb-2 text-center uppercase tracking-widest drop-shadow-lg">
+                UPDATE v1.1
+              </h2>
+              <p className="text-[#a09a90] text-sm mb-4 text-center">Was ist neu im Cookie Clicker?</p>
+              
+              <div className="space-y-4 text-sm text-[#f0ebe3] bg-black/30 p-4 rounded-lg border border-white/5 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                <div>
+                  <h3 className="font-bold text-[#d4af37] text-base mb-1">⚖️ Balancing</h3>
+                  <ul className="list-disc pl-5 space-y-1 text-[#d4af37]/80">
+                    <li>Powerups (Frenzy & Click Frenzy) wurden rebalanced, damit sie nicht zu OP sind.</li>
+                    <li>Das Ascend-System wurde gefixt: Keine unendlichen Level-Stacks mehr, man bekommt nun faire +1 Level pro Ascend.</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#d4af37] text-base mb-1">🥚 67 Easter Eggs & Skins</h3>
+                  <ul className="list-disc pl-5 space-y-1 text-[#d4af37]/80">
+                    <li>Level 100 Skin hinzugefügt: <strong>Der 67 Cookie (6️⃣7️⃣)</strong>.</li>
+                    <li>5 neue versteckte Easter Eggs rund um die magische Zahl 67 hinzugefügt. Schaffst du es, sie alle zu finden?</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#d4af37] text-base mb-1">🐛 Bugfixes</h3>
+                  <ul className="list-disc pl-5 space-y-1 text-[#d4af37]/80">
+                    <li>Der Animations-Bug der goldenen Cookies (bleibende Sterne auf dem Bildschirm) wurde behoben.</li>
+                    <li>Cloud-Speichern wurde stabilisiert.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  lsSet("cc_patchlog_v1_1", "true");
+                  setShowPatchlog(false);
+                }}
+                className="w-full mt-6 py-3 font-bold text-black uppercase tracking-wider bg-gradient-to-r from-[#d4af37] to-[#e5c158] hover:from-[#e5c158] hover:to-[#f6d369] rounded shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all active:scale-95"
+                style={{ WebkitTapHighlightColor: "transparent" }}
+              >
+                Gelesen & Loslegen!
+              </button>
             </motion.div>
           </motion.div>
         )}
@@ -1823,6 +2040,41 @@ export default function CookieClicker() {
                 </button>
               </div>
 
+              
+              {/* Cloud Sync Setting */}
+              <div className="pt-2 border-t border-[rgba(240,235,227,0.06)]">
+                <span className="text-xs font-semibold block text-[#f0ebe3] mb-2">Cloud-Save (Geräte-Sync) ☁️</span>
+                <span className="text-[10px] text-[#a09a90] block mb-2">Sichere deinen Spielstand mit einem Passwort.</span>
+                
+                <input
+                  type="password"
+                  placeholder="Dein Passwort"
+                  value={syncPassword}
+                  onChange={(e) => setSyncPassword(e.target.value)}
+                  className="w-full bg-[#141416] text-[#f0ebe3] text-sm px-3 py-2 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none focus:border-[#FFA586] transition-colors mb-2"
+                />
+                
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => handleCloudSync('save')}
+                    disabled={syncStatus.loading || !syncPassword}
+                    className="flex-1 py-1.5 text-xs bg-[rgba(240,235,227,0.04)] hover:bg-[#FFA586]/10 border border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/30 text-[#f0ebe3] font-bold rounded-sm transition-all disabled:opacity-50"
+                  >
+                    Speichern
+                  </button>
+                  <button
+                    onClick={() => handleCloudSync('load')}
+                    disabled={syncStatus.loading || !syncPassword}
+                    className="flex-1 py-1.5 text-xs bg-[rgba(240,235,227,0.04)] hover:bg-[#FFA586]/10 border border-[rgba(240,235,227,0.12)] hover:border-[#FFA586]/30 text-[#f0ebe3] font-bold rounded-sm transition-all disabled:opacity-50"
+                  >
+                    Laden
+                  </button>
+                </div>
+                {syncStatus.loading && <span className="text-[10px] text-[#FFA586] block">Lade...</span>}
+                {syncStatus.error && <span className="text-[10px] text-red-400 block">{syncStatus.error}</span>}
+                {syncStatus.success && <span className="text-[10px] text-green-400 block">{syncStatus.success}</span>}
+              </div>
+
               {/* Profile rename option */}
               <div className="pt-2">
                 <button
@@ -1909,7 +2161,7 @@ export default function CookieClicker() {
             )}
             {activeEffects.clickFrenzy > 0 && (
               <span className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full animate-pulse">
-                ⚡ x77
+                ⚡ x10
               </span>
             )}
             {isNightTime() && (
