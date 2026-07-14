@@ -314,6 +314,8 @@ export default function CookieClicker() {
   const [showCaptcha, setShowCaptcha] = useState(false);
   const [captchaQuestion, setCaptchaQuestion] = useState<{ num1: number; num2: number; options: number[] }>({ num1: 0, num2: 0, options: [] });
   const [lastCaptchaTime, setLastCaptchaTime] = useState(() => Date.now());
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const titleClicksRef = useRef(0);
 
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
@@ -340,7 +342,7 @@ export default function CookieClicker() {
   const totalBuildings = buildings.reduce((sum, b) => sum + b.owned, 0);
   const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
   const potentialHeavenly = Math.floor(Math.pow(totalCookies / 1000000, 0.5));
-  const isAdmin = playerName.toLowerCase() === "moritz" || playerName.toLowerCase() === "admin" || playerName.toLowerCase() === "moritzadmin";
+  const isAdmin = isAdminUnlocked;
 
   // ── Notification helper ──
   const showNotification = useCallback((msg: string) => {
@@ -1123,8 +1125,7 @@ export default function CookieClicker() {
 
     // 30-day rename cooldown (only if already named and not first-time or from Anonym, bypassed for admin)
     const isFirstTime = !playerName || playerName === "Anonym";
-    const currentIsAdmin = playerName.toLowerCase() === "moritz" || playerName.toLowerCase() === "admin" || playerName.toLowerCase() === "moritzadmin";
-    if (!isFirstTime && trimmed !== playerName && lastRenamed > 0 && !currentIsAdmin) {
+    if (!isFirstTime && trimmed !== playerName && lastRenamed > 0 && !isAdminUnlocked) {
       const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
       const elapsed = Date.now() - lastRenamed;
       if (elapsed < THIRTY_DAYS) {
@@ -1157,7 +1158,22 @@ export default function CookieClicker() {
     setShowNameModal(false);
     setNameInput("");
     setNameError("");
-  }, [playerName, leaderboard, lastRenamed]);
+  }, [playerName, leaderboard, lastRenamed, isAdminUnlocked]);
+
+  const handleHeaderClick = useCallback(() => {
+    titleClicksRef.current++;
+    if (titleClicksRef.current >= 5) {
+      titleClicksRef.current = 0;
+      const pw = prompt("Admin-Passwort eingeben:");
+      if (pw === "moritz2026") {
+        setIsAdminUnlocked(true);
+        setActiveTab("admin");
+        showNotification("🪄 Admin-Modus freigeschaltet!");
+      } else if (pw !== null) {
+        showNotification("❌ Falsches Passwort!");
+      }
+    }
+  }, [showNotification]);
 
   // ── Leaderboard sync ──
   const TWENTY_DAYS = 20 * 24 * 60 * 60 * 1000;
@@ -1718,7 +1734,10 @@ export default function CookieClicker() {
               </div>
             )}
 
-            <h1 className="font-serif font-black text-lg md:text-2xl mb-1 text-center relative z-10">
+            <h1 
+              onClick={handleHeaderClick}
+              className="font-serif font-black text-lg md:text-2xl mb-1 text-center relative z-10 cursor-pointer select-none active:scale-95 transition-transform"
+            >
               {duckMode ? "🦆" : "🍪"} {p("Cookie Clicker")}
             </h1>
             {pirateMode && (
