@@ -302,6 +302,10 @@ export default function CookieClicker() {
   const [nameInput, setNameInput] = useState("");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [nameError, setNameError] = useState("");
+  const [editingPlayerName, setEditingPlayerName] = useState<string | null>(null);
+  const [editCookiesInput, setEditCookiesInput] = useState("");
+  const [editPrestigeInput, setEditPrestigeInput] = useState("");
+  const [editAchievementsInput, setEditAchievementsInput] = useState("");
   const [traderDeals, setTraderDeals] = useState<TraderDeal[]>([]);
   const [traderVisible, setTraderVisible] = useState(false);
   const [traderTimer, setTraderTimer] = useState(0);
@@ -1206,6 +1210,64 @@ export default function CookieClicker() {
       // Keep cleared local state
     }
   }, [API_BASE]);
+
+  const adminDeletePlayer = useCallback(async (name: string) => {
+    if (!confirm(`Möchtest du wirklich den Spieler "${name}" löschen?`)) return;
+    setLeaderboard((prev) => {
+      const updated = prev.filter((e) => e.name !== name);
+      lsSet('cc_leaderboard', JSON.stringify(updated));
+      return updated;
+    });
+    if (!API_BASE) return;
+    try {
+      const res = await fetch(`${API_BASE}/leaderboard`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        const remote: LeaderboardEntry[] = await res.json();
+        setLeaderboard(remote);
+        lsSet('cc_leaderboard', JSON.stringify(remote));
+        showNotification(`🪄 Admin: Spieler "${name}" gelöscht!`);
+      }
+    } catch {
+      showNotification("❌ Fehler beim Löschen des Spielers.");
+    }
+  }, [API_BASE, showNotification]);
+
+  const adminUpdatePlayer = useCallback(async (name: string, cookiesVal: number, prestigeVal: number, achievementsVal: number) => {
+    const entry: LeaderboardEntry = {
+      name,
+      cookies: cookiesVal,
+      totalCookies: cookiesVal,
+      prestigeLevel: prestigeVal,
+      achievements: achievementsVal,
+      lastPlayed: Date.now(),
+    };
+    setLeaderboard((prev) => {
+      const updated = prev.map((e) => e.name === name ? entry : e);
+      lsSet('cc_leaderboard', JSON.stringify(updated));
+      return updated;
+    });
+    if (!API_BASE) return;
+    try {
+      const res = await fetch(`${API_BASE}/leaderboard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      });
+      if (res.ok) {
+        const remote: LeaderboardEntry[] = await res.json();
+        setLeaderboard(remote);
+        lsSet('cc_leaderboard', JSON.stringify(remote));
+        setEditingPlayerName(null);
+        showNotification(`🪄 Admin: Spieler "${name}" aktualisiert!`);
+      }
+    } catch {
+      showNotification("❌ Fehler beim Aktualisieren des Spielers.");
+    }
+  }, [API_BASE, showNotification]);
 
   const syncLeaderboard = useCallback(async () => {
     if (!playerName || playerName === 'Anonym') return;
@@ -2172,6 +2234,105 @@ export default function CookieClicker() {
                       <span className="font-mono">RESET</span>
                     </button>
                   </div>
+
+                  {/* Player Database Manager */}
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586] mt-4 mb-2">👥 Spieler-Datenbank verwalten</h3>
+                  {leaderboard.length === 0 ? (
+                    <p className="text-[9px] text-[#706b63] italic text-center py-4">Keine Spieler auf der Rangliste vorhanden.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {leaderboard.map((entry) => {
+                        const isEditing = editingPlayerName === entry.name;
+                        if (isEditing) {
+                          return (
+                            <div key={entry.name} className="p-2 border border-[#FFA586]/30 bg-[#FFA586]/5 rounded-sm space-y-2">
+                              <div className="text-[10px] font-bold text-[#FFA586]">Bearbeite: {entry.name}</div>
+                              <div className="grid grid-cols-3 gap-1">
+                                <div className="flex flex-col">
+                                  <span className="text-[7px] text-[#a09a90]">Cookies</span>
+                                  <input
+                                    type="number"
+                                    value={editCookiesInput}
+                                    onChange={(e) => setEditCookiesInput(e.target.value)}
+                                    className="bg-[#141416] text-[#f0ebe3] border border-[rgba(240,235,227,0.15)] text-[9px] px-1 py-0.5 rounded-sm w-full font-mono"
+                                  />
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[7px] text-[#a09a90]">Prestige</span>
+                                  <input
+                                    type="number"
+                                    value={editPrestigeInput}
+                                    onChange={(e) => setEditPrestigeInput(e.target.value)}
+                                    className="bg-[#141416] text-[#f0ebe3] border border-[rgba(240,235,227,0.15)] text-[9px] px-1 py-0.5 rounded-sm w-full font-mono"
+                                  />
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[7px] text-[#a09a90]">Achievements</span>
+                                  <input
+                                    type="number"
+                                    value={editAchievementsInput}
+                                    onChange={(e) => setEditAchievementsInput(e.target.value)}
+                                    className="bg-[#141416] text-[#f0ebe3] border border-[rgba(240,235,227,0.15)] text-[9px] px-1 py-0.5 rounded-sm w-full font-mono"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-1.5 pt-1">
+                                <button
+                                  onClick={() => setEditingPlayerName(null)}
+                                  className="text-[8px] font-bold px-2 py-0.5 border border-[rgba(240,235,227,0.15)] text-[#a09a90] hover:bg-white/5 rounded-sm cursor-pointer"
+                                >
+                                  Abbrechen
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const cookiesVal = parseFloat(editCookiesInput) || 0;
+                                    const prestigeVal = parseInt(editPrestigeInput, 10) || 0;
+                                    const achievementsVal = parseInt(editAchievementsInput, 10) || 0;
+                                    adminUpdatePlayer(entry.name, cookiesVal, prestigeVal, achievementsVal);
+                                  }}
+                                  className="text-[8px] font-bold px-2 py-0.5 bg-[#FFA586] text-[#141416] rounded-sm cursor-pointer"
+                                >
+                                  Speichern
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={entry.name} className="flex items-center justify-between p-2 border border-[rgba(240,235,227,0.06)] bg-[#141416]/20 rounded-sm">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[10px] font-semibold text-[#f0ebe3] truncate">{entry.name}</div>
+                              <div className="text-[8px] text-[#a09a90] font-mono">
+                                {formatNumber(entry.totalCookies)} 🍪 · ✨ Lv.{entry.prestigeLevel} · 🏆 {entry.achievements}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              <button
+                                onClick={() => {
+                                  setEditingPlayerName(entry.name);
+                                  setEditCookiesInput(entry.totalCookies.toString());
+                                  setEditPrestigeInput(entry.prestigeLevel.toString());
+                                  setEditAchievementsInput(entry.achievements.toString());
+                                }}
+                                className="p-1 hover:bg-[#FFA586]/10 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 rounded-sm text-[8px] font-bold cursor-pointer"
+                                title="Spieler bearbeiten"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => adminDeletePlayer(entry.name)}
+                                className="p-1 hover:bg-red-500/10 text-red-400 border border-red-500/20 hover:border-red-500/40 rounded-sm text-[8px] font-bold cursor-pointer"
+                                title="Spieler löschen"
+                              >
+                                ❌
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
