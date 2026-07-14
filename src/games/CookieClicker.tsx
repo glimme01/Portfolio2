@@ -333,15 +333,17 @@ export default function CookieClicker() {
   // ── Derived values ──
   const prestigeMultiplier = 1 + heavenlyChips * 0.1;
   const nightBonus = isNightTime() ? 2 : 1;
-  const frenzyMultiplier = activeEffects.frenzy > 0 ? 7 : 1;
+  const frenzyMultiplier = activeEffects.frenzy > 0 ? 4 : 1;
   const baseCps = buildings.reduce((sum, b) => sum + b.cps * b.owned, 0);
   const cps = baseCps * prestigeMultiplier * nightBonus * frenzyMultiplier;
-  const clickFrenzyMultiplier = activeEffects.clickFrenzy > 0 ? 777 : 1;
+  const clickFrenzyMultiplier = activeEffects.clickFrenzy > 0 ? 77 : 1;
   const baseCpc = 1 + clickUpgrades.reduce((sum, u) => sum + u.cpcAdd * u.owned, 0);
   const cpc = baseCpc * prestigeMultiplier * clickFrenzyMultiplier;
   const totalBuildings = buildings.reduce((sum, b) => sum + b.owned, 0);
   const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
   const potentialHeavenly = Math.floor(Math.pow(totalCookies / 1000000, 0.5));
+  const nextChipLevel = Math.max(potentialHeavenly, heavenlyChips) + 1;
+  const nextChipThreshold = 1000000 * Math.pow(nextChipLevel, 2);
   const isAdmin = isAdminUnlocked;
 
   // ── Notification helper ──
@@ -1008,11 +1010,11 @@ export default function CookieClicker() {
     switch (gc.type) {
       case "frenzy":
         setActiveEffects((e) => ({ ...e, frenzy: 77000 }));
-        showNotification("🔥 FRENZY! 7x Produktion für 77 Sekunden!");
+        showNotification("🔥 FRENZY! 4x Produktion für 77 Sekunden!");
         break;
       case "clickFrenzy":
         setActiveEffects((e) => ({ ...e, clickFrenzy: 13000 }));
-        showNotification("⚡ CLICK FRENZY! 777x Klick-Power für 13 Sekunden!");
+        showNotification("⚡ CLICK FRENZY! 77x Klick-Power für 13 Sekunden!");
         break;
       case "lucky": {
         const bonus = Math.max(cps * 900, cookies * 0.15);
@@ -1863,6 +1865,27 @@ export default function CookieClicker() {
                   🗑️
                 </button>
               </div>
+
+              {/* Ascension Progress Bar */}
+              <div className="mt-3 w-full max-w-[240px] mx-auto relative z-10">
+                <div className="flex justify-between items-center text-[8px] text-[#a09a90] mb-1 font-mono uppercase tracking-wider">
+                  <span>Nächster Chip</span>
+                  <span className="text-amber-400 font-bold">
+                    {potentialHeavenly - heavenlyChips > 0 ? `+${potentialHeavenly - heavenlyChips} 💫` : "0 💫"}
+                  </span>
+                </div>
+                <div className="w-full h-1 bg-[rgba(240,235,227,0.06)] rounded-full overflow-hidden relative">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-600 to-amber-400 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, (totalCookies / nextChipThreshold) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[7px] text-[#a09a90]/40 mt-1 font-mono">
+                  <span>{formatNumber(totalCookies)} / {formatNumber(nextChipThreshold)}</span>
+                  <span>{Math.floor(Math.min(100, (totalCookies / nextChipThreshold) * 100))}%</span>
+                </div>
+              </div>
+
               <p className="text-[8px] text-[#a09a90]/25 mt-1 font-mono">
                 🥚 {easterEggsFound.length}/25 · {totalClicks.toLocaleString("de-DE")} Klicks
               </p>
