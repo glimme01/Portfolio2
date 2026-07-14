@@ -102,6 +102,25 @@ interface GameState {
   lastCaptchaTime?: number;
 }
 
+interface CookieSkin {
+  id: string;
+  name: string;
+  emoji: string;
+  reqLevel: number;
+}
+
+const COOKIE_SKINS: CookieSkin[] = [
+  { id: "cookie", name: "Klassisch", emoji: "🍪", reqLevel: 0 },
+  { id: "donut", name: "Schoko-Donut", emoji: "🍩", reqLevel: 1 },
+  { id: "muffin", name: "Cupcake", emoji: "🧁", reqLevel: 2 },
+  { id: "pizza", name: "Pizza-Cookie", emoji: "🍕", reqLevel: 3 },
+  { id: "planet", name: "Kosmisch", emoji: "🪐", reqLevel: 5 },
+  { id: "diamond", name: "Diamant", emoji: "💎", reqLevel: 8 },
+  { id: "royal", name: "Königlich", emoji: "👑", reqLevel: 12 },
+  { id: "blackhole", name: "Singularität", emoji: "🌌", reqLevel: 18 },
+  { id: "portal", name: "Dimension", emoji: "🌀", reqLevel: 25 },
+];
+
 /* ═══════════════════════════════════════════════════════════
    INITIAL DATA
    ═══════════════════════════════════════════════════════════ */
@@ -306,7 +325,7 @@ export default function CookieClicker() {
   const clickedGoldenIdsRef = useRef<Set<number>>(new Set());
 
   // ── Derived values ──
-  const prestigeMultiplier = 1 + prestigeLevel * 0.1;
+  const prestigeMultiplier = 1 + heavenlyChips * 0.1;
   const nightBonus = isNightTime() ? 2 : 1;
   const frenzyMultiplier = activeEffects.frenzy > 0 ? 7 : 1;
   const baseCps = buildings.reduce((sum, b) => sum + b.cps * b.owned, 0);
@@ -316,7 +335,7 @@ export default function CookieClicker() {
   const cpc = baseCpc * prestigeMultiplier * clickFrenzyMultiplier;
   const totalBuildings = buildings.reduce((sum, b) => sum + b.owned, 0);
   const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
-  const potentialHeavenly = Math.floor(Math.pow(totalCookies / 1e12, 0.5));
+  const potentialHeavenly = Math.floor(Math.pow(totalCookies / 1000000, 0.5));
   const isAdmin = playerName.toLowerCase() === "moritz" || playerName.toLowerCase() === "admin" || playerName.toLowerCase() === "moritzadmin";
 
   // ── Notification helper ──
@@ -1041,9 +1060,8 @@ export default function CookieClicker() {
   const ascend = useCallback(() => {
     if (potentialHeavenly <= heavenlyChips) return;
     const newChips = potentialHeavenly;
-    const newLevel = prestigeLevel + 1;
     setHeavenlyChips(newChips);
-    setPrestigeLevel(newLevel);
+    setPrestigeLevel(newChips);
     setCookies(0);
     setTotalCookies(0);
     setTotalClicks(0);
@@ -1054,10 +1072,10 @@ export default function CookieClicker() {
     setShowAscendModal(false);
     numberEggsTriggeredRef.current.clear();
     unlock("prestige_1");
-    showNotification(`🔄 Ascended! Prestige Level ${newLevel} — ${newChips} Heavenly Chips (+${(newChips * 10).toFixed(0)}% Bonus)`);
+    showNotification(`🔄 Ascended! Prestige Level ${newChips} — ${newChips} Heavenly Chips (+${(newChips * 10).toFixed(0)}% Bonus)`);
     // Save after ascend
     setTimeout(() => doSave(), 100);
-  }, [potentialHeavenly, heavenlyChips, prestigeLevel, unlock, showNotification, doSave]);
+  }, [potentialHeavenly, heavenlyChips, unlock, showNotification, doSave]);
 
   // ── Reset ──
   const resetAll = useCallback(() => {
@@ -1992,6 +2010,38 @@ export default function CookieClicker() {
                       </div>
                     </>
                   )}
+
+                  {/* Cookie Skins */}
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFA586] mt-4 mb-2">🎨 Cookie Skins</h3>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {COOKIE_SKINS.map((skin) => {
+                      const isUnlocked = prestigeLevel >= skin.reqLevel;
+                      const isEquipped = cookieSkin === skin.emoji;
+                      return (
+                        <button
+                          key={skin.id}
+                          disabled={!isUnlocked}
+                          onClick={() => {
+                            setCookieSkin(skin.emoji);
+                            showNotification(`🎨 Skin gewechselt: ${skin.name}!`);
+                          }}
+                          className={`p-2 border rounded-sm transition-all flex flex-col items-center justify-center relative ${
+                            isEquipped
+                              ? "border-[#FFA586] bg-[#FFA586]/10 text-[#FFA586]"
+                              : isUnlocked
+                              ? "border-[rgba(240,235,227,0.12)] bg-[#141416]/40 hover:bg-[#FFA586]/5 cursor-pointer text-[#f0ebe3]"
+                              : "border-[rgba(240,235,227,0.06)] bg-transparent opacity-40 cursor-not-allowed text-[#706b63]"
+                          }`}
+                        >
+                          <span className="text-2xl mb-1">{isUnlocked ? skin.emoji : "🔒"}</span>
+                          <span className="text-[8px] font-semibold truncate w-full text-center">{skin.name}</span>
+                          {!isUnlocked && (
+                            <span className="text-[7px] text-amber-500 mt-0.5 font-mono">Prestige Lv.{skin.reqLevel}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
