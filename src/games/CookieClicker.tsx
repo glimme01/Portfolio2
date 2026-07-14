@@ -390,7 +390,14 @@ export default function CookieClicker() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showPatchlog, setShowPatchlog] = useState(false);
   const [syncPassword, setSyncPassword] = useState("");
+  const [syncUsername, setSyncUsername] = useState("");
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error?: string; success?: string }>({ loading: false });
+
+  useEffect(() => {
+    if (playerName && playerName !== "Anonym") {
+      setSyncUsername(playerName);
+    }
+  }, [playerName]);
 
   // ── Refs ──
   const konamiRef = useRef<string[]>([]);
@@ -512,7 +519,7 @@ export default function CookieClicker() {
   }, [setCookies, setTotalCookies, setCookiesBakedAllTime, setTotalClicks, setPrestigeLevel, setHeavenlyChips, setGoldenClicked, setEasterEggsFound, setCookieSkin, setPirateMode, setDuckMode, setGrandmapocalypse, setLastSaveTime, setPlayerName, setLastRenamed, setLeaderboardOptIn, setLastCaptchaTime, setBuildings, setClickUpgrades, setAchievements]);
 
   const handleCloudSync = async (mode: 'save' | 'load') => {
-    if (!playerName || !syncPassword) {
+    if (!syncUsername || !syncPassword) {
       setSyncStatus({ loading: false, error: "Bitte Name und Passwort eingeben!" });
       return;
     }
@@ -532,7 +539,7 @@ export default function CookieClicker() {
         cookies, totalCookies, cookiesBakedAllTime, totalClicks, buildings, clickUpgrades,
         achievements, prestigeLevel, heavenlyChips, cookieSkin, startTime, goldenClicked,
         easterEggsFound, pirateMode, duckMode, grandmapocalypse, lastSaveTime: Date.now(),
-        playerName, lastRenamed, leaderboardOptIn, lastCaptchaTime
+        playerName: syncUsername, lastRenamed, leaderboardOptIn, lastCaptchaTime
       } : null;
 
       const res = await fetch(url, {
@@ -540,7 +547,7 @@ export default function CookieClicker() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: mode,
-          name: playerName,
+          name: syncUsername,
           password: syncPassword,
           state: stateToSave
         })
@@ -552,6 +559,9 @@ export default function CookieClicker() {
       if (mode === 'load' && json.state) {
         loadState(json.state);
         setTimeout(() => doSave(), 500); // Trigger save to local storage
+      } else if (mode === 'save') {
+        setPlayerName(syncUsername);
+        setTimeout(() => doSave(), 500);
       }
 
       setSyncStatus({ loading: false, success: mode === 'save' ? 'Erfolgreich gespeichert!' : 'Spielstand geladen!' });
@@ -2044,8 +2054,15 @@ export default function CookieClicker() {
               {/* Cloud Sync Setting */}
               <div className="pt-2 border-t border-[rgba(240,235,227,0.06)]">
                 <span className="text-xs font-semibold block text-[#f0ebe3] mb-2">Cloud-Save (Geräte-Sync) ☁️</span>
-                <span className="text-[10px] text-[#a09a90] block mb-2">Sichere deinen Spielstand mit einem Passwort.</span>
+                <span className="text-[10px] text-[#a09a90] block mb-2">Sichere deinen Spielstand oder lade ihn auf anderen Geräten.</span>
                 
+                <input
+                  type="text"
+                  placeholder="Account-Name"
+                  value={syncUsername}
+                  onChange={(e) => setSyncUsername(e.target.value)}
+                  className="w-full bg-[#141416] text-[#f0ebe3] text-sm px-3 py-2 rounded border border-[rgba(240,235,227,0.12)] focus:outline-none focus:border-[#FFA586] transition-colors mb-2"
+                />
                 <input
                   type="password"
                   placeholder="Dein Passwort"
