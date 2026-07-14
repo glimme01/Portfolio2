@@ -100,6 +100,7 @@ interface GameState {
   lastRenamed: number;
   leaderboardOptIn?: boolean;
   lastCaptchaTime?: number;
+  cookiesBakedAllTime?: number;
 }
 
 const playClickSound = (soundEnabled: boolean) => {
@@ -315,6 +316,7 @@ export default function CookieClicker() {
   // ── State ──
   const [cookies, setCookies] = useState(0);
   const [totalCookies, setTotalCookies] = useState(0);
+  const [cookiesBakedAllTime, setCookiesBakedAllTime] = useState(0);
   const [totalClicks, setTotalClicks] = useState(0);
   const [buildings, setBuildings] = useState<Building[]>(() => BUILDINGS.map((b) => ({ ...b })));
   const [clickUpgrades, setClickUpgrades] = useState<ClickUpgrade[]>(() => CLICK_UPGRADES.map((u) => ({ ...u })));
@@ -387,6 +389,7 @@ export default function CookieClicker() {
   const lastSyncRef = useRef(0);
   const buyingDealsRef = useRef<Set<string>>(new Set());
   const clickedGoldenIdsRef = useRef<Set<number>>(new Set());
+  const isAscendingRef = useRef(false);
 
   // ── Derived values ──
   const prestigeMultiplier = 1 + heavenlyChips * 0.1;
@@ -399,7 +402,7 @@ export default function CookieClicker() {
   const cpc = baseCpc * prestigeMultiplier * clickFrenzyMultiplier;
   const totalBuildings = buildings.reduce((sum, b) => sum + b.owned, 0);
   const unlockedAchievements = achievements.filter((a) => a.unlocked).length;
-  const potentialHeavenly = Math.floor(Math.pow(totalCookies / 1000000, 0.5));
+  const potentialHeavenly = Math.floor(Math.pow(cookiesBakedAllTime / 1000000, 0.5));
   const nextChipLevel = Math.max(potentialHeavenly, heavenlyChips) + 1;
   const nextChipThreshold = 1000000 * Math.pow(nextChipLevel, 2);
   const isAdmin = isAdminUnlocked;
@@ -409,6 +412,12 @@ export default function CookieClicker() {
     if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
     setNotification(msg);
     notifTimerRef.current = setTimeout(() => setNotification(null), 4000);
+  }, []);
+
+  const addCookies = useCallback((amount: number) => {
+    setCookies((c) => c + amount);
+    setTotalCookies((t) => t + amount);
+    setCookiesBakedAllTime((a) => a + amount);
   }, []);
 
   // ── Unlock achievement (safe: no-ops if already unlocked) ──
@@ -449,6 +458,10 @@ export default function CookieClicker() {
         const state: GameState = JSON.parse(saved);
         setCookies(state.cookies || 0);
         setTotalCookies(state.totalCookies || 0);
+        const loadedAllTime = state.cookiesBakedAllTime !== undefined
+          ? state.cookiesBakedAllTime
+          : (state.totalCookies || 0) + 1000000 * Math.pow(state.heavenlyChips || 0, 2);
+        setCookiesBakedAllTime(loadedAllTime);
         setTotalClicks(state.totalClicks || 0);
         setPrestigeLevel(state.prestigeLevel || 0);
         setHeavenlyChips(state.heavenlyChips || 0);
@@ -515,8 +528,7 @@ export default function CookieClicker() {
               : 0;
             const offlineEarnings = offlineCps * offlineSec * 0.5 * (1 + (state.prestigeLevel || 0) * 0.1);
             if (offlineEarnings > 0) {
-              setCookies((c) => c + offlineEarnings);
-              setTotalCookies((t) => t + offlineEarnings);
+              addCookies(offlineEarnings);
               const mins = Math.floor(offlineSec / 60);
               const hrs = Math.floor(mins / 60);
               const timeStr = hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
@@ -540,7 +552,7 @@ export default function CookieClicker() {
     if (!loaded) return;
     const TWENTY_DAYS = 20 * 24 * 60 * 60 * 1000;
     const state: GameState = {
-      cookies, totalCookies, totalClicks, buildings, clickUpgrades, achievements,
+      cookies, totalCookies, cookiesBakedAllTime, totalClicks, buildings, clickUpgrades, achievements,
       prestigeLevel, heavenlyChips, lastSaveTime: Date.now(), startTime,
       goldenClicked, easterEggsFound, cookieSkin, pirateMode, duckMode, grandmapocalypse,
       playerName, lastRenamed, leaderboardOptIn, lastCaptchaTime,
@@ -574,7 +586,7 @@ export default function CookieClicker() {
         return updated;
       });
     }
-  }, [loaded, cookies, totalCookies, totalClicks, buildings, clickUpgrades, achievements, prestigeLevel, heavenlyChips, goldenClicked, easterEggsFound, cookieSkin, pirateMode, duckMode, grandmapocalypse, startTime, playerName, lastRenamed, leaderboardOptIn, lastCaptchaTime]);
+  }, [loaded, cookies, totalCookies, cookiesBakedAllTime, totalClicks, buildings, clickUpgrades, achievements, prestigeLevel, heavenlyChips, goldenClicked, easterEggsFound, cookieSkin, pirateMode, duckMode, grandmapocalypse, startTime, playerName, lastRenamed, leaderboardOptIn, lastCaptchaTime]);
 
   // ── Auto-save every 5s ──
   useEffect(() => {
@@ -675,8 +687,7 @@ export default function CookieClicker() {
 
     switch (deal.effect) {
       case "cookies":
-        setCookies((c) => c + deal.value);
-        setTotalCookies((t) => t + deal.value);
+        addCookies(deal.value);
         showNotification(`📦 +${formatNumber(deal.value)} Cookies vom Händler!`);
         break;
       case "cps_mult":
@@ -699,8 +710,7 @@ export default function CookieClicker() {
         break;
       case "time_warp":
         const earned = cps * deal.value;
-        setCookies((c) => c + earned);
-        setTotalCookies((t) => t + earned);
+        addCookies(earned);
         showNotification(`⏰ Zeitsprung! +${formatNumber(earned)} Cookies!`);
         break;
       case "building":
@@ -714,7 +724,7 @@ export default function CookieClicker() {
     }
     // Remove purchased deal
     setTraderDeals((prev) => prev.filter((d) => d.id !== deal.id));
-  }, [cookies, cps, showNotification]);
+  }, [cookies, cps, showNotification, addCookies]);
 
   // ── Trader spawner (every 90-300s, stays 60s) ──
   useEffect(() => {
@@ -768,11 +778,10 @@ export default function CookieClicker() {
     if (cps <= 0) return;
     const id = setInterval(() => {
       if (showCaptcha) return;
-      setCookies((c) => c + cps / 10);
-      setTotalCookies((t) => t + cps / 10);
+      addCookies(cps / 10);
     }, 100);
     return () => clearInterval(id);
-  }, [cps, showCaptcha]);
+  }, [cps, showCaptcha, addCookies]);
 
   // ── Golden cookie spawner ──
   useEffect(() => {
@@ -1022,8 +1031,7 @@ export default function CookieClicker() {
 
     playClickSound(soundEnabled);
 
-    setCookies((c) => c + cpc);
-    setTotalCookies((t) => t + cpc);
+    addCookies(cpc);
     setTotalClicks((c) => c + 1);
 
     // Particle (max 5)
@@ -1057,7 +1065,7 @@ export default function CookieClicker() {
       setRainbowMode(true);
       setTimeout(() => setRainbowMode(false), 2000);
     }
-  }, [cpc, duckMode, unlock, findEasterEgg, showCaptcha, generateCaptcha, lastCaptchaTime, soundEnabled]);
+  }, [cpc, duckMode, unlock, findEasterEgg, showCaptcha, generateCaptcha, lastCaptchaTime, soundEnabled, addCookies]);
 
   // ── Golden cookie click handler ──
   const handleGoldenClick = useCallback((gc: GoldenCookie) => {
@@ -1069,36 +1077,34 @@ export default function CookieClicker() {
 
     switch (gc.type) {
       case "frenzy":
-        setActiveEffects((e) => ({ ...e, frenzy: 77000 }));
-        showNotification("🔥 FRENZY! 4x Produktion für 77 Sekunden!");
+        setActiveEffects((e) => ({ ...e, frenzy: 15000 }));
+        showNotification("🔥 FRENZY! 2x Produktion für 15 Sekunden!");
         break;
       case "clickFrenzy":
-        setActiveEffects((e) => ({ ...e, clickFrenzy: 13000 }));
-        showNotification("⚡ CLICK FRENZY! 77x Klick-Power für 13 Sekunden!");
+        setActiveEffects((e) => ({ ...e, clickFrenzy: 5000 }));
+        showNotification("⚡ CLICK FRENZY! 10x Klick-Power für 5 Sekunden!");
         break;
       case "lucky": {
-        const bonus = Math.max(cps * 900, cookies * 0.15);
-        setCookies((c) => c + bonus);
-        setTotalCookies((t) => t + bonus);
+        const bonus = Math.max(cps * 30, cookies * 0.05);
+        addCookies(bonus);
         showNotification(`🍀 LUCKY! +${formatNumber(bonus)} Cookies!`);
         break;
       }
       case "storm":
         setCookieStorm(true);
         showNotification("🌧️ COOKIE STORM! Fang die Cookies!");
-        setTimeout(() => setCookieStorm(false), 8000);
+        setTimeout(() => setCookieStorm(false), 5000);
         break;
       case "diamond": {
-        const bonus2 = Math.max(cps * 5400, cookies * 0.5);
-        setCookies((c) => c + bonus2);
-        setTotalCookies((t) => t + bonus2);
+        const bonus2 = Math.max(cps * 180, cookies * 0.15);
+        addCookies(bonus2);
         unlock("diamond");
         findEasterEgg("diamond", "DIAMOND COOKIE! 💎 Mega Bonus!");
         showNotification(`💎 DIAMOND COOKIE! +${formatNumber(bonus2)} Cookies!`);
         break;
       }
     }
-  }, [cps, cookies, showNotification, unlock, findEasterEgg]);
+  }, [cps, cookies, showNotification, unlock, findEasterEgg, addCookies]);
 
   // ── Buy building ──
   const buyBuilding = useCallback((id: string) => {
@@ -1164,7 +1170,10 @@ export default function CookieClicker() {
 
   // ── Ascend / Prestige ──
   const ascend = useCallback(() => {
+    if (isAscendingRef.current) return;
     if (potentialHeavenly <= heavenlyChips) return;
+    
+    isAscendingRef.current = true;
     const newChips = potentialHeavenly;
     setHeavenlyChips(newChips);
     setPrestigeLevel(newChips);
@@ -1180,7 +1189,10 @@ export default function CookieClicker() {
     unlock("prestige_1");
     showNotification(`🔄 Ascended! Prestige Level ${newChips} — ${newChips} Heavenly Chips (+${(newChips * 10).toFixed(0)}% Bonus)`);
     // Save after ascend
-    setTimeout(() => doSave(), 100);
+    setTimeout(() => {
+      doSave();
+      isAscendingRef.current = false;
+    }, 500);
   }, [potentialHeavenly, heavenlyChips, unlock, showNotification, doSave]);
 
   // ── Reset ──
@@ -1188,6 +1200,7 @@ export default function CookieClicker() {
     if (window.confirm("Möchtest du ALLES zurücksetzen? (inkl. Prestige & Achievements)")) {
       setCookies(0);
       setTotalCookies(0);
+      setCookiesBakedAllTime(0);
       setTotalClicks(0);
       setBuildings(BUILDINGS.map((b) => ({ ...b })));
       setClickUpgrades(CLICK_UPGRADES.map((u) => ({ ...u })));
@@ -1536,11 +1549,7 @@ export default function CookieClicker() {
                 initial={{ x: `${Math.random() * 100}vw`, y: -50 }}
                 animate={{ y: "110vh", rotate: 360 * (Math.random() > 0.5 ? 1 : -1) }}
                 transition={{ duration: 2 + Math.random() * 3, delay: Math.random() * 3, ease: "linear" }}
-                onClick={() => {
-                  const bonus = cps * 5 + cpc * 10;
-                  setCookies((c) => c + bonus);
-                  setTotalCookies((t) => t + bonus);
-                }}
+                onClick={() => addCookies(cps * 5 + cpc * 10)}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
                 🍪
@@ -1566,7 +1575,7 @@ export default function CookieClicker() {
 
       {/* Golden cookies */}
       <AnimatePresence>
-        {goldenCookies.map((gc) => (
+        {goldenCookies.filter((gc) => !clickedGoldenIdsRef.current.has(gc.id)).map((gc) => (
           <motion.button
             key={gc.id}
             initial={{ scale: 0, rotate: -180 }}
@@ -2500,8 +2509,7 @@ export default function CookieClicker() {
                   <div className="space-y-2">
                     <button
                       onClick={() => {
-                        setCookies((c) => c + 1000000);
-                        setTotalCookies((t) => t + 1000000);
+                        addCookies(1000000);
                         showNotification("🪄 Admin: +1M Cookies!");
                       }}
                       className="w-full py-2 bg-[#141416] hover:bg-[#FFA586]/20 border border-[rgba(240,235,227,0.15)] rounded-sm text-xs font-bold transition-all text-left px-3 flex items-center justify-between cursor-pointer"
@@ -2511,8 +2519,7 @@ export default function CookieClicker() {
                     </button>
                     <button
                       onClick={() => {
-                        setCookies((c) => c + 1000000000);
-                        setTotalCookies((t) => t + 1000000000);
+                        addCookies(1000000000);
                         showNotification("🪄 Admin: +1B Cookies!");
                       }}
                       className="w-full py-2 bg-[#141416] hover:bg-[#FFA586]/20 border border-[rgba(240,235,227,0.15)] rounded-sm text-xs font-bold transition-all text-left px-3 flex items-center justify-between cursor-pointer"
