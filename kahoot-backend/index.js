@@ -10,17 +10,34 @@ app.use(express.json());
 const activeSessions = new Map(); // pin -> array of Kahoot clients
 
 app.get("/", (req, res) => {
-  res.send("Kahoot Proxy Backend is running. Use /api/flood to start.");
+  res.json({
+    status: "online",
+    message: "Kahoot Bot Server is running",
+    endpoints: {
+      flood: "/api/flood?pin=PIN&count=N&prefix=Bot",
+      stop: "/api/stop?pin=PIN",
+      status: "/api/status?pin=PIN",
+    },
+  });
+});
+
+// Health check for uptime monitoring
+app.get("/health", (req, res) => {
+  res.json({ ok: true });
 });
 
 // Start flood
-app.get("/api/flood", (req, res) => {
+app.get("/api/flood", async (req, res) => {
   const pin = req.query.pin;
-  const count = parseInt(req.query.count) || 10;
-  const prefix = req.query.prefix || "MF_Bot";
+  const count = Math.min(parseInt(req.query.count) || 10, 100); // Cap at 100
+  const prefix = req.query.prefix || "Bot";
 
   if (!pin) {
-    return res.status(400).json({ error: "PIN is required" });
+    return res.status(400).json({ success: false, error: "PIN is required" });
+  }
+
+  if (pin.length < 4) {
+    return res.status(400).json({ success: false, error: "PIN must be at least 4 digits" });
   }
 
   // If already flooding this PIN, stop it first
@@ -29,15 +46,13 @@ app.get("/api/flood", (req, res) => {
   }
 
   const clients = [];
+  const results = { joined: 0, failed: 0, errors: [] };
   activeSessions.set(pin, clients);
 
-  console.log(`Starting flood on game PIN ${pin} with ${count} bots (prefix: ${prefix})`);
-
-  let joinedCount = 0;
-  let failedCount = 0;
+  console.log(`[START] Flooding PIN ${pin} with ${count} bots (prefix: ${prefix})`);
 
   for (let i = 1; i <= count; i++) {
-    // Stagger joins slightly to prevent rate limits
+    // Stagger joins to prevent rate limits
     setTimeout(() => {
       // Check if session wasn't stopped in the meantime
       if (!activeSessions.has(pin)) return;
@@ -49,26 +64,31 @@ app.get("/api/flood", (req, res) => {
 
       client.join(pin, botName)
         .then(() => {
-          joinedCount++;
-          console.log(`[Bot Joined] ${botName} on PIN ${pin}`);
+          results.joined++;
+          console.log(`  [✓] ${botName} joined PIN ${pin}`);
 
-          // Listen for questions and answer randomly to mimic real players
+          // Answer questions randomly to mimic real players
           client.on("QuestionStart", (question) => {
             const choicesCount = question.numberOfChoices;
             const randomAnswer = Math.floor(Math.random() * choicesCount);
-            // Answer after a slight delay
             setTimeout(() => {
               try {
                 client.answer(randomAnswer);
               } catch (err) {
-                console.error(`Error answering for ${botName}:`, err.message);
+                // Already disconnected
               }
-            }, 1000 + Math.random() * 2000);
+            }, 1000 + Math.random() * 3000);
+          });
+
+          // Handle disconnect
+          client.on("Disconnect", () => {
+            console.log(`  [—] ${botName} disconnected from PIN ${pin}`);
           });
         })
         .catch((err) => {
-          failedCount++;
-          console.error(`[Bot Failed] ${botName} on PIN ${pin}:`, err.message);
+          results.failed++;
+          results.errors.push(`${botName}: ${err.message}`);
+          console.error(`  [✗] ${botName} failed on PIN ${pin}: ${err.message}`);
         });
     }, i * 200);
   }
@@ -76,6 +96,9 @@ app.get("/api/flood", (req, res) => {
   res.json({
     success: true,
     message: `Started join sequence for ${count} bots on PIN ${pin}`,
+    pin,
+    count,
+    prefix,
   });
 });
 
@@ -83,21 +106,22 @@ app.get("/api/flood", (req, res) => {
 app.get("/api/stop", (req, res) => {
   const pin = req.query.pin;
   if (!pin) {
-    return res.status(400).json({ error: "PIN is required" });
+    return res.status(400).json({ success: false, error: "PIN is required" });
   }
 
   if (activeSessions.has(pin)) {
+    const count = activeSessions.get(pin).length;
     stopFlood(pin);
-    res.json({ success: true, message: `Stopped flooding on PIN ${pin}` });
+    console.log(`[STOP] Disconnected ${count} bots from PIN ${pin}`);
+    res.json({ success: true, message: `Stopped ${count} bots on PIN ${pin}` });
   } else {
-    res.json({ success: false, message: `No active flood found on PIN ${pin}` });
+    res.json({ success: false, message: `No active flood on PIN ${pin}` });
   }
 });
 
 function stopFlood(pin) {
   const clients = activeSessions.get(pin);
   if (clients) {
-    console.log(`Stopping flood and disconnecting bots on PIN ${pin}`);
     clients.forEach((client) => {
       try {
         client.leave();
@@ -113,7 +137,12 @@ function stopFlood(pin) {
 app.get("/api/status", (req, res) => {
   const pin = req.query.pin;
   if (!pin) {
-    return res.status(400).json({ error: "PIN is required" });
+    // Return all active sessions
+    const sessions = [];
+    activeSessions.forEach((clients, sessionPin) => {
+      sessions.push({ pin: sessionPin, botCount: clients.length });
+    });
+    return res.json({ activeSessions: sessions });
   }
   const sessionExists = activeSessions.has(pin);
   res.json({
@@ -124,5 +153,6 @@ app.get("/api/status", (req, res) => {
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`Kahoot Proxy Backend running on port ${PORT}`);
+  console.log(`\n🤖 Kahoot Bot Server running on port ${PORT}`);
+  console.log(`   http://localhost:${PORT}\n`);
 });
