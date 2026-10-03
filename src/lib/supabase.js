@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 
 // TODO: Trage hier deine Supabase-Keys ein ODER nutze eine .env-Datei (empfohlen)
 // Für Netlify-Deploy: Umgebungsvariablen im Netlify Dashboard setzen
-const SUPABASE_URL_FALLBACK = 'https://DEIN-PROJEKT.supabase.co';
-const SUPABASE_ANON_KEY_FALLBACK = 'DEIN-ANON-KEY';
+const SUPABASE_URL_FALLBACK = 'https://kgnyuvdefegueoqoexbm.supabase.co';
+const SUPABASE_ANON_KEY_FALLBACK =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtnbnl1dmRlZmVndWVvcW9leGJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNTAzNTgsImV4cCI6MjEwNjYyNjM1OH0.nr1F83iNGkhgteOFeU3aXhf6FrrTlj3T0mV3TOI-CMo';
 
 const supabaseUrl =
   import.meta.env.VITE_SUPABASE_URL || SUPABASE_URL_FALLBACK;
