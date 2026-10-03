@@ -106,7 +106,7 @@ function startHeartbeat(username, sessionToken) {
       const { data, error } = await supabase
         .from('profiles')
         .select('active_session_token')
-        .eq('username', username)
+        .ilike('username', username)
         .maybeSingle();
 
       if (!error && data && data.active_session_token && data.active_session_token !== sessionToken) {
@@ -133,13 +133,25 @@ export async function register(username, password, adminKey = '') {
     return { error: 'Dieser Benutzername ist bereits vergeben.' };
   }
 
+  // Vorher prüfen ob in Supabase bereits vergeben
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('username')
+        .ilike('username', clean)
+        .maybeSingle();
+      if (data) {
+        return { error: 'Dieser Benutzername ist bereits vergeben.' };
+      }
+    } catch {}
+  }
+
   const passHash = await hashPassword(password);
   const sessionToken = generateSessionToken();
 
-  // Admin-Rolle vergeben: Wenn "admin" oder "moritz" oder richtiger Admin-Key
-  const isAdmin = clean.toLowerCase() === 'admin' ||
-                  clean.toLowerCase() === 'moritz' ||
-                  adminKey.trim() === ADMIN_SECRET_CODE;
+  // Admin-Rolle vergeben: Nur mit dem geheimen Admin-Key
+  const isAdmin = adminKey.trim() === ADMIN_SECRET_CODE;
 
   const newUser = {
     username: clean,
@@ -196,22 +208,28 @@ export async function login(username, password) {
   const accounts = getStoredAccounts();
   let user = accounts.find(a => a.username.toLowerCase() === clean.toLowerCase());
 
-  // Falls lokal nicht gefunden, in Supabase nachsehen
-  if (!user && isSupabaseConfigured() && supabase) {
+  // In Supabase nachsehen (Groß-/Kleinschreibung ignorieren mit ilike)
+  if (isSupabaseConfigured() && supabase) {
     try {
       const { data } = await supabase
         .from('profiles')
         .select('*')
-        .eq('username', clean)
+        .ilike('username', clean)
         .maybeSingle();
       if (data) {
-        user = {
-          username: data.username,
-          passHash: data.pass_hash,
-          isAdmin: data.is_admin,
-          createdAt: data.created_at,
-        };
-        accounts.push(user);
+        if (!user) {
+          user = {
+            username: data.username,
+            passHash: data.pass_hash,
+            isAdmin: Boolean(data.is_admin),
+            createdAt: data.created_at,
+          };
+          accounts.push(user);
+        } else {
+          // Cloud-Werte (z.B. is_admin im Supabase-Dashboard geändert) synchronisieren
+          user.isAdmin = Boolean(data.is_admin);
+          user.passHash = data.pass_hash;
+        }
         saveAccounts(accounts);
       }
     } catch {}
@@ -227,11 +245,7 @@ export async function login(username, password) {
   }
 
   const sessionToken = generateSessionToken();
-  const isAdmin = Boolean(
-    user.isAdmin ||
-    clean.toLowerCase() === 'admin' ||
-    clean.toLowerCase() === 'moritz'
-  );
+  const isAdmin = Boolean(user.isAdmin);
 
   user.sessionToken = sessionToken;
   user.isAdmin = isAdmin;
@@ -243,7 +257,7 @@ export async function login(username, password) {
       await supabase.from('profiles').update({
         active_session_token: sessionToken,
         last_heartbeat: new Date().toISOString(),
-      }).eq('username', clean);
+      }).ilike('username', clean);
     } catch {}
   }
 

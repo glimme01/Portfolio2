@@ -181,6 +181,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   const eventTimerRef = useRef(null);
   const autosaveRef = useRef(null);
   const konamiRef = useRef([]);
+  const lastSubmittedScoreRef = useRef(0);
 
   // Audio Synth
   const audioCtxRef = useRef(null);
@@ -370,7 +371,11 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       if (!state) return;
       state.lastSaved = Date.now();
       await saveGameState(playerName, 'clicker', state);
-      await insertScore(playerName, 'clicker', Math.floor(state.totalCookies));
+      const currentScore = Math.floor(state.totalCookies);
+      if (currentScore > lastSubmittedScoreRef.current) {
+        lastSubmittedScoreRef.current = currentScore;
+        await insertScore(playerName, 'clicker', currentScore);
+      }
       setSaveVisible(true);
       setTimeout(() => setSaveVisible(false), 800);
     }
