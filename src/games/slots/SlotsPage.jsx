@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getActivePlayerName } from '../../lib/auth.js';
+import { fmtCookies } from '../clicker/clickerLogic.js';
 import { insertScore, getPlayerScores } from '../../lib/scores.js';
 import CurrencyExchangeModal from '../../components/CurrencyExchangeModal.jsx';
 import {

@@ -12,6 +12,7 @@ import AuthModal from './components/AuthModal.jsx';
 import AdminModal from './components/AdminModal.jsx';
 import FeedbackModal from './components/FeedbackModal.jsx';
 import SessionConflictModal from './components/SessionConflictModal.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { getCurrentUser, logout, onAuthChange } from './lib/auth.js';
 import { getUnreadFeedbackCount } from './lib/feedback.js';
 
@@ -198,16 +199,18 @@ export default function App() {
           <button className="broadcast-close" onClick={() => setBroadcast(null)} title="Schließen">✕</button>
         </div>
       )}
-      <Routes>
-        <Route path="/" element={<Lobby />} />
-        <Route path="/leaderboard" element={<LeaderboardPage />} />
-        <Route path="/snake" element={<SnakePage />} />
-        <Route path="/press" element={<PressPage />} />
-        <Route path="/clicker" element={<ClickerPage />} />
-        <Route path="/clicker/achievements" element={<ClickerPage defaultTab="achievements" />} />
-        <Route path="/slots" element={<SlotsPage />} />
-        <Route path="/blackjack" element={<BlackjackPage />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Lobby />} />
+          <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/snake" element={<SnakePage />} />
+          <Route path="/press" element={<PressPage />} />
+          <Route path="/clicker" element={<ClickerPage />} />
+          <Route path="/clicker/achievements" element={<ClickerPage defaultTab="achievements" />} />
+          <Route path="/slots" element={<SlotsPage />} />
+          <Route path="/blackjack" element={<BlackjackPage />} />
+        </Routes>
+      </ErrorBoundary>
       <Footer onOpenFeedback={() => setFeedbackOpen(true)} />
 
       {/* Floating Action Button für Feedback & Bug Reports */}
