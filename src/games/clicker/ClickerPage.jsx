@@ -12,10 +12,11 @@ import {
 import { SKINS, getSkin, isSkinUnlocked, DEFAULT_SKIN } from './skins.js';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getLastName } from '../../lib/prefs.js';
+import { getActivePlayerName } from '../../lib/auth.js';
 import { insertScore } from '../../lib/scores.js';
 import SaveIndicator from '../../components/SaveIndicator.jsx';
 
-const MAX_OFFLINE_S = 7200;
+const MAX_OFFLINE_S = 86400; // Bis zu 24 Stunden Offline-Fortschritt
 
 // Lustige, klickbare Ticker-News
 const NEWS_HEADLINES = [
@@ -158,7 +159,7 @@ function OfflineDialog({ gained, onClose }) {
 }
 
 export default function ClickerPage({ defaultTab = 'buildings' }) {
-  const playerName = getLastName();
+  const playerName = getActivePlayerName();
   const [gs, setGs] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState(defaultTab);
@@ -233,28 +234,35 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     async function init() {
       let state = createClickerState();
       state.stockPrices = updateStockPrices({});
-      if (playerName) {
-        const { data } = await loadGameState(playerName, 'clicker');
-        if (data?.state) {
-          state = { ...createClickerState(), ...data.state };
-          if (!state.stockPrices || Object.keys(state.stockPrices).length === 0) {
-            state.stockPrices = updateStockPrices({});
-          }
+      const { data } = await loadGameState(playerName, 'clicker');
 
-          // Offline Fortschritt berechnen
-          const offlineEfficiency = state.heavenlyUpgrades?.includes('warp_drive') ? 1.0 : 0.5;
-          const cps = calcCps(state.buildings, getActiveUpgrades(state), state.heavenlyChips, 1, state.heavenlyUpgrades || []);
-          if (cps > 0 && data.state.lastSaved) {
-            const elapsed = Math.min((Date.now() - data.state.lastSaved) / 1000, MAX_OFFLINE_S);
-            if (elapsed > 20) {
-              const gained = Math.floor(cps * elapsed * offlineEfficiency);
+      if (data?.state) {
+        state = { ...createClickerState(), ...data.state };
+        if (!state.stockPrices || Object.keys(state.stockPrices).length === 0) {
+          state.stockPrices = updateStockPrices({});
+        }
+
+        // Offline Fortschritt berechnen (data.state.lastSaved oder data.updated_at)
+        const lastSavedTs = data.state.lastSaved || (data.updated_at ? new Date(data.updated_at).getTime() : null);
+        const offlineEfficiency = state.heavenlyUpgrades?.includes('warp_drive') ? 1.0 : 0.5;
+        const cps = calcCps(state.buildings, getActiveUpgrades(state), state.heavenlyChips, 1, state.heavenlyUpgrades || []);
+
+        if (cps > 0 && lastSavedTs) {
+          const elapsed = Math.min((Date.now() - lastSavedTs) / 1000, MAX_OFFLINE_S);
+          if (elapsed >= 5) {
+            const gained = Math.floor(cps * elapsed * offlineEfficiency);
+            if (gained > 0) {
               state.cookies += gained;
               state.totalCookies += gained;
               setOfflineGain(gained);
             }
           }
         }
+        state.lastSaved = Date.now();
+        await saveGameState(playerName, 'clicker', state);
+        await insertScore(playerName, 'clicker', state.cookies, { forceUpdate: true });
       }
+
       gsRef.current = state;
       setGs({ ...state });
       setLoaded(true);
@@ -266,9 +274,15 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       if (goldenTimerRef.current) clearTimeout(goldenTimerRef.current);
       if (eventTimerRef.current) clearTimeout(eventTimerRef.current);
       if (autosaveRef.current) clearInterval(autosaveRef.current);
+
+      // Beim Verlassen der Seite IMMER sofort speichern!
+      if (gsRef.current && playerName) {
+        gsRef.current.lastSaved = Date.now();
+        saveGameState(playerName, 'clicker', gsRef.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [playerName]);
 
   // rAF Loop für CPS & Börsen-Update
   useEffect(() => {
@@ -375,7 +389,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     return () => clearInterval(timer);
   }, []);
 
-  // Autosave alle 30s
+  // Autosave alle 12s & bei Verlassen
   useEffect(() => {
     if (!loaded || !playerName) return;
 
@@ -383,6 +397,8 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       const state = gsRef.current;
       if (!state) return;
       state.lastSaved = Date.now();
+      await saveGameState(playerName, 'clicker', state);
+
       // Highscore spiegelt immer den aktuellen Kontostand wider
       const currentScore = Math.floor(state.cookies);
       if (currentScore !== lastSubmittedScoreRef.current) {
@@ -393,14 +409,33 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       setTimeout(() => setSaveVisible(false), 800);
     }
 
-    autosaveRef.current = setInterval(doSave, 30000);
+    autosaveRef.current = setInterval(doSave, 12000);
     const onVis = () => { if (document.hidden) doSave(); };
+    window.addEventListener('beforeunload', doSave);
     document.addEventListener('visibilitychange', onVis);
+
     return () => {
       clearInterval(autosaveRef.current);
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('beforeunload', doSave);
+      doSave();
     };
   }, [loaded, playerName]);
+
+  // Live Cookie-Sync von Slots & Blackjack empfangen
+  useEffect(() => {
+    function onCookiesSynced(e) {
+      if (e?.detail?.cookies !== undefined && gsRef.current) {
+        const nextCookies = Math.floor(e.detail.cookies);
+        if (gsRef.current.cookies !== nextCookies) {
+          gsRef.current.cookies = nextCookies;
+          setGs(prev => prev ? { ...prev, cookies: nextCookies } : prev);
+        }
+      }
+    }
+    window.addEventListener('arcade-cookies-synced', onCookiesSynced);
+    return () => window.removeEventListener('arcade-cookies-synced', onCookiesSynced);
+  }, []);
 
   // Golden Cookie Spawner
   useEffect(() => {
@@ -627,7 +662,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   }
 
   // Himmlisches Upgrade kaufen
-  function buyHeavenlyUpgrade(u) {
+  async function buyHeavenlyUpgrade(u) {
     const state = gsRef.current;
     if (!state) return;
     const owned = state.heavenlyUpgrades || [];
@@ -638,27 +673,36 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
 
     state.spentHeavenlyChips = (state.spentHeavenlyChips || 0) + u.cost;
     state.heavenlyUpgrades = [...owned, u.id];
+    state.lastSaved = Date.now();
+    await saveGameState(playerName, 'clicker', state);
+
     playFanfare();
     setToasts(t => [...t, { icon: u.icon, name: 'HIMMELSKRAFT ENTFESSELT!', desc: u.name }]);
     setGs({ ...state });
   }
 
   // Prestige / Himmels-Aufstieg durchführen
-  function executeAscension() {
+  async function executeAscension() {
     const state = gsRef.current;
     if (!state) return;
-    const reward = calcPrestigeReward(state.totalCookies);
+    const reward = calcPrestigeReward(state.totalCookies, state.heavenlyChipsClaimed || 0);
     if (reward <= 0) return;
 
     const startingCookies = state.heavenlyUpgrades?.includes('heavenly_oven') ? 500 : 0;
 
     state.heavenlyChips = (state.heavenlyChips || 0) + reward;
+    state.heavenlyChipsClaimed = (state.heavenlyChipsClaimed || 0) + reward;
     state.ascensionCount = (state.ascensionCount || 0) + 1;
     state.cookies = startingCookies;
     state.buildings = {};
     state.upgrades = [];
     state.wrinklers = [];
+    state.stockShares = {};
+    state.lastSaved = Date.now();
     setAscendModalOpen(false);
+
+    await saveGameState(playerName, 'clicker', state);
+    await insertScore(playerName, 'clicker', startingCookies, { forceUpdate: true });
 
     playFanfare();
     setToasts(t => [...t, { icon: '🌟', name: 'AUFSTIEG VOLLBRACHT!', desc: `+${reward} Himmlische Chips erhalten!` }]);
@@ -779,7 +823,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
 
   const currentSkin = getSkin(gs.skin);
   const availableChips = (gs.heavenlyChips || 0) - (gs.spentHeavenlyChips || 0);
-  const nextAscendReward = calcPrestigeReward(gs.totalCookies);
+  const nextAscendReward = gs ? calcPrestigeReward(gs.totalCookies, gs.heavenlyChipsClaimed || 0) : 0;
 
   return (
     <div className="page-content" style={{ padding: '8px 16px 48px' }}>

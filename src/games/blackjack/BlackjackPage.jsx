@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getLastName } from '../../lib/prefs.js';
+import { getActivePlayerName } from '../../lib/auth.js';
 import { fmtCookies } from '../clicker/clickerLogic.js';
 import { insertScore } from '../../lib/scores.js';
 import {
@@ -168,7 +169,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
 const PHASE = { BETTING: 'BETTING', PLAYING: 'PLAYING', DEALER: 'DEALER', RESULT: 'RESULT' };
 
 export default function BlackjackPage() {
-  const playerName = getLastName();
+  const playerName = getActivePlayerName();
   const [cookies, setCookies] = useState(null);
   const [bet, setBet] = useState(50);
   const [deck, setDeck] = useState([]);
@@ -186,24 +187,41 @@ export default function BlackjackPage() {
   const bestWinRef = useRef(0);
 
   async function loadCookies() {
-    if (!playerName) { setCookies(0); return; }
     const { data } = await loadGameState(playerName, 'clicker');
-    clickerRef.current = data?.state ?? null;
-    const bal = Math.floor(data?.state?.cookies ?? 0);
+    let state = data?.state;
+    if (!state) {
+      state = { cookies: 250, totalCookies: 250, buildings: {}, upgrades: [] };
+      await saveGameState(playerName, 'clicker', state);
+    }
+    clickerRef.current = state;
+    const bal = Math.floor(state.cookies ?? 0);
     setCookies(bal);
     cookiesRef.current = bal;
   }
 
   async function saveCookies(nb) {
-    if (!playerName || !clickerRef.current) return;
-    const upd = { ...clickerRef.current, cookies: nb, lastSaved: Date.now() };
+    const base = clickerRef.current || { cookies: 0, totalCookies: 0, buildings: {}, upgrades: [] };
+    const upd = { ...base, cookies: nb, lastSaved: Date.now() };
     clickerRef.current = upd;
     await saveGameState(playerName, 'clicker', upd);
     // Sofort mit Leaderboard synchronisieren!
     await insertScore(playerName, 'clicker', nb, { forceUpdate: true });
   }
 
-  useEffect(() => { loadCookies(); }, []);
+  useEffect(() => { loadCookies(); }, [playerName]);
+
+  // Live Cookie-Sync empfangen
+  useEffect(() => {
+    function onCookiesSynced(e) {
+      if (e?.detail?.cookies !== undefined && phase === PHASE.BETTING) {
+        const nextCookies = Math.floor(e.detail.cookies);
+        setCookies(nextCookies);
+        cookiesRef.current = nextCookies;
+      }
+    }
+    window.addEventListener('arcade-cookies-synced', onCookiesSynced);
+    return () => window.removeEventListener('arcade-cookies-synced', onCookiesSynced);
+  }, [phase]);
 
   function deal() {
     if (cookies < bet) return;

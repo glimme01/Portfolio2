@@ -1,7 +1,7 @@
 // Arcade Auth-System: Lokale & Cloud-Konten mit Passwort-Hashing (SHA-256)
 // Unterstützt: Admin-Rolle, Cloud-Sync & Single-Device-Lock (nur 1 Gerät gleichzeitig pro Account)
 
-import { setLastName } from './prefs.js';
+import { setLastName, getLastName } from './prefs.js';
 import { supabase, isSupabaseConfigured } from './supabase.js';
 
 const ACCOUNTS_KEY = 'arcade_accounts_v2';
@@ -88,6 +88,14 @@ export function getCurrentUser() {
   } catch {
     return null;
   }
+}
+
+export function getActivePlayerName() {
+  const user = getCurrentUser();
+  if (user && user.username) return user.username.trim();
+  const ln = getLastName();
+  if (ln && ln.trim()) return ln.trim();
+  return 'Gast';
 }
 
 export function isCurrentUserAdmin() {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getLastName } from '../../lib/prefs.js';
+import { getActivePlayerName } from '../../lib/auth.js';
 import { fmtCookies } from '../clicker/clickerLogic.js';
 import { insertScore } from '../../lib/scores.js';
 import {
@@ -193,7 +194,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
 }
 
 export default function SlotsPage() {
-  const playerName = getLastName();
+  const playerName = getActivePlayerName();
   const [cookies, setCookies] = useState(null);
   const [bet, setBet] = useState(10);
   const [reels, setReels] = useState([
@@ -221,10 +222,14 @@ export default function SlotsPage() {
 
   // Load cookies and jackpot pool
   async function loadCookies() {
-    if (!playerName) { setCookies(0); return; }
     const { data } = await loadGameState(playerName, 'clicker');
-    clickerRef.current = data?.state ?? null;
-    const bal = Math.floor(data?.state?.cookies ?? 0);
+    let state = data?.state;
+    if (!state) {
+      state = { cookies: 250, totalCookies: 250, buildings: {}, upgrades: [] };
+      await saveGameState(playerName, 'clicker', state);
+    }
+    clickerRef.current = state;
+    const bal = Math.floor(state.cookies ?? 0);
     setCookies(bal);
     cookiesRef.current = bal;
 
@@ -235,15 +240,28 @@ export default function SlotsPage() {
   }
 
   async function saveCookies(nb) {
-    if (!playerName || !clickerRef.current) return;
-    const upd = { ...clickerRef.current, cookies: nb, lastSaved: Date.now() };
+    const base = clickerRef.current || { cookies: 0, totalCookies: 0, buildings: {}, upgrades: [] };
+    const upd = { ...base, cookies: nb, lastSaved: Date.now() };
     clickerRef.current = upd;
     await saveGameState(playerName, 'clicker', upd);
     // Score sofort live anpassen!
     await insertScore(playerName, 'clicker', nb, { forceUpdate: true });
   }
 
-  useEffect(() => { loadCookies(); }, []);
+  useEffect(() => { loadCookies(); }, [playerName]);
+
+  // Live Cookie-Sync empfangen
+  useEffect(() => {
+    function onCookiesSynced(e) {
+      if (e?.detail?.cookies !== undefined && !spinningRef.current) {
+        const nextCookies = Math.floor(e.detail.cookies);
+        setCookies(nextCookies);
+        cookiesRef.current = nextCookies;
+      }
+    }
+    window.addEventListener('arcade-cookies-synced', onCookiesSynced);
+    return () => window.removeEventListener('arcade-cookies-synced', onCookiesSynced);
+  }, []);
 
   // Multiplier from hot streak
   const streakMult = streak >= 5 ? 5.0 : streak >= 4 ? 3.0 : streak >= 3 ? 2.0 : streak >= 2 ? 1.5 : 1.0;

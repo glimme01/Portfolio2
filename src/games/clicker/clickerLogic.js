@@ -301,9 +301,10 @@ export function calcPortfolioValue(stockPrices, stockShares, stockBuyPrices) {
 }
 
 // === PRESTIGE / ASCENSION BERECHNUNG ===
-export function calcPrestigeReward(totalCookies) {
-  if (totalCookies < 1_000_000) return 0;
-  return Math.floor(Math.cbrt(totalCookies / 1_000_000));
+export function calcPrestigeReward(totalCookies, alreadyClaimed = 0) {
+  if (!totalCookies || totalCookies < 100_000) return 0;
+  const lifetimeChips = Math.floor(Math.cbrt(totalCookies / 100_000));
+  return Math.max(0, lifetimeChips - alreadyClaimed);
 }
 
 // Gesamte Cookies-pro-Sekunde berechnen
@@ -401,6 +402,7 @@ export function createClickerState() {
     stockPrices: {},
     tradesDone: 0,
     heavenlyChips: 0,
+    heavenlyChipsClaimed: 0,
     spentHeavenlyChips: 0,
     heavenlyUpgrades: [],
     ascensionCount: 0,
