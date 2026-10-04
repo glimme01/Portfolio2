@@ -369,7 +369,8 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       ACHIEVEMENTS.forEach(ach => {
         if (!state.achievements.includes(ach.id) && ach.check(state)) {
           state.achievements.push(ach.id);
-          setToasts(t => [...t, ach]);
+          state.gems = (state.gems || 0) + 2; // +2 Diamanten Belohnung!
+          setToasts(t => [...t, { ...ach, desc: `${ach.desc} (+2 💎 Diamanten!)` }]);
           playFanfare();
         }
       });
@@ -425,11 +426,36 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   // Live Cookie-Sync von Slots & Blackjack empfangen
   useEffect(() => {
     function onCookiesSynced(e) {
-      if (e?.detail?.cookies !== undefined && gsRef.current) {
-        const nextCookies = Math.floor(e.detail.cookies);
-        if (gsRef.current.cookies !== nextCookies) {
-          gsRef.current.cookies = nextCookies;
-          setGs(prev => prev ? { ...prev, cookies: nextCookies } : prev);
+      if (e?.detail && gsRef.current) {
+        let changed = false;
+        if (e.detail.cookies !== undefined) {
+          const nextCookies = Math.floor(e.detail.cookies);
+          if (gsRef.current.cookies !== nextCookies) {
+            gsRef.current.cookies = nextCookies;
+            changed = true;
+          }
+        }
+        if (e.detail.heavenlyChips !== undefined) {
+          const nextChips = Math.floor(e.detail.heavenlyChips);
+          if (gsRef.current.heavenlyChips !== nextChips) {
+            gsRef.current.heavenlyChips = nextChips;
+            changed = true;
+          }
+        }
+        if (e.detail.gems !== undefined) {
+          const nextGems = Math.floor(e.detail.gems);
+          if (gsRef.current.gems !== nextGems) {
+            gsRef.current.gems = nextGems;
+            changed = true;
+          }
+        }
+        if (changed) {
+          setGs(prev => prev ? {
+            ...prev,
+            cookies: gsRef.current.cookies,
+            heavenlyChips: gsRef.current.heavenlyChips,
+            gems: gsRef.current.gems,
+          } : prev);
         }
       }
     }
@@ -543,6 +569,10 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         setGs({ ...state });
       } else if (type === 'ADD_CHIPS') {
         state.heavenlyChips = (state.heavenlyChips || 0) + (amount || 10);
+        playFanfare();
+        setGs({ ...state });
+      } else if (type === 'ADD_GEMS') {
+        state.gems = (state.gems || 0) + (amount || 25);
         playFanfare();
         setGs({ ...state });
       }
@@ -850,6 +880,14 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
               {fmtCookies(currentCps)} PRO SEKUNDE
               {gs.heavenlyChips > 0 && <span style={{ color: 'var(--accent)', marginLeft: '6px' }}>(+{gs.heavenlyChips}%)</span>}
             </span>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.48rem', fontFamily: 'var(--font-pixel)', color: '#00e5ff', background: 'rgba(0, 229, 255, 0.12)', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(0, 229, 255, 0.35)' }}>
+                💎 {Number(gs.gems || 0).toLocaleString('de-DE')} DIAMANTEN
+              </span>
+              <span style={{ fontSize: '0.48rem', fontFamily: 'var(--font-pixel)', color: '#ffd700', background: 'rgba(255, 215, 0, 0.12)', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255, 215, 0, 0.35)' }}>
+                ✨ {Number(gs.heavenlyChips || 0).toLocaleString('de-DE')} HIMMELS-CHIPS
+              </span>
+            </div>
           </div>
 
           {/* Keks-Bereich */}

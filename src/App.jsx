@@ -154,6 +154,7 @@ function Footer({ onOpenFeedback }) {
 
 export default function App() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [broadcast, setBroadcast] = useState(null);
 
   useEffect(() => {
     function handleOpenFeedback() {
@@ -163,9 +164,40 @@ export default function App() {
     return () => window.removeEventListener('open-feedback-modal', handleOpenFeedback);
   }, []);
 
+  useEffect(() => {
+    // Check initial broadcast
+    try {
+      const raw = localStorage.getItem('arcade_global_broadcast');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Date.now() - (parsed.timestamp || 0) < 180000) { // 3 minutes active
+          setBroadcast(parsed);
+        }
+      }
+    } catch {}
+
+    function onBroadcast(e) {
+      if (e?.detail) {
+        setBroadcast(e.detail);
+      }
+    }
+    window.addEventListener('arcade-admin-broadcast', onBroadcast);
+    return () => window.removeEventListener('arcade-admin-broadcast', onBroadcast);
+  }, []);
+
   return (
     <BrowserRouter>
       <Header onOpenFeedback={() => setFeedbackOpen(true)} />
+      {broadcast && (
+        <div className="arcade-broadcast-banner">
+          <div className="broadcast-content">
+            <span className="broadcast-icon">📢</span>
+            <span className="broadcast-badge">ADMIN-DURCHSAGE:</span>
+            <span className="broadcast-text">{broadcast.message}</span>
+          </div>
+          <button className="broadcast-close" onClick={() => setBroadcast(null)} title="Schließen">✕</button>
+        </div>
+      )}
       <Routes>
         <Route path="/" element={<Lobby />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />

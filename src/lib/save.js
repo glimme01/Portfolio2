@@ -94,11 +94,13 @@ export async function saveGameState(name, game, state) {
   // Immer lokal sichern
   setLocalSave(norm, game, state);
 
-  // Wenn es Clicker-Cookies betrifft: Live Sync Event feuern!
+  // Wenn es Clicker-Cookies/Währungen betrifft: Live Sync Event feuern!
   if (game === 'clicker') {
     window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
       detail: {
         cookies: state?.cookies,
+        heavenlyChips: state?.heavenlyChips,
+        gems: state?.gems,
         state,
         playerName: norm,
         lastSaved: Date.now(),

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { loadGameState, saveGameState } from '../../lib/save.js';
-import { getLastName } from '../../lib/prefs.js';
 import { getActivePlayerName } from '../../lib/auth.js';
 import { fmtCookies } from '../clicker/clickerLogic.js';
 import { insertScore } from '../../lib/scores.js';
+import CurrencyExchangeModal from '../../components/CurrencyExchangeModal.jsx';
 import {
   playReelStopSound,
   playWinChime,
@@ -47,6 +47,42 @@ function checkWin(reels) {
   return { total, wonLines };
 }
 
+const CURRENCIES = {
+  cookies: {
+    id: 'cookies',
+    name: 'COOKIES',
+    icon: '🍪',
+    minBet: 10,
+    defaultBet: 50,
+    presets: [10, 50, 100, 500, 1000, 5000, 25000, 100000],
+    jackpotDefault: 88888,
+    jackpotGrowth: 0.15,
+    format: (v) => fmtCookies(v),
+  },
+  heavenlyChips: {
+    id: 'heavenlyChips',
+    name: 'HIMMELS-CHIPS',
+    icon: '✨',
+    minBet: 1,
+    defaultBet: 2,
+    presets: [1, 2, 5, 10, 25, 50, 100],
+    jackpotDefault: 50,
+    jackpotGrowth: 0.1,
+    format: (v) => Number(v || 0).toLocaleString('de-DE'),
+  },
+  gems: {
+    id: 'gems',
+    name: 'DIAMANTEN (VIP)',
+    icon: '💎',
+    minBet: 1,
+    defaultBet: 5,
+    presets: [1, 2, 5, 10, 20, 50, 100],
+    jackpotDefault: 200,
+    jackpotGrowth: 0.1,
+    format: (v) => Number(v || 0).toLocaleString('de-DE'),
+  },
+};
+
 function Reel({ symbols, spinning, spinDelay, finalSymbols, isAnticipating }) {
   const [displayed, setDisplayed] = useState(symbols);
   const [blur, setBlur] = useState(false);
@@ -84,11 +120,13 @@ function Reel({ symbols, spinning, spinDelay, finalSymbols, isAnticipating }) {
 }
 
 // 🃏 Double-or-Nothing Gamble Mini-Game
-function GambleModal({ amount, onCollect, onWin, onLose }) {
+function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
   const [currentAmount, setCurrentAmount] = useState(amount);
   const [card, setCard] = useState(null);
   const [flipping, setFlipping] = useState(false);
-  const [msg, setMsg] = useState('WAEHLE ROT ODER SCHWARZ!');
+  const [msg, setMsg] = useState('WÄHLE ROT ODER SCHWARZ!');
+
+  const curr = CURRENCIES[currency] || CURRENCIES.cookies;
 
   function pickColor(color) {
     if (flipping) return;
@@ -110,7 +148,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
       if (won) {
         const nextAmount = currentAmount * 2;
         setCurrentAmount(nextAmount);
-        setMsg(`RICHTIG! VERDOPPELT AUF ${fmtCookies(nextAmount)}!`);
+        setMsg(`RICHTIG! VERDOPPELT AUF ${curr.format(nextAmount)} ${curr.icon}!`);
         playCoinSound();
         onWin(nextAmount);
       } else {
@@ -129,7 +167,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
           🃏 2X RISIKO-SPIEL
         </h2>
         <p style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.9rem', color: '#39ff14', marginBottom: '14px' }}>
-          POT: {fmtCookies(currentAmount)} COOKIES
+          POT: {curr.format(currentAmount)} {curr.icon} {curr.name}
         </p>
 
         <div style={{
@@ -186,7 +224,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
           disabled={flipping}
           onClick={() => onCollect(currentAmount)}
         >
-          💰 GEWINN NEHMEN ({fmtCookies(currentAmount)})
+          💰 GEWINN NEHMEN ({curr.format(currentAmount)} {curr.icon})
         </button>
       </div>
     </div>
@@ -195,8 +233,9 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
 
 export default function SlotsPage() {
   const playerName = getActivePlayerName();
-  const [cookies, setCookies] = useState(null);
-  const [bet, setBet] = useState(10);
+  const [activeCurrency, setActiveCurrency] = useState('cookies');
+  const [playerState, setPlayerState] = useState(null);
+  const [bet, setBet] = useState(50);
   const [reels, setReels] = useState([
     [SYMBOLS[4], SYMBOLS[5], SYMBOLS[6]],
     [SYMBOLS[3], SYMBOLS[4], SYMBOLS[5]],
@@ -207,61 +246,92 @@ export default function SlotsPage() {
   const [turbo, setTurbo] = useState(false);
   const [stats, setStats] = useState({ spins: 0, wins: 0, totalWon: 0, totalBet: 0, bestWin: 0 });
   const [message, setMessage] = useState(null);
-  const [streak, setStreak] = useState(0); // Consecutive wins
+  const [streak, setStreak] = useState(0);
   const [freeSpins, setFreeSpins] = useState(0);
   const [freeSpinTotalWon, setFreeSpinTotalWon] = useState(0);
-  const [jackpotPool, setJackpotPool] = useState(88888);
+  const [jackpotPools, setJackpotPools] = useState({
+    cookies: 88888,
+    heavenlyChips: 50,
+    gems: 200,
+  });
   const [gambleAmount, setGambleAmount] = useState(null);
+  const [isGambleOpen, setIsGambleOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
   const [screenShake, setScreenShake] = useState(false);
   const [anticipating, setAnticipating] = useState(false);
 
   const clickerRef = useRef(null);
   const spinningRef = useRef(false);
-  const cookiesRef = useRef(null);
   const bestWinRef = useRef(0);
 
-  // Load cookies and jackpot pool
-  async function loadCookies() {
+  const curr = CURRENCIES[activeCurrency] || CURRENCIES.cookies;
+  const currentBalance = playerState ? Math.floor(playerState[activeCurrency] ?? 0) : 0;
+
+  // Lade Spielstand & Jackpots
+  async function loadData() {
     const { data } = await loadGameState(playerName, 'clicker');
     let state = data?.state;
     if (!state) {
-      state = { cookies: 250, totalCookies: 250, buildings: {}, upgrades: [] };
+      state = { cookies: 250, totalCookies: 250, heavenlyChips: 0, gems: 10, buildings: {}, upgrades: [] };
       await saveGameState(playerName, 'clicker', state);
     }
+    if (state.gems === undefined) state.gems = 10;
     clickerRef.current = state;
-    const bal = Math.floor(state.cookies ?? 0);
-    setCookies(bal);
-    cookiesRef.current = bal;
+    setPlayerState({ ...state });
 
     try {
-      const savedJackpot = localStorage.getItem('arcade_slot_jackpot');
-      if (savedJackpot) setJackpotPool(Number(savedJackpot));
+      const savedJackpotCookies = localStorage.getItem('arcade_slot_jackpot_cookies');
+      const savedJackpotChips = localStorage.getItem('arcade_slot_jackpot_chips');
+      const savedJackpotGems = localStorage.getItem('arcade_slot_jackpot_gems');
+      setJackpotPools({
+        cookies: savedJackpotCookies ? Number(savedJackpotCookies) : 88888,
+        heavenlyChips: savedJackpotChips ? Number(savedJackpotChips) : 50,
+        gems: savedJackpotGems ? Number(savedJackpotGems) : 200,
+      });
     } catch {}
   }
 
-  async function saveCookies(nb) {
-    const base = clickerRef.current || { cookies: 0, totalCookies: 0, buildings: {}, upgrades: [] };
-    const upd = { ...base, cookies: nb, lastSaved: Date.now() };
-    clickerRef.current = upd;
-    await saveGameState(playerName, 'clicker', upd);
-    // Score sofort live anpassen!
-    await insertScore(playerName, 'clicker', nb, { forceUpdate: true });
+  async function persistPlayerState(newState) {
+    clickerRef.current = newState;
+    setPlayerState({ ...newState });
+    await saveGameState(playerName, 'clicker', newState);
+    if (newState.cookies !== undefined) {
+      await insertScore(playerName, 'clicker', newState.cookies, { forceUpdate: true });
+    }
   }
 
-  useEffect(() => { loadCookies(); }, [playerName]);
+  useEffect(() => { loadData(); }, [playerName]);
 
-  // Live Cookie-Sync empfangen
+  // Live Sync empfangen
   useEffect(() => {
     function onCookiesSynced(e) {
-      if (e?.detail?.cookies !== undefined && !spinningRef.current) {
-        const nextCookies = Math.floor(e.detail.cookies);
-        setCookies(nextCookies);
-        cookiesRef.current = nextCookies;
+      if (e?.detail && !spinningRef.current) {
+        setPlayerState(prev => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          if (e.detail.cookies !== undefined) next.cookies = Math.floor(e.detail.cookies);
+          if (e.detail.heavenlyChips !== undefined) next.heavenlyChips = Math.floor(e.detail.heavenlyChips);
+          if (e.detail.gems !== undefined) next.gems = Math.floor(e.detail.gems);
+          clickerRef.current = next;
+          return next;
+        });
       }
     }
     window.addEventListener('arcade-cookies-synced', onCookiesSynced);
     return () => window.removeEventListener('arcade-cookies-synced', onCookiesSynced);
   }, []);
+
+  // Währung wechseln
+  function handleSelectCurrency(currId) {
+    if (spinning) return;
+    setActiveCurrency(currId);
+    const targetConfig = CURRENCIES[currId];
+    const bal = playerState ? Math.floor(playerState[currId] ?? 0) : 0;
+    setBet(Math.min(targetConfig.defaultBet, Math.max(targetConfig.minBet, bal || targetConfig.minBet)));
+    setMessage(null);
+    setGambleAmount(null);
+    setIsGambleOpen(false);
+  }
 
   // Multiplier from hot streak
   const streakMult = streak >= 5 ? 5.0 : streak >= 4 ? 3.0 : streak >= 3 ? 2.0 : streak >= 2 ? 1.5 : 1.0;
@@ -273,28 +343,34 @@ export default function SlotsPage() {
 
   const doSpin = useCallback(async () => {
     if (spinningRef.current) return;
-    const bal = cookiesRef.current;
-    const isFree = freeSpins > 0;
-    const b = bet;
+    const curState = clickerRef.current;
+    if (!curState) return;
 
-    if (!isFree && (bal === null || bal < b)) return;
+    const isFree = freeSpins > 0;
+    const b = Number(bet);
+    const bal = Math.floor(curState[activeCurrency] ?? 0);
+
+    if (!isFree && (bal < b || b <= 0)) return;
 
     spinningRef.current = true;
     setSpinning(true);
     setMessage(null);
     setAnticipating(false);
+    setGambleAmount(null);
+    setIsGambleOpen(false);
 
-    let nb = bal;
+    let nextBal = bal;
     if (!isFree) {
-      nb = bal - b;
-      setCookies(nb);
-      cookiesRef.current = nb;
-      await saveCookies(nb);
-      // Jackpot wächst mit jedem Spin
-      setJackpotPool(p => {
-        const nextP = p + Math.floor(b * 0.15);
-        try { localStorage.setItem('arcade_slot_jackpot', String(nextP)); } catch {}
-        return nextP;
+      nextBal = bal - b;
+      const updated = { ...curState, [activeCurrency]: nextBal, lastSaved: Date.now() };
+      await persistPlayerState(updated);
+
+      // Jackpot wächst
+      setJackpotPools(prev => {
+        const growth = Math.max(1, Math.floor(b * curr.jackpotGrowth));
+        const nextPool = (prev[activeCurrency] || curr.jackpotDefault) + growth;
+        try { localStorage.setItem(`arcade_slot_jackpot_${activeCurrency}`, String(nextPool)); } catch {}
+        return { ...prev, [activeCurrency]: nextPool };
       });
     } else {
       setFreeSpins(fs => fs - 1);
@@ -302,7 +378,7 @@ export default function SlotsPage() {
 
     const newReels = [pickReel(), pickReel(), pickReel()];
 
-    // Anticipation check: Wenn Walze 1 und 2 zwei Jackpots oder Sterne haben
+    // Anticipation check: Wenn Walze 1 und 2 Jackpot- oder Stern-Symbole haben
     const r1Jackpots = newReels[0].filter(s => s.id === 'jackpot' || s.id === 'star').length;
     const r2Jackpots = newReels[1].filter(s => s.id === 'jackpot' || s.id === 'star').length;
     const willAnticipate = r1Jackpots > 0 && r2Jackpots > 0;
@@ -335,24 +411,27 @@ export default function SlotsPage() {
       // Hot Streak Multiplier
       won = Math.floor(won * streakMult);
 
-      // Check for progressive jackpot (3x 🍪 on middle payline)
+      // Progressive Jackpot (3x 🍪 auf mittlerer Gewinnlinie)
+      const currentJackpot = jackpotPools[activeCurrency] || curr.jackpotDefault;
       const hitJackpot = win.wonLines.some(l => l.lineIdx === 1 && l.symbol.id === 'jackpot');
       if (hitJackpot) {
-        won += jackpotPool;
-        setJackpotPool(50000);
-        try { localStorage.setItem('arcade_slot_jackpot', '50000'); } catch {}
+        won += currentJackpot;
+        setJackpotPools(p => ({ ...p, [activeCurrency]: curr.jackpotDefault }));
+        try { localStorage.setItem(`arcade_slot_jackpot_${activeCurrency}`, String(curr.jackpotDefault)); } catch {}
       }
 
-      // Check for Free Spins trigger (3x ⭐ anywhere)
+      // Free Spins trigger (3x ⭐ irgendwo)
       const hitFreeSpins = win.wonLines.some(l => l.symbol.id === 'star');
       if (hitFreeSpins) {
         setFreeSpins(fs => fs + 10);
       }
 
-      const fb = nb + won;
-      setCookies(fb);
-      cookiesRef.current = fb;
-      await saveCookies(fb);
+      const finalBal = nextBal + won;
+      const nextUpdated = { ...clickerRef.current, [activeCurrency]: finalBal, lastSaved: Date.now() };
+      if (activeCurrency === 'cookies') {
+        nextUpdated.totalCookies = Math.max(nextUpdated.totalCookies || 0, finalBal);
+      }
+      await persistPlayerState(nextUpdated);
 
       if (won > bestWinRef.current) {
         bestWinRef.current = won;
@@ -377,33 +456,33 @@ export default function SlotsPage() {
         if (hitJackpot) {
           triggerShake();
           playJackpotSirens();
-          setMessage({ text: `🍪 MEGA PROGRESSIVE JACKPOT!! +${fmtCookies(won)}! 🚨`, type: 'jackpot' });
+          setMessage({ text: `🚨 MEGA PROGRESSIVER JACKPOT!! +${curr.format(won)} ${curr.icon}! 🚨`, type: 'jackpot' });
         } else if (win.total >= 75 || won >= b * 30) {
           triggerShake();
           playBigWinSound();
-          setMessage({ text: `🏆 MEGA WIN! +${fmtCookies(won)}!`, type: 'big' });
+          setMessage({ text: `🏆 MEGA WIN! +${curr.format(won)} ${curr.icon}!`, type: 'big' });
         } else {
           playWinChime();
-          setMessage({ text: `GEWINN! +${fmtCookies(won)}${streakMult > 1 ? ` (x${streakMult} STREAK!)` : ''}`, type: 'win' });
+          setMessage({ text: `GEWINN! +${curr.format(won)} ${curr.icon}${streakMult > 1 ? ` (x${streakMult} STREAK!)` : ''}`, type: 'win' });
         }
 
         if (hitFreeSpins) {
           setMessage(m => ({ ...m, text: (m?.text || '') + ' 🌟 +10 FREISPIELE!' }));
         }
 
-        // Enable gamble opportunity if not in autoplay and won > 0
+        // Enable gamble opportunity if not in autoplay
         if (!autoplay && won > 0) {
           setGambleAmount(won);
         }
       } else {
         setStreak(0);
-        setMessage({ text: `-${fmtCookies(b)} — Kein Treffer`, type: 'loss' });
+        setMessage({ text: `-${curr.format(b)} ${curr.icon} — Kein Treffer`, type: 'loss' });
         setGambleAmount(null);
       }
     }, spinDuration);
-  }, [bet, streakMult, freeSpins, jackpotPool, turbo, autoplay, streak]);
+  }, [bet, streakMult, freeSpins, jackpotPools, activeCurrency, curr, turbo, autoplay, streak]);
 
-  // Autoplay loop
+  // Autoplay
   useEffect(() => {
     if (!autoplay) return;
     const interval = turbo ? 1100 : 2500;
@@ -414,32 +493,62 @@ export default function SlotsPage() {
   // Spacebar to spin
   useEffect(() => {
     function handleKeyDown(e) {
-      if (e.code === 'Space' && !spinning && !gambleAmount && (cookies >= bet || freeSpins > 0)) {
+      if (e.code === 'Space' && !spinning && !isGambleOpen && !exchangeOpen && (currentBalance >= bet || freeSpins > 0)) {
         e.preventDefault();
         doSpin();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [spinning, gambleAmount, cookies, bet, freeSpins, doSpin]);
+  }, [spinning, isGambleOpen, exchangeOpen, currentBalance, bet, freeSpins, doSpin]);
 
-  // Quick Bet Options
-  const betOptions = [10, 50, 100, 500, 1000, 5000];
-
-  function handleAllIn() {
-    if (cookies <= 0) return;
-    setBet(cookies);
+  // Custom Amount Stepper & Modifiers
+  function stepBet(delta) {
+    if (spinning) return;
+    setBet(b => {
+      const step = activeCurrency === 'cookies' ? (delta > 0 ? 50 : -50) : (delta > 0 ? 1 : -1);
+      const next = Math.max(1, (Number(b) || 0) + step);
+      return Math.min(next, currentBalance > 0 ? currentBalance : next);
+    });
   }
 
-  function handleDoubleBet() {
-    setBet(b => Math.min(b * 2, cookies || b * 2));
+  function handleCustomBetChange(val) {
+    if (spinning) return;
+    if (val === '') {
+      setBet('');
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+      setBet(Math.max(1, num));
+    }
   }
 
   function handleHalfBet() {
-    setBet(b => Math.max(10, Math.floor(b / 2)));
+    if (spinning) return;
+    setBet(b => Math.max(1, Math.floor((Number(b) || 2) / 2)));
   }
 
-  if (cookies === null) {
+  function handleDoubleBet() {
+    if (spinning) return;
+    setBet(b => {
+      const dbl = (Number(b) || 1) * 2;
+      return currentBalance > 0 ? Math.min(dbl, currentBalance) : dbl;
+    });
+  }
+
+  function handleMaxBet() {
+    if (spinning || currentBalance <= 0) return;
+    const cap = activeCurrency === 'cookies' ? 500000 : 500;
+    setBet(Math.min(currentBalance, cap));
+  }
+
+  function handleAllIn() {
+    if (spinning || currentBalance <= 0) return;
+    setBet(currentBalance);
+  }
+
+  if (!playerState) {
     return (
       <div className="page-content" style={{ textAlign: 'center', paddingTop: 80 }}>
         <p style={{ fontFamily: 'var(--font-pixel)', color: 'var(--muted)' }}>LADE KASINO...</p>
@@ -447,14 +556,44 @@ export default function SlotsPage() {
     );
   }
 
+  const currentJackpot = jackpotPools[activeCurrency] || curr.jackpotDefault;
+
   return (
     <div className={`page-content slots-page ${screenShake ? 'screen-shake' : ''}`}>
       {/* Progressive Jackpot Ticker */}
       <div className="slot-jackpot-banner">
         <span className="jackpot-flame">🔥</span>
-        <span className="jackpot-label">PROGRESSIVER JACKPOT:</span>
-        <span className="jackpot-amount">{fmtCookies(jackpotPool)} COOKIES</span>
+        <span className="jackpot-label">PROGRESSIVER JACKPOT ({curr.name}):</span>
+        <span className="jackpot-amount">{curr.format(currentJackpot)} {curr.icon}</span>
         <span className="jackpot-flame">🔥</span>
+      </div>
+
+      {/* Währungs-Umschalter & Wechselstube */}
+      <div className="currency-selector-bar">
+        <div className="currency-tabs">
+          {Object.values(CURRENCIES).map(c => {
+            const bal = Math.floor(playerState[c.id] ?? 0);
+            return (
+              <button
+                key={c.id}
+                className={`currency-tab-btn ${activeCurrency === c.id ? 'active' : ''}`}
+                onClick={() => handleSelectCurrency(c.id)}
+                disabled={spinning}
+              >
+                <span className="curr-icon">{c.icon}</span>
+                <span className="curr-name">{c.name}</span>
+                <span className="curr-bal">({c.format(bal)})</span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          className="btn btn-outline currency-exchange-btn"
+          onClick={() => setExchangeOpen(true)}
+          title="Cookies, Diamanten und Chips tauschen"
+        >
+          💱 WECHSELSTUBE
+        </button>
       </div>
 
       <div className="slots-header">
@@ -473,13 +612,17 @@ export default function SlotsPage() {
         </div>
 
         <div className="slots-balance">
-          <span style={{ color: 'var(--muted)', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)' }}>COOKIES</span>
-          <span className="slots-balance-num">{fmtCookies(cookies)}</span>
+          <span style={{ color: 'var(--muted)', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)' }}>
+            GUTHABEN ({curr.name})
+          </span>
+          <span className="slots-balance-num" style={{ color: activeCurrency === 'gems' ? '#00e5ff' : activeCurrency === 'heavenlyChips' ? '#ffd700' : 'var(--accent)' }}>
+            {curr.icon} {curr.format(currentBalance)}
+          </span>
         </div>
       </div>
 
       <div className={`slot-machine ${freeSpins > 0 ? 'slot-freespin-active' : ''}`}>
-        <div className="slot-machine-top">✦ MORITZFREUND HIGH ROLLER ✦</div>
+        <div className="slot-machine-top">✦ MORITZFREUND HIGH ROLLER &bull; {curr.name} ✦</div>
 
         <div className="slot-reels-wrap">
           {reels.map((reel, i) => (
@@ -496,15 +639,15 @@ export default function SlotsPage() {
         </div>
 
         <div className={`slot-result-msg ${message?.type || ''}`}>
-          {message ? message.text : spinning ? (anticipating ? '⚡ SPANNUNG!!' : 'DREHT...') : 'DRUECKE LEERTASTE ODER DREHEN!'}
+          {message ? message.text : spinning ? (anticipating ? '⚡ SPANNUNG!!' : 'DREHT...') : 'DRÜCKE LEERTASTE ODER DREHEN!'}
         </div>
 
         {/* Gamble Trigger Button nach Gewinn */}
-        {gambleAmount && !spinning && (
-          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+        {gambleAmount && !spinning && !isGambleOpen && (
+          <div style={{ textAlign: 'center', marginBottom: '14px' }}>
             <button
               className="btn slot-gamble-btn"
-              onClick={() => {}}
+              onClick={() => setIsGambleOpen(true)}
               style={{
                 background: 'linear-gradient(135deg, #ffd700, #ff4444)',
                 color: '#000',
@@ -515,69 +658,93 @@ export default function SlotsPage() {
                 borderRadius: '8px',
                 boxShadow: '0 0 16px rgba(255, 68, 68, 0.6)',
               }}
-              onClick={() => {}}
             >
-              🃏 GEWINN VERDOPPELN ({fmtCookies(gambleAmount)})?
+              🃏 GEWINN VERDOPPELN ({curr.format(gambleAmount)} {curr.icon})?
             </button>
           </div>
         )}
 
-        {/* Einsatz-Auswahl */}
-        <div className="slot-bet-row">
-          <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: 'var(--muted)' }}>EINSATZ:</span>
-          <div className="slot-bet-btns">
-            {betOptions.map(b => (
+        {/* NEUES CUSTOM-EINSATZ SYSTEM */}
+        <div className="custom-bet-box">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.48rem', color: 'var(--muted)' }}>
+              EINSATZ WÄHLEN ODER EINTIPPEN:
+            </span>
+            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: 'var(--accent)' }}>
+              {curr.icon} {curr.name}
+            </span>
+          </div>
+
+          {/* Zahlen-Eingabefeld mit [-] und [+] */}
+          <div className="custom-bet-input-row">
+            <button
+              className="btn bet-step-btn"
+              onClick={() => stepBet(-1)}
+              disabled={spinning}
+              title="Einsatz verringern"
+            >
+              -
+            </button>
+            <input
+              type="number"
+              className="custom-bet-input"
+              value={bet}
+              min="1"
+              max={currentBalance > 0 ? currentBalance : undefined}
+              onChange={(e) => handleCustomBetChange(e.target.value)}
+              onBlur={() => {
+                if (!bet || Number(bet) < 1) setBet(1);
+                else if (currentBalance > 0 && Number(bet) > currentBalance) setBet(currentBalance);
+              }}
+              disabled={spinning}
+              placeholder="Einsatz..."
+            />
+            <button
+              className="btn bet-step-btn"
+              onClick={() => stepBet(1)}
+              disabled={spinning}
+              title="Einsatz erhöhen"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Schnell-Chips */}
+          <div className="slot-bet-btns" style={{ marginBottom: '10px' }}>
+            {curr.presets.map(p => (
               <button
-                key={b}
-                className={`slot-bet-btn ${bet === b ? 'active' : ''}`}
-                onClick={() => setBet(b)}
+                key={p}
+                className={`slot-bet-btn ${Number(bet) === p ? 'active' : ''}`}
+                onClick={() => setBet(p)}
                 disabled={spinning}
               >
-                {fmtCookies(b)}
+                {curr.icon} {curr.format(p)}
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Schnellwahl: 1/2, 2X, MAX, ALL IN */}
-        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '14px', flexWrap: 'wrap' }}>
-          <button className="btn btn-outline" style={{ padding: '3px 8px', fontSize: '0.42rem', minHeight: '24px' }} onClick={handleHalfBet} disabled={spinning}>
-            ½ HALB
-          </button>
-          <button className="btn btn-outline" style={{ padding: '3px 8px', fontSize: '0.42rem', minHeight: '24px' }} onClick={handleDoubleBet} disabled={spinning}>
-            2X DOPPELT
-          </button>
-          <button
-            className="btn btn-outline"
-            style={{ padding: '3px 8px', fontSize: '0.42rem', minHeight: '24px', borderColor: '#ffd700', color: '#ffd700' }}
-            onClick={() => setBet(Math.min(cookies || 1000, 50000))}
-            disabled={spinning}
-          >
-            MAX
-          </button>
-          <button
-            className="btn"
-            style={{
-              padding: '3px 10px',
-              fontSize: '0.42rem',
-              minHeight: '24px',
-              background: 'linear-gradient(135deg, #ff4444, #ff8800)',
-              color: '#fff',
-              fontWeight: 'bold',
-            }}
-            onClick={handleAllIn}
-            disabled={spinning || cookies <= 0}
-          >
-            💥 ALL IN!
-          </button>
-          <button
-            className={`btn ${turbo ? 'btn-primary' : 'btn-outline'}`}
-            style={{ padding: '3px 8px', fontSize: '0.42rem', minHeight: '24px' }}
-            onClick={() => setTurbo(t => !t)}
-            title="Schnellere Spins"
-          >
-            ⚡ TURBO {turbo ? 'AN' : 'AUS'}
-          </button>
+          {/* Modifikatoren: HALB, 2X, MAX, ALL IN */}
+          <div className="bet-modifiers">
+            <button className="btn btn-outline" onClick={handleHalfBet} disabled={spinning}>
+              ½ HALB
+            </button>
+            <button className="btn btn-outline" onClick={handleDoubleBet} disabled={spinning}>
+              2X DOPPELT
+            </button>
+            <button className="btn btn-outline" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }} onClick={handleMaxBet} disabled={spinning || currentBalance <= 0}>
+              MAX
+            </button>
+            <button className="btn btn-allin" onClick={handleAllIn} disabled={spinning || currentBalance <= 0}>
+              💥 ALL IN!
+            </button>
+            <button
+              className={`btn ${turbo ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setTurbo(t => !t)}
+              title="Schnellere Spins"
+            >
+              ⚡ TURBO {turbo ? 'AN' : 'AUS'}
+            </button>
+          </div>
         </div>
 
         {/* Spin & Auto Buttons */}
@@ -585,58 +752,65 @@ export default function SlotsPage() {
           <button
             className="btn btn-primary slot-spin-btn"
             onClick={doSpin}
-            disabled={spinning || (cookies < bet && freeSpins <= 0)}
+            disabled={spinning || (currentBalance < bet && freeSpins <= 0)}
             id="slots-spin-btn"
           >
-            {spinning ? 'DREHT...' : freeSpins > 0 ? `🌟 GRATIS-SPIN (${freeSpins})` : '🎰 DREHEN (LEERTASTE)'}
+            {spinning ? 'DREHT...' : freeSpins > 0 ? `🌟 GRATIS-SPIN (${freeSpins})` : `🎰 DREHEN (${curr.format(bet)} ${curr.icon})`}
           </button>
           <button
             className={`btn ${autoplay ? 'btn-danger' : 'btn-outline'} slot-auto-btn`}
             onClick={() => setAutoplay(a => !a)}
-            disabled={!autoplay && cookies < bet && freeSpins <= 0}
+            disabled={!autoplay && currentBalance < bet && freeSpins <= 0}
           >
             {autoplay ? '⏹ STOP AUTO' : '▶ AUTOPLAY'}
           </button>
         </div>
 
-        {cookies < bet && freeSpins <= 0 && (
-          <div style={{ color: 'var(--danger)', fontFamily: 'var(--font-pixel)', fontSize: '0.42rem', textAlign: 'center', marginTop: 8 }}>
-            ZU WENIG COOKIES! Klicke im Keks-Clicker neue Cookies oder verringere den Einsatz.
+        {currentBalance < bet && freeSpins <= 0 && (
+          <div style={{ color: 'var(--danger)', fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', textAlign: 'center', marginTop: 10 }}>
+            ZU WENIG {curr.name}! Wechsle in der Wechselstube Währung oder verringere den Einsatz.
           </div>
         )}
       </div>
 
       {/* 2X Double or Nothing Gamble Modal */}
-      {gambleAmount && (
+      {isGambleOpen && gambleAmount && (
         <GambleModal
           amount={gambleAmount}
+          currency={activeCurrency}
           onCollect={async (finalAmount) => {
             const diff = finalAmount - gambleAmount;
             if (diff > 0) {
-              const nb = cookiesRef.current + diff;
-              setCookies(nb);
-              cookiesRef.current = nb;
-              await saveCookies(nb);
+              const nb = (playerState[activeCurrency] || 0) + diff;
+              await persistPlayerState({ ...playerState, [activeCurrency]: nb });
             }
             setGambleAmount(null);
+            setIsGambleOpen(false);
           }}
           onWin={async (newAmount) => {
             setGambleAmount(newAmount);
           }}
           onLose={async () => {
-            const nb = Math.max(0, cookiesRef.current - gambleAmount);
-            setCookies(nb);
-            cookiesRef.current = nb;
-            await saveCookies(nb);
+            const nb = Math.max(0, (playerState[activeCurrency] || 0) - gambleAmount);
+            await persistPlayerState({ ...playerState, [activeCurrency]: nb });
             setGambleAmount(null);
+            setIsGambleOpen(false);
           }}
         />
       )}
 
+      {/* Währungs-Wechselstube Modal */}
+      <CurrencyExchangeModal
+        isOpen={exchangeOpen}
+        onClose={() => setExchangeOpen(false)}
+        state={playerState}
+        onExchange={persistPlayerState}
+      />
+
       {/* Auszahlungstabelle */}
       <div className="slots-paytable">
         <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.5rem', color: 'var(--accent)', marginBottom: 12 }}>
-          AUSZAHLUNGSTABELLE (x EINSATZ)
+          AUSZAHLUNGSTABELLE (x EINSATZ) &bull; AUSZAHLUNG IN {curr.name}
         </div>
         <div className="slots-paytable-grid">
           {SYMBOLS.map(s => (
@@ -659,10 +833,10 @@ export default function SlotsPage() {
         {[
           { label: 'SPINS', value: stats.spins },
           { label: 'SIEGE', value: stats.wins },
-          { label: 'BESTER WIN', value: fmtCookies(stats.bestWin), color: 'var(--accent)' },
-          { label: 'GEWONNEN', value: fmtCookies(stats.totalWon) },
-          { label: 'GESETZT', value: fmtCookies(stats.totalBet) },
-          { label: 'BILANZ', value: fmtCookies(stats.totalWon - stats.totalBet), color: stats.totalWon >= stats.totalBet ? '#90be6d' : '#f94144' },
+          { label: 'BESTER WIN', value: `${curr.format(stats.bestWin)} ${curr.icon}`, color: 'var(--accent)' },
+          { label: 'GEWONNEN', value: `${curr.format(stats.totalWon)} ${curr.icon}` },
+          { label: 'GESETZT', value: `${curr.format(stats.totalBet)} ${curr.icon}` },
+          { label: 'BILANZ', value: `${curr.format(stats.totalWon - stats.totalBet)} ${curr.icon}`, color: stats.totalWon >= stats.totalBet ? '#90be6d' : '#f94144' },
         ].map(s => (
           <div key={s.label} className="slots-stat-item">
             <span style={{ color: 'var(--muted)', fontSize: '0.4rem', fontFamily: 'var(--font-pixel)' }}>{s.label}</span>

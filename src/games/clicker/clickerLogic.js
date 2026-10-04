@@ -405,6 +405,7 @@ export function createClickerState() {
     heavenlyChipsClaimed: 0,
     spentHeavenlyChips: 0,
     heavenlyUpgrades: [],
+    gems: 10,
     ascensionCount: 0,
     wrinklers: [],
     lastSaved: Date.now(),

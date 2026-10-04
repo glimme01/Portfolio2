@@ -299,9 +299,14 @@ export function logout() {
   notifyAuthChange(null);
 }
 
-// Admin Tools: Alle Konten auflisten
+import { loadGameState, saveGameState, deleteGameState, normalizePlayerName } from './save.js';
+import { insertScore, deleteScore } from './scores.js';
+
+// Admin Tools: Alle Konten auflisten inkl. Spielstände/Guthaben
 export async function getAllAccounts() {
   const local = getStoredAccounts();
+  let accountsList = local;
+
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data } = await supabase
@@ -319,11 +324,30 @@ export async function getAllAccounts() {
             lastHeartbeat: p.last_heartbeat,
           });
         });
-        return Array.from(map.values());
+        accountsList = Array.from(map.values());
       }
     } catch {}
   }
-  return local;
+
+  // Lade Guthaben für jeden Spieler (Cookies, Chips, Gems)
+  const enriched = await Promise.all(
+    accountsList.map(async (acc) => {
+      try {
+        const { data } = await loadGameState(acc.username, 'clicker');
+        const st = data?.state;
+        return {
+          ...acc,
+          cookies: Math.floor(st?.cookies ?? 0),
+          heavenlyChips: Math.floor(st?.heavenlyChips ?? 0),
+          gems: Math.floor(st?.gems ?? 10),
+        };
+      } catch {
+        return { ...acc, cookies: 0, heavenlyChips: 0, gems: 10 };
+      }
+    })
+  );
+
+  return enriched;
 }
 
 // Admin Tools: Konto löschen
@@ -334,4 +358,271 @@ export function deleteAccount(username) {
   if (isSupabaseConfigured() && supabase) {
     supabase.from('profiles').delete().eq('username', username).then(() => {});
   }
+}
+
+// Admin Tools: Neuen Spieler anlegen
+export async function adminCreateAccount({
+  username,
+  password = 'password123',
+  isAdmin = false,
+  initialCookies = 1000,
+  initialChips = 0,
+  initialGems = 10,
+}) {
+  const clean = username.trim().slice(0, 16);
+  if (!clean || clean.length < 2) {
+    return { error: 'Username muss mindestens 2 Zeichen lang sein.' };
+  }
+  if (!password || password.length < 3) {
+    return { error: 'Passwort muss mindestens 3 Zeichen lang sein.' };
+  }
+
+  const accounts = getStoredAccounts();
+  if (accounts.some(a => a.username.toLowerCase() === clean.toLowerCase())) {
+    return { error: 'Dieser Benutzername ist bereits vergeben.' };
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('username')
+        .ilike('username', clean)
+        .maybeSingle();
+      if (data) return { error: 'Dieser Benutzername ist in der Datenbank bereits vergeben.' };
+    } catch {}
+  }
+
+  const passHash = await hashPassword(password);
+  const sessionToken = generateSessionToken();
+  const createdAt = new Date().toISOString();
+
+  const newUser = {
+    username: clean,
+    passHash,
+    isAdmin: Boolean(isAdmin),
+    createdAt,
+    sessionToken,
+  };
+
+  accounts.push(newUser);
+  saveAccounts(accounts);
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('profiles').upsert({
+        username: clean,
+        pass_hash: passHash,
+        is_admin: Boolean(isAdmin),
+        active_session_token: sessionToken,
+        last_heartbeat: createdAt,
+      }, { onConflict: 'username' });
+    } catch (err) {
+      console.warn('Admin profile creation sync error:', err);
+    }
+  }
+
+  // Initialen Spielstand mit Guthaben anlegen
+  const clickerState = {
+    bakeryName: `${clean}s Imperium`,
+    cookies: Number(initialCookies) || 0,
+    totalCookies: Number(initialCookies) || 0,
+    totalClicks: 0,
+    goldenClicks: 0,
+    eventsCaught: 0,
+    buildings: {},
+    upgrades: [],
+    achievements: [],
+    easterEggs: [],
+    skin: 'moritz',
+    stockShares: {},
+    stockPrices: {},
+    tradesDone: 0,
+    heavenlyChips: Number(initialChips) || 0,
+    heavenlyChipsClaimed: 0,
+    spentHeavenlyChips: 0,
+    heavenlyUpgrades: [],
+    gems: Number(initialGems) >= 0 ? Number(initialGems) : 10,
+    ascensionCount: 0,
+    wrinklers: [],
+    lastSaved: Date.now(),
+    startedAt: Date.now(),
+    playTime: 0,
+  };
+
+  await saveGameState(clean, 'clicker', clickerState);
+  if (initialCookies > 0) {
+    await insertScore(clean, 'clicker', initialCookies, { forceUpdate: true });
+  }
+
+  return { success: true, user: newUser };
+}
+
+// Admin Tools: Spielerdaten & Guthaben editieren
+export async function adminUpdateAccount(username, updates = {}) {
+  const norm = normalizePlayerName(username);
+  const accounts = getStoredAccounts();
+  const accIndex = accounts.findIndex(a => a.username.toLowerCase() === norm);
+
+  let newPassHash = null;
+  if (updates.newPassword && updates.newPassword.trim().length >= 3) {
+    newPassHash = await hashPassword(updates.newPassword.trim());
+  }
+
+  if (accIndex >= 0) {
+    if (updates.isAdmin !== undefined) accounts[accIndex].isAdmin = Boolean(updates.isAdmin);
+    if (newPassHash) accounts[accIndex].passHash = newPassHash;
+    saveAccounts(accounts);
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const dbUpdates = {};
+      if (updates.isAdmin !== undefined) dbUpdates.is_admin = Boolean(updates.isAdmin);
+      if (newPassHash) dbUpdates.pass_hash = newPassHash;
+      if (Object.keys(dbUpdates).length > 0) {
+        await supabase.from('profiles').update(dbUpdates).ilike('username', norm);
+      }
+    } catch {}
+  }
+
+  // Guthaben aktualisieren (Cookies, Chips, Gems)
+  if (updates.cookies !== undefined || updates.heavenlyChips !== undefined || updates.gems !== undefined) {
+    const { data } = await loadGameState(username, 'clicker');
+    let st = data?.state || {
+      bakeryName: `${username}s Bäckerei`,
+      cookies: 0,
+      totalCookies: 0,
+      buildings: {},
+      upgrades: [],
+      gems: 10,
+      heavenlyChips: 0,
+    };
+
+    if (updates.cookies !== undefined) {
+      st.cookies = Math.max(0, Number(updates.cookies));
+      st.totalCookies = Math.max(st.totalCookies || 0, st.cookies);
+    }
+    if (updates.heavenlyChips !== undefined) {
+      st.heavenlyChips = Math.max(0, Number(updates.heavenlyChips));
+    }
+    if (updates.gems !== undefined) {
+      st.gems = Math.max(0, Number(updates.gems));
+    }
+    st.lastSaved = Date.now();
+
+    await saveGameState(username, 'clicker', st);
+    if (updates.cookies !== undefined) {
+      await insertScore(username, 'clicker', st.cookies, { forceUpdate: true });
+    }
+
+    // Wenn der aktuelle Spieler editiert wurde -> Live Event broadcasten
+    const cur = getCurrentUser();
+    if (cur && normalizePlayerName(cur.username) === norm) {
+      window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
+        detail: {
+          cookies: st.cookies,
+          heavenlyChips: st.heavenlyChips,
+          gems: st.gems,
+          state: st,
+          playerName: norm,
+          lastSaved: Date.now(),
+        }
+      }));
+    }
+  }
+
+  return { success: true };
+}
+
+// Admin Tools: Schneller Guthaben-Zuschuss (+ / -)
+export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, chipsDelta = 0, gemsDelta = 0 }) {
+  const { data } = await loadGameState(username, 'clicker');
+  let st = data?.state || {
+    bakeryName: `${username}s Bäckerei`,
+    cookies: 0,
+    totalCookies: 0,
+    buildings: {},
+    upgrades: [],
+    gems: 10,
+    heavenlyChips: 0,
+  };
+
+  st.cookies = Math.max(0, Math.floor((st.cookies || 0) + (cookiesDelta || 0)));
+  st.totalCookies = Math.max(st.totalCookies || 0, st.cookies);
+  st.heavenlyChips = Math.max(0, Math.floor((st.heavenlyChips || 0) + (chipsDelta || 0)));
+  st.gems = Math.max(0, Math.floor((st.gems || 0) + (gemsDelta || 0)));
+  st.lastSaved = Date.now();
+
+  await saveGameState(username, 'clicker', st);
+  await insertScore(username, 'clicker', st.cookies, { forceUpdate: true });
+
+  const cur = getCurrentUser();
+  if (cur && normalizePlayerName(cur.username) === normalizePlayerName(username)) {
+    window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
+      detail: {
+        cookies: st.cookies,
+        heavenlyChips: st.heavenlyChips,
+        gems: st.gems,
+        state: st,
+        playerName: normalizePlayerName(username),
+        lastSaved: Date.now(),
+      }
+    }));
+  }
+
+  return { success: true, cookies: st.cookies, chips: st.heavenlyChips, gems: st.gems };
+}
+
+// Admin Tools: Fortschritt eines Spielers zurücksetzen
+export async function adminResetPlayerProgress(username) {
+  const norm = normalizePlayerName(username);
+  await deleteGameState(norm, 'clicker');
+  await deleteGameState(norm, 'slots');
+  await deleteGameState(norm, 'blackjack');
+  await deleteGameState(norm, 'snake');
+  await deleteGameState(norm, 'press');
+
+  // Neues Standard-Konto
+  const fresh = {
+    cookies: 250,
+    totalCookies: 250,
+    buildings: {},
+    upgrades: [],
+    gems: 10,
+    heavenlyChips: 0,
+    lastSaved: Date.now(),
+  };
+  await saveGameState(norm, 'clicker', fresh);
+  await insertScore(norm, 'clicker', 250, { forceUpdate: true });
+
+  const cur = getCurrentUser();
+  if (cur && normalizePlayerName(cur.username) === norm) {
+    window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
+      detail: { cookies: 250, heavenlyChips: 0, gems: 10, state: fresh, playerName: norm, lastSaved: Date.now() }
+    }));
+  }
+
+  return { success: true };
+}
+
+// Admin Tools: Globalen Broadcast an alle Tabs & Spieler senden
+export function adminBroadcastMessage(message) {
+  const payload = {
+    message: message.trim(),
+    id: 'msg_' + Date.now(),
+    timestamp: Date.now(),
+  };
+
+  try {
+    localStorage.setItem('arcade_global_broadcast', JSON.stringify(payload));
+  } catch {}
+
+  window.dispatchEvent(new CustomEvent('arcade-admin-broadcast', { detail: payload }));
+
+  if (syncChannel) {
+    syncChannel.postMessage({ type: 'ADMIN_BROADCAST', payload, clientId: CLIENT_ID });
+  }
+
+  return { success: true };
 }

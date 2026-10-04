@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadGameState, saveGameState } from '../../lib/save.js';
-import { getLastName } from '../../lib/prefs.js';
 import { getActivePlayerName } from '../../lib/auth.js';
 import { fmtCookies } from '../clicker/clickerLogic.js';
 import { insertScore } from '../../lib/scores.js';
+import CurrencyExchangeModal from '../../components/CurrencyExchangeModal.jsx';
 import {
   playChipSound,
   playCardDealSound,
@@ -56,12 +56,44 @@ function Card({ card, faceDown }) {
   );
 }
 
+const CURRENCIES = {
+  cookies: {
+    id: 'cookies',
+    name: 'COOKIES',
+    icon: '🍪',
+    minBet: 10,
+    defaultBet: 50,
+    presets: [25, 50, 100, 250, 500, 1000, 2500, 5000, 25000],
+    format: (v) => fmtCookies(v),
+  },
+  heavenlyChips: {
+    id: 'heavenlyChips',
+    name: 'HIMMELS-CHIPS',
+    icon: '✨',
+    minBet: 1,
+    defaultBet: 2,
+    presets: [1, 2, 5, 10, 25, 50, 100],
+    format: (v) => Number(v || 0).toLocaleString('de-DE'),
+  },
+  gems: {
+    id: 'gems',
+    name: 'DIAMANTEN (VIP)',
+    icon: '💎',
+    minBet: 1,
+    defaultBet: 5,
+    presets: [1, 2, 5, 10, 20, 50, 100],
+    format: (v) => Number(v || 0).toLocaleString('de-DE'),
+  },
+};
+
 // 🃏 Double-or-Nothing Gamble Overlay for Blackjack
-function GambleModal({ amount, onCollect, onWin, onLose }) {
+function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
   const [currentAmount, setCurrentAmount] = useState(amount);
   const [card, setCard] = useState(null);
   const [flipping, setFlipping] = useState(false);
-  const [msg, setMsg] = useState('WAEHLE ROT ODER SCHWARZ!');
+  const [msg, setMsg] = useState('WÄHLE ROT ODER SCHWARZ!');
+
+  const curr = CURRENCIES[currency] || CURRENCIES.cookies;
 
   function pickColor(color) {
     if (flipping) return;
@@ -83,7 +115,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
       if (won) {
         const nextAmount = currentAmount * 2;
         setCurrentAmount(nextAmount);
-        setMsg(`RICHTIG! VERDOPPELT AUF ${fmtCookies(nextAmount)}!`);
+        setMsg(`RICHTIG! VERDOPPELT AUF ${curr.format(nextAmount)} ${curr.icon}!`);
         playCoinSound();
         onWin(nextAmount);
       } else {
@@ -102,7 +134,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
           🃏 2X BLACKJACK RISIKO
         </h2>
         <p style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.9rem', color: '#39ff14', marginBottom: '14px' }}>
-          POT: {fmtCookies(currentAmount)} COOKIES
+          POT: {curr.format(currentAmount)} {curr.icon} {curr.name}
         </p>
 
         <div style={{
@@ -159,7 +191,7 @@ function GambleModal({ amount, onCollect, onWin, onLose }) {
           disabled={flipping}
           onClick={() => onCollect(currentAmount)}
         >
-          💰 GEWINN NEHMEN ({fmtCookies(currentAmount)})
+          💰 GEWINN NEHMEN ({curr.format(currentAmount)} {curr.icon})
         </button>
       </div>
     </div>
@@ -170,7 +202,8 @@ const PHASE = { BETTING: 'BETTING', PLAYING: 'PLAYING', DEALER: 'DEALER', RESULT
 
 export default function BlackjackPage() {
   const playerName = getActivePlayerName();
-  const [cookies, setCookies] = useState(null);
+  const [activeCurrency, setActiveCurrency] = useState('cookies');
+  const [playerState, setPlayerState] = useState(null);
   const [bet, setBet] = useState(50);
   const [deck, setDeck] = useState([]);
   const [playerHand, setPlayerHand] = useState([]);
@@ -181,61 +214,79 @@ export default function BlackjackPage() {
   const [doubledDown, setDoubledDown] = useState(false);
   const [streak, setStreak] = useState(0);
   const [gambleAmount, setGambleAmount] = useState(null);
+  const [isGambleOpen, setIsGambleOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
 
   const clickerRef = useRef(null);
-  const cookiesRef = useRef(null);
   const bestWinRef = useRef(0);
 
-  async function loadCookies() {
+  const curr = CURRENCIES[activeCurrency] || CURRENCIES.cookies;
+  const currentBalance = playerState ? Math.floor(playerState[activeCurrency] ?? 0) : 0;
+
+  async function loadData() {
     const { data } = await loadGameState(playerName, 'clicker');
     let state = data?.state;
     if (!state) {
-      state = { cookies: 250, totalCookies: 250, buildings: {}, upgrades: [] };
+      state = { cookies: 250, totalCookies: 250, heavenlyChips: 0, gems: 10, buildings: {}, upgrades: [] };
       await saveGameState(playerName, 'clicker', state);
     }
+    if (state.gems === undefined) state.gems = 10;
     clickerRef.current = state;
-    const bal = Math.floor(state.cookies ?? 0);
-    setCookies(bal);
-    cookiesRef.current = bal;
+    setPlayerState({ ...state });
   }
 
-  async function saveCookies(nb) {
-    const base = clickerRef.current || { cookies: 0, totalCookies: 0, buildings: {}, upgrades: [] };
-    const upd = { ...base, cookies: nb, lastSaved: Date.now() };
-    clickerRef.current = upd;
-    await saveGameState(playerName, 'clicker', upd);
-    // Sofort mit Leaderboard synchronisieren!
-    await insertScore(playerName, 'clicker', nb, { forceUpdate: true });
+  async function persistPlayerState(newState) {
+    clickerRef.current = newState;
+    setPlayerState({ ...newState });
+    await saveGameState(playerName, 'clicker', newState);
+    if (newState.cookies !== undefined) {
+      await insertScore(playerName, 'clicker', newState.cookies, { forceUpdate: true });
+    }
   }
 
-  useEffect(() => { loadCookies(); }, [playerName]);
+  useEffect(() => { loadData(); }, [playerName]);
 
-  // Live Cookie-Sync empfangen
+  // Live Cookie/Currency Sync
   useEffect(() => {
     function onCookiesSynced(e) {
-      if (e?.detail?.cookies !== undefined && phase === PHASE.BETTING) {
-        const nextCookies = Math.floor(e.detail.cookies);
-        setCookies(nextCookies);
-        cookiesRef.current = nextCookies;
+      if (e?.detail && phase === PHASE.BETTING) {
+        setPlayerState(prev => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          if (e.detail.cookies !== undefined) next.cookies = Math.floor(e.detail.cookies);
+          if (e.detail.heavenlyChips !== undefined) next.heavenlyChips = Math.floor(e.detail.heavenlyChips);
+          if (e.detail.gems !== undefined) next.gems = Math.floor(e.detail.gems);
+          clickerRef.current = next;
+          return next;
+        });
       }
     }
     window.addEventListener('arcade-cookies-synced', onCookiesSynced);
     return () => window.removeEventListener('arcade-cookies-synced', onCookiesSynced);
   }, [phase]);
 
+  function handleSelectCurrency(currId) {
+    if (phase !== PHASE.BETTING) return;
+    setActiveCurrency(currId);
+    const targetConfig = CURRENCIES[currId];
+    const bal = playerState ? Math.floor(playerState[currId] ?? 0) : 0;
+    setBet(Math.min(targetConfig.defaultBet, Math.max(targetConfig.minBet, bal || targetConfig.minBet)));
+    setGambleAmount(null);
+    setIsGambleOpen(false);
+  }
+
   function deal() {
-    if (cookies < bet) return;
+    const b = Number(bet);
+    if (currentBalance < b || b <= 0) return;
     playChipSound();
     playCardDealSound();
 
     const d = freshDeck();
     const ph = [d.pop(), d.pop()];
     const dh = [d.pop(), d.pop()];
-    const nb = cookies - bet;
+    const nextBal = currentBalance - b;
 
-    setCookies(nb);
-    cookiesRef.current = nb;
-    saveCookies(nb);
+    persistPlayerState({ ...clickerRef.current, [activeCurrency]: nextBal });
 
     setDeck(d);
     setPlayerHand(ph);
@@ -244,12 +295,13 @@ export default function BlackjackPage() {
     setResult(null);
     setDoubledDown(false);
     setGambleAmount(null);
+    setIsGambleOpen(false);
 
     // Naturals prüfen
     if (handValue(ph) === 21) {
       setTimeout(() => {
         playBigWinSound();
-        const payout = bet + Math.floor(bet * 1.5);
+        const payout = b + Math.floor(b * 1.5);
         endGame(d, ph, dh, '👑 NATURAL BLACKJACK! +150%', payout);
       }, 500);
     }
@@ -264,7 +316,7 @@ export default function BlackjackPage() {
     setDeck(d);
 
     if (handValue(newHand) > 21) {
-      endGame(d, newHand, dealerHand, '💥 BUST! UEBER 21', 0);
+      endGame(d, newHand, dealerHand, '💥 BUST! ÜBER 21', 0);
     }
     return newHand;
   }
@@ -308,10 +360,14 @@ export default function BlackjackPage() {
 
   async function endGame(d, ph, dh, msg, payout) {
     const activeBet = doubledDown ? bet * 2 : bet;
-    const nb = cookiesRef.current + payout;
-    setCookies(nb);
-    cookiesRef.current = nb;
-    await saveCookies(nb);
+    const curBal = playerState ? Math.floor(playerState[activeCurrency] ?? 0) : 0;
+    const finalBal = curBal + payout;
+
+    const updated = { ...clickerRef.current, [activeCurrency]: finalBal };
+    if (activeCurrency === 'cookies') {
+      updated.totalCookies = Math.max(updated.totalCookies || 0, finalBal);
+    }
+    await persistPlayerState(updated);
 
     setPhase(PHASE.RESULT);
     setResult(msg);
@@ -346,14 +402,12 @@ export default function BlackjackPage() {
   }
 
   function doubleDown() {
-    if (cookies < bet) return;
+    if (currentBalance < bet) return;
     playChipSound();
     playCardDealSound();
 
-    const nb = cookiesRef.current - bet;
-    setCookies(nb);
-    cookiesRef.current = nb;
-    saveCookies(nb);
+    const nextBal = currentBalance - bet;
+    persistPlayerState({ ...clickerRef.current, [activeCurrency]: nextBal });
 
     setDoubledDown(true);
     const d = [...deck];
@@ -369,15 +423,60 @@ export default function BlackjackPage() {
     }
   }
 
+  // Custom Amount Helpers
+  function stepBet(delta) {
+    if (phase !== PHASE.BETTING) return;
+    setBet(b => {
+      const step = activeCurrency === 'cookies' ? (delta > 0 ? 50 : -50) : (delta > 0 ? 1 : -1);
+      const next = Math.max(1, (Number(b) || 0) + step);
+      return Math.min(next, currentBalance > 0 ? currentBalance : next);
+    });
+  }
+
+  function handleCustomBetChange(val) {
+    if (phase !== PHASE.BETTING) return;
+    if (val === '') {
+      setBet('');
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+      setBet(Math.max(1, num));
+    }
+  }
+
+  function handleHalfBet() {
+    if (phase !== PHASE.BETTING) return;
+    setBet(b => Math.max(1, Math.floor((Number(b) || 2) / 2)));
+  }
+
+  function handleDoubleBet() {
+    if (phase !== PHASE.BETTING) return;
+    setBet(b => {
+      const dbl = (Number(b) || 1) * 2;
+      return currentBalance > 0 ? Math.min(dbl, currentBalance) : dbl;
+    });
+  }
+
+  function handleMaxBet() {
+    if (phase !== PHASE.BETTING || currentBalance <= 0) return;
+    const cap = activeCurrency === 'cookies' ? 100000 : 250;
+    setBet(Math.min(currentBalance, cap));
+  }
+
+  function handleAllIn() {
+    if (phase !== PHASE.BETTING || currentBalance <= 0) return;
+    setBet(currentBalance);
+  }
+
   const pv = handValue(playerHand);
   const dv = handValue(dealerHand);
-  const betOptions = [25, 50, 100, 250, 500, 1000, 2500, 5000];
-  const canDouble = phase === PHASE.PLAYING && playerHand.length === 2 && cookies >= bet;
+  const canDouble = phase === PHASE.PLAYING && playerHand.length === 2 && currentBalance >= bet;
 
   const resultColor = result?.includes('GEWONNEN') || result?.includes('BLACKJACK') ? '#90be6d'
     : result?.includes('VERLOREN') || result?.includes('BUST') ? '#f94144' : '#ffd700';
 
-  if (cookies === null) {
+  if (!playerState) {
     return (
       <div className="page-content" style={{ textAlign: 'center', paddingTop: 80 }}>
         <p style={{ fontFamily: 'var(--font-pixel)', color: 'var(--muted)' }}>LADE BLACKJACK...</p>
@@ -387,6 +486,34 @@ export default function BlackjackPage() {
 
   return (
     <div className="page-content bj-page">
+      {/* Währungs-Umschalter & Wechselstube */}
+      <div className="currency-selector-bar">
+        <div className="currency-tabs">
+          {Object.values(CURRENCIES).map(c => {
+            const bal = Math.floor(playerState[c.id] ?? 0);
+            return (
+              <button
+                key={c.id}
+                className={`currency-tab-btn ${activeCurrency === c.id ? 'active' : ''}`}
+                onClick={() => handleSelectCurrency(c.id)}
+                disabled={phase !== PHASE.BETTING}
+              >
+                <span className="curr-icon">{c.icon}</span>
+                <span className="curr-name">{c.name}</span>
+                <span className="curr-bal">({c.format(bal)})</span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          className="btn btn-outline currency-exchange-btn"
+          onClick={() => setExchangeOpen(true)}
+          title="Cookies, Diamanten und Chips tauschen"
+        >
+          💱 WECHSELSTUBE
+        </button>
+      </div>
+
       <div className="slots-header">
         <div>
           <h1 className="slots-title">🃏 BLACKJACK 21</h1>
@@ -397,8 +524,12 @@ export default function BlackjackPage() {
           )}
         </div>
         <div className="slots-balance">
-          <span style={{ color: 'var(--muted)', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)' }}>COOKIES</span>
-          <span className="slots-balance-num">{fmtCookies(cookies)}</span>
+          <span style={{ color: 'var(--muted)', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)' }}>
+            GUTHABEN ({curr.name})
+          </span>
+          <span className="slots-balance-num" style={{ color: activeCurrency === 'gems' ? '#00e5ff' : activeCurrency === 'heavenlyChips' ? '#ffd700' : 'var(--accent)' }}>
+            {curr.icon} {curr.format(currentBalance)}
+          </span>
         </div>
       </div>
 
@@ -418,59 +549,71 @@ export default function BlackjackPage() {
         {/* Tisch-Mitte */}
         <div className="bj-center">
           {phase === PHASE.BETTING && (
-            <div className="bj-bet-section">
-              <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.55rem', color: 'var(--muted)', marginBottom: 12 }}>
-                SETZE DEINEN EINSATZ
-              </div>
-              <div className="slot-bet-btns" style={{ justifyContent: 'center', marginBottom: 12 }}>
-                {betOptions.map(b => (
-                  <button
-                    key={b}
-                    className={`slot-bet-btn ${bet === b ? 'active' : ''}`}
-                    onClick={() => { playChipSound(); setBet(b); }}
-                  >
-                    {fmtCookies(b)}
-                  </button>
-                ))}
-              </div>
+            <div className="bj-bet-section" style={{ width: '100%', maxWidth: '520px' }}>
+              {/* NEUES CUSTOM-EINSATZ SYSTEM */}
+              <div className="custom-bet-box" style={{ margin: '0 auto 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.48rem', color: 'var(--muted)' }}>
+                    EINSATZ EINTIPPEN:
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: 'var(--accent)' }}>
+                    {curr.icon} {curr.name}
+                  </span>
+                </div>
 
-              {/* Schnell-Aktionen */}
-              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: 16 }}>
-                <button className="btn btn-outline" style={{ padding: '3px 8px', fontSize: '0.42rem', minHeight: '24px' }} onClick={() => setBet(b => Math.max(25, Math.floor(b / 2)))}>
-                  ½ HALB
-                </button>
-                <button className="btn btn-outline" style={{ padding: '3px 8px', fontSize: '0.42rem', minHeight: '24px' }} onClick={() => setBet(b => Math.min(b * 2, cookies || b * 2))}>
-                  2X DOPPELT
-                </button>
-                <button
-                  className="btn"
-                  style={{
-                    padding: '3px 10px',
-                    fontSize: '0.42rem',
-                    minHeight: '24px',
-                    background: 'linear-gradient(135deg, #ff4444, #ff8800)',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                  }}
-                  onClick={() => setBet(cookies)}
-                  disabled={cookies <= 0}
-                >
-                  💥 ALL IN!
-                </button>
+                {/* Eingabe mit Stepper */}
+                <div className="custom-bet-input-row">
+                  <button className="btn bet-step-btn" onClick={() => stepBet(-1)}>-</button>
+                  <input
+                    type="number"
+                    className="custom-bet-input"
+                    value={bet}
+                    min="1"
+                    max={currentBalance > 0 ? currentBalance : undefined}
+                    onChange={(e) => handleCustomBetChange(e.target.value)}
+                    onBlur={() => {
+                      if (!bet || Number(bet) < 1) setBet(1);
+                      else if (currentBalance > 0 && Number(bet) > currentBalance) setBet(currentBalance);
+                    }}
+                    placeholder="Einsatz..."
+                  />
+                  <button className="btn bet-step-btn" onClick={() => stepBet(1)}>+</button>
+                </div>
+
+                {/* Schnell-Chips */}
+                <div className="slot-bet-btns" style={{ justifyContent: 'center', marginBottom: '10px' }}>
+                  {curr.presets.map(b => (
+                    <button
+                      key={b}
+                      className={`slot-bet-btn ${Number(bet) === b ? 'active' : ''}`}
+                      onClick={() => { playChipSound(); setBet(b); }}
+                    >
+                      {curr.icon} {curr.format(b)}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Modifikatoren */}
+                <div className="bet-modifiers">
+                  <button className="btn btn-outline" onClick={handleHalfBet}>½ HALB</button>
+                  <button className="btn btn-outline" onClick={handleDoubleBet}>2X DOPPELT</button>
+                  <button className="btn btn-outline" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }} onClick={handleMaxBet} disabled={currentBalance <= 0}>MAX</button>
+                  <button className="btn btn-allin" onClick={handleAllIn} disabled={currentBalance <= 0}>💥 ALL IN!</button>
+                </div>
               </div>
 
               <button
                 className="btn btn-primary"
                 style={{ fontSize: '0.7rem', padding: '14px 40px' }}
                 onClick={deal}
-                disabled={cookies < bet}
+                disabled={currentBalance < bet || Number(bet) <= 0}
                 id="bj-deal-btn"
               >
-                🃏 KARTEN AUSTEILEN ({fmtCookies(bet)})
+                🃏 KARTEN AUSTEILEN ({curr.format(bet)} {curr.icon})
               </button>
-              {cookies < bet && (
-                <div style={{ color: 'var(--danger)', fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', marginTop: 8 }}>
-                  ZU WENIG COOKIES!
+              {currentBalance < bet && (
+                <div style={{ color: 'var(--danger)', fontFamily: 'var(--font-pixel)', fontSize: '0.42rem', marginTop: 10 }}>
+                  ZU WENIG {curr.name}! Wechsle in der Wechselstube Währung oder passe den Einsatz an.
                 </div>
               )}
             </div>
@@ -489,9 +632,9 @@ export default function BlackjackPage() {
                       color: '#000',
                       fontWeight: 'bold',
                     }}
-                    onClick={() => {}}
+                    onClick={() => setIsGambleOpen(true)}
                   >
-                    🃏 2X DOPPELN?
+                    🃏 2X DOPPELN ({curr.format(gambleAmount)} {curr.icon})?
                   </button>
                 )}
                 <button
@@ -545,42 +688,49 @@ export default function BlackjackPage() {
         {/* Aktueller Einsatz */}
         {phase !== PHASE.BETTING && (
           <div className="bj-current-bet">
-            EINSATZ: {fmtCookies(doubledDown ? bet * 2 : bet)} Cookies
+            EINSATZ: {curr.format(doubledDown ? bet * 2 : bet)} {curr.icon}
           </div>
         )}
       </div>
 
       {/* 2x Double or Nothing Modal */}
-      {gambleAmount && (
+      {isGambleOpen && gambleAmount && (
         <GambleModal
           amount={gambleAmount}
+          currency={activeCurrency}
           onCollect={async (finalAmount) => {
             const diff = finalAmount - gambleAmount;
             if (diff > 0) {
-              const nb = cookiesRef.current + diff;
-              setCookies(nb);
-              cookiesRef.current = nb;
-              await saveCookies(nb);
+              const nb = (playerState[activeCurrency] || 0) + diff;
+              await persistPlayerState({ ...playerState, [activeCurrency]: nb });
             }
             setGambleAmount(null);
+            setIsGambleOpen(false);
           }}
           onWin={async (newAmount) => {
             setGambleAmount(newAmount);
           }}
           onLose={async () => {
-            const nb = Math.max(0, cookiesRef.current - gambleAmount);
-            setCookies(nb);
-            cookiesRef.current = nb;
-            await saveCookies(nb);
+            const nb = Math.max(0, (playerState[activeCurrency] || 0) - gambleAmount);
+            await persistPlayerState({ ...playerState, [activeCurrency]: nb });
             setGambleAmount(null);
+            setIsGambleOpen(false);
           }}
         />
       )}
 
+      {/* Währungs-Wechselstube Modal */}
+      <CurrencyExchangeModal
+        isOpen={exchangeOpen}
+        onClose={() => setExchangeOpen(false)}
+        state={playerState}
+        onExchange={persistPlayerState}
+      />
+
       {/* Regeln */}
       <div className="bj-rules">
         <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.5rem', color: 'var(--accent)', marginBottom: 10 }}>
-          REGELN & AUSZAHLUNGEN
+          REGELN & AUSZAHLUNGEN &bull; AKTIVE WÄHRUNG: {curr.name} {curr.icon}
         </div>
         <div className="bj-rules-grid">
           <div>Natural Blackjack zahlt 3:2 (150%)</div>
@@ -597,8 +747,8 @@ export default function BlackjackPage() {
           { label: 'GEWONNEN', value: stats.won, color: '#90be6d' },
           { label: 'VERLOREN', value: stats.lost, color: '#f94144' },
           { label: 'UNENTSCHIEDEN', value: stats.pushed, color: '#ffd700' },
-          { label: 'BESTE HAND', value: fmtCookies(stats.bestWin), color: 'var(--accent)' },
-          { label: 'BILANZ', value: fmtCookies(stats.totalWon - stats.totalBet), color: stats.totalWon >= stats.totalBet ? '#90be6d' : '#f94144' },
+          { label: 'BESTE HAND', value: `${curr.format(stats.bestWin)} ${curr.icon}`, color: 'var(--accent)' },
+          { label: 'BILANZ', value: `${curr.format(stats.totalWon - stats.totalBet)} ${curr.icon}`, color: stats.totalWon >= stats.totalBet ? '#90be6d' : '#f94144' },
         ].map(s => (
           <div key={s.label} className="slots-stat-item">
             <span style={{ color: 'var(--muted)', fontSize: '0.38rem', fontFamily: 'var(--font-pixel)' }}>{s.label}</span>
