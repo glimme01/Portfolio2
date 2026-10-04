@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { getAllAccounts, deleteAccount } from '../lib/auth.js';
 import { getAllScoresAdmin, deleteScore, clearAllScores } from '../lib/scores.js';
+import { getAllFeedback, updateFeedbackStatus, deleteFeedback } from '../lib/feedback.js';
 
 export default function AdminModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('accounts');
   const [accounts, setAccounts] = useState([]);
   const [scores, setScores] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [feedbackTypeFilter, setFeedbackTypeFilter] = useState('all');
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all');
   const [gameFilter, setGameFilter] = useState('all');
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  const [alertMsg, setAlertMsg] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -16,36 +20,46 @@ export default function AdminModal({ isOpen, onClose }) {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    function handleFeedbackUpdate() {
+      getAllFeedback().then(fb => setFeedbacks(fb || []));
+    }
+    window.addEventListener('arcade-feedback-updated', handleFeedbackUpdate);
+    return () => window.removeEventListener('arcade-feedback-updated', handleFeedbackUpdate);
+  }, []);
+
   async function loadData() {
     setLoading(true);
     try {
-      const [accs, scs] = await Promise.all([
+      const [accs, scs, fbs] = await Promise.all([
         getAllAccounts(),
         getAllScoresAdmin(),
+        getAllFeedback(),
       ]);
       setAccounts(accs || []);
       setScores(scs || []);
+      setFeedbacks(fbs || []);
     } catch {}
     setLoading(false);
   }
 
-  function showFeedback(msg) {
-    setFeedback(msg);
-    setTimeout(() => setFeedback(''), 3000);
+  function showAlert(msg) {
+    setAlertMsg(msg);
+    setTimeout(() => setAlertMsg(''), 3000);
   }
 
   async function handleDeleteAccount(username) {
     if (!confirm(`Möchtest du das Konto von "${username}" wirklich unwiderruflich löschen?`)) return;
     deleteAccount(username);
     setAccounts(a => a.filter(u => u.username.toLowerCase() !== username.toLowerCase()));
-    showFeedback(`Konto ${username} gelöscht.`);
+    showAlert(`Konto ${username} gelöscht.`);
   }
 
   async function handleDeleteScore(id) {
     if (!confirm('Diesen Highscore-Eintrag löschen?')) return;
     await deleteScore(id);
     setScores(s => s.filter(item => String(item.id) !== String(id)));
-    showFeedback('Highscore gelöscht.');
+    showAlert('Highscore gelöscht.');
   }
 
   async function handleResetGameScores(game) {
@@ -53,14 +67,27 @@ export default function AdminModal({ isOpen, onClose }) {
     if (!confirm(`Wirklich alle Highscores für ${label} zurücksetzen?`)) return;
     await clearAllScores(game === 'all' ? null : game);
     await loadData();
-    showFeedback(`Highscores für ${label} zurückgesetzt.`);
+    showAlert(`Highscores für ${label} zurückgesetzt.`);
+  }
+
+  async function handleUpdateFeedbackStatus(id, newStatus) {
+    await updateFeedbackStatus(id, newStatus);
+    setFeedbacks(items => items.map(it => String(it.id) === String(id) ? { ...it, status: newStatus } : it));
+    showAlert(`Status auf "${newStatus}" gesetzt.`);
+  }
+
+  async function handleDeleteFeedback(id) {
+    if (!confirm('Dieses Feedback unwiderruflich löschen?')) return;
+    await deleteFeedback(id);
+    setFeedbacks(items => items.filter(it => String(it.id) !== String(id)));
+    showAlert('Feedback gelöscht.');
   }
 
   function triggerDevTool(type, payload = {}) {
     window.dispatchEvent(new CustomEvent('arcade-admin-event', {
       detail: { type, ...payload }
     }));
-    showFeedback(`Admin-Aktion ausgeführt: ${type}`);
+    showAlert(`Admin-Aktion ausgeführt: ${type}`);
   }
 
   if (!isOpen) return null;
@@ -68,6 +95,14 @@ export default function AdminModal({ isOpen, onClose }) {
   const filteredScores = gameFilter === 'all'
     ? scores
     : scores.filter(s => s.game === gameFilter);
+
+  const filteredFeedbacks = feedbacks.filter(item => {
+    if (feedbackTypeFilter !== 'all' && item.type !== feedbackTypeFilter) return false;
+    if (feedbackStatusFilter !== 'all' && item.status !== feedbackStatusFilter) return false;
+    return true;
+  });
+
+  const unreadFeedbackCount = feedbacks.filter(f => f.status === 'new').length;
 
   return (
     <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Admin Dashboard">
@@ -82,7 +117,7 @@ export default function AdminModal({ isOpen, onClose }) {
         </div>
 
         {/* Tab-Navigation */}
-        <div className="auth-tabs" style={{ marginBottom: '16px' }}>
+        <div className="auth-tabs" style={{ marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           <button
             className={`auth-tab-btn ${activeTab === 'accounts' ? 'active' : ''}`}
             onClick={() => setActiveTab('accounts')}
@@ -101,9 +136,16 @@ export default function AdminModal({ isOpen, onClose }) {
           >
             CLICKER-TOOLS
           </button>
+          <button
+            className={`auth-tab-btn ${activeTab === 'feedback' ? 'active' : ''}`}
+            onClick={() => setActiveTab('feedback')}
+            style={unreadFeedbackCount > 0 ? { borderColor: '#ff4444', color: '#ffd700', position: 'relative' } : {}}
+          >
+            FEEDBACK & BUGS {unreadFeedbackCount > 0 ? `(${unreadFeedbackCount} NEU)` : `(${feedbacks.length})`}
+          </button>
         </div>
 
-        {feedback && (
+        {alertMsg && (
           <div style={{
             background: 'rgba(57, 255, 20, 0.15)',
             border: '1px solid #39ff14',
@@ -113,7 +155,7 @@ export default function AdminModal({ isOpen, onClose }) {
             fontSize: '0.7rem',
             marginBottom: '12px'
           }}>
-            {feedback}
+            {alertMsg}
           </div>
         )}
 
@@ -159,7 +201,13 @@ export default function AdminModal({ isOpen, onClose }) {
                             <td>
                               <button
                                 className="btn btn-outline"
-                                style={{ padding: '3px 8px', fontSize: '0.42rem', borderColor: '#ff4d4d', color: '#ff4d4d', minHeight: '28px' }}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '0.45rem',
+                                  minHeight: '28px',
+                                  color: 'var(--danger)',
+                                  borderColor: 'var(--danger)',
+                                }}
                                 onClick={() => handleDeleteAccount(acc.username)}
                               >
                                 LÖSCHEN
@@ -178,28 +226,36 @@ export default function AdminModal({ isOpen, onClose }) {
             {activeTab === 'scores' && (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', gap: '6px' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>FILTER:</span>
                     {['all', 'snake', 'press', 'clicker'].map(g => (
                       <button
                         key={g}
                         className={`btn ${gameFilter === g ? 'btn-primary' : 'btn-outline'}`}
-                        style={{ padding: '4px 8px', fontSize: '0.45rem', minHeight: '30px' }}
+                        style={{ padding: '3px 8px', fontSize: '0.45rem', minHeight: '28px' }}
                         onClick={() => setGameFilter(g)}
                       >
                         {g.toUpperCase()}
                       </button>
                     ))}
                   </div>
+
                   <button
                     className="btn btn-outline"
-                    style={{ padding: '4px 8px', fontSize: '0.45rem', borderColor: '#ff4d4d', color: '#ff4d4d', minHeight: '30px' }}
-                    onClick={() => handleResetGameScores(gameFilter)}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '0.45rem',
+                      minHeight: '28px',
+                      color: 'var(--danger)',
+                      borderColor: 'var(--danger)',
+                    }}
+                    onClick={() => handleResetGameScores(gameFilter === 'all' ? null : gameFilter)}
                   >
-                    FILTER ZURÜCKSETZEN
+                    🗑️ {gameFilter === 'all' ? 'ALLE ZURÜCKSETZEN' : `${gameFilter.toUpperCase()} ZURÜCKSETZEN`}
                   </button>
                 </div>
 
-                <div style={{ overflowX: 'auto', maxHeight: '350px' }}>
+                <div style={{ overflowX: 'auto' }}>
                   <table className="admin-table">
                     <thead>
                       <tr>
@@ -212,21 +268,41 @@ export default function AdminModal({ isOpen, onClose }) {
                     </thead>
                     <tbody>
                       {filteredScores.length === 0 ? (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', color: '#666' }}>Keine Einträge gefunden</td></tr>
+                        <tr><td colSpan={5} style={{ textAlign: 'center', color: '#666' }}>Keine Scores gefunden</td></tr>
                       ) : (
-                        filteredScores.map(sc => (
-                          <tr key={sc.id}>
-                            <td style={{ fontWeight: 'bold' }}>{sc.name}</td>
-                            <td style={{ color: 'var(--accent)', fontFamily: 'var(--font-pixel)', fontSize: '0.45rem' }}>{sc.game}</td>
-                            <td style={{ color: '#ffd700', fontFamily: 'var(--font-pixel)', fontSize: '0.52rem' }}>{Number(sc.score).toLocaleString('de-DE')}</td>
-                            <td style={{ color: '#888', fontSize: '0.65rem' }}>{sc.created_at ? new Date(sc.created_at).toLocaleDateString('de-DE') : '-'}</td>
+                        filteredScores.map(item => (
+                          <tr key={item.id}>
+                            <td style={{ fontWeight: 'bold' }}>{item.name}</td>
+                            <td>
+                              <span style={{
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.5rem',
+                                background: '#222',
+                                color: 'var(--accent)'
+                              }}>
+                                {item.game?.toUpperCase()}
+                              </span>
+                            </td>
+                            <td style={{ color: 'var(--accent)', fontWeight: 'bold' }}>
+                              {Number(item.score).toLocaleString('de-DE')}
+                            </td>
+                            <td style={{ color: '#888', fontSize: '0.68rem' }}>
+                              {item.created_at ? new Date(item.created_at).toLocaleDateString('de-DE') : '-'}
+                            </td>
                             <td>
                               <button
                                 className="btn btn-outline"
-                                style={{ padding: '2px 6px', fontSize: '0.42rem', borderColor: '#ff4d4d', color: '#ff4d4d', minHeight: '26px' }}
-                                onClick={() => handleDeleteScore(sc.id)}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '0.45rem',
+                                  minHeight: '28px',
+                                  color: 'var(--danger)',
+                                  borderColor: 'var(--danger)',
+                                }}
+                                onClick={() => handleDeleteScore(item.id)}
                               >
-                                X
+                                LÖSCHEN
                               </button>
                             </td>
                           </tr>
@@ -238,14 +314,22 @@ export default function AdminModal({ isOpen, onClose }) {
               </div>
             )}
 
-            {/* TAB 3: CLICKER TOOLS */}
+            {/* TAB 3: CLICKER-TOOLS */}
             {activeTab === 'clicker' && (
               <div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '14px' }}>
-                  Teste Random Events, Himmels-Aufstiege und Spiel-Funktionen im Cookie Clicker in Echtzeit:
+                <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '16px' }}>
+                  Ereignisse & Boni live für das Keks-Clicker-Spiel auslösen.
                 </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                  <button
+                    className="btn btn-primary"
+                    style={{ padding: '10px 8px', fontSize: '0.48rem' }}
+                    onClick={() => triggerDevTool('SPAWN_GOLDEN')}
+                  >
+                    🍪 GOLDENER KEKS SPAWNEN
+                  </button>
+
                   <button
                     className="btn btn-primary"
                     style={{ padding: '10px 8px', fontSize: '0.48rem' }}
@@ -301,6 +385,199 @@ export default function AdminModal({ isOpen, onClose }) {
                   >
                     🌟 +10 HIMMELSCHIPS
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: FEEDBACK & BUGS */}
+            {activeTab === 'feedback' && (
+              <div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '14px' }}>
+                  Von Spielern eingereichte Fehlerberichte, Ideen und Feedback. Du kannst den Bearbeitungsstatus ändern oder Einträge löschen.
+                </p>
+
+                {/* Status Stats Pillen */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ background: '#1c1c1c', border: '1px solid #333', padding: '6px 10px', borderRadius: '6px', fontSize: '0.65rem' }}>
+                    Gesamt: <strong style={{ color: 'var(--accent)' }}>{feedbacks.length}</strong>
+                  </div>
+                  <div style={{ background: 'rgba(255, 68, 68, 0.1)', border: '1px solid #ff4444', padding: '6px 10px', borderRadius: '6px', fontSize: '0.65rem', color: '#ff7777' }}>
+                    Neu: <strong>{feedbacks.filter(f => f.status === 'new').length}</strong>
+                  </div>
+                  <div style={{ background: 'rgba(70, 130, 255, 0.1)', border: '1px solid #4682ff', padding: '6px 10px', borderRadius: '6px', fontSize: '0.65rem', color: '#70b4ff' }}>
+                    In Arbeit: <strong>{feedbacks.filter(f => f.status === 'in_progress').length}</strong>
+                  </div>
+                  <div style={{ background: 'rgba(57, 255, 20, 0.1)', border: '1px solid #39ff14', padding: '6px 10px', borderRadius: '6px', fontSize: '0.65rem', color: '#39ff14' }}>
+                    Gelöst: <strong>{feedbacks.filter(f => f.status === 'resolved').length}</strong>
+                  </div>
+                </div>
+
+                {/* Filter-Leiste */}
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>TYP:</span>
+                    {['all', 'bug', 'suggestion', 'feedback'].map(t => (
+                      <button
+                        key={t}
+                        className={`btn ${feedbackTypeFilter === t ? 'btn-primary' : 'btn-outline'}`}
+                        style={{ padding: '3px 6px', fontSize: '0.42rem', minHeight: '26px' }}
+                        onClick={() => setFeedbackTypeFilter(t)}
+                      >
+                        {t === 'all' ? 'ALLE' : t === 'bug' ? '🐛 BUGS' : t === 'suggestion' ? '💡 IDEEN' : '💬 LOB'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>STATUS:</span>
+                    {['all', 'new', 'in_progress', 'resolved'].map(s => (
+                      <button
+                        key={s}
+                        className={`btn ${feedbackStatusFilter === s ? 'btn-primary' : 'btn-outline'}`}
+                        style={{ padding: '3px 6px', fontSize: '0.42rem', minHeight: '26px' }}
+                        onClick={() => setFeedbackStatusFilter(s)}
+                      >
+                        {s === 'all' ? 'ALLE' : s === 'new' ? 'NEU' : s === 'in_progress' ? 'IN ARBEIT' : 'GELÖST'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Feedback-Karten Liste */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {filteredFeedbacks.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', background: '#141414', borderRadius: '8px' }}>
+                      Keine Einträge für diese Filterkriterien vorhanden.
+                    </div>
+                  ) : (
+                    filteredFeedbacks.map(item => {
+                      const typeMeta = item.type === 'bug'
+                        ? { label: '🐛 BUG', color: '#ff4444', bg: 'rgba(255, 68, 68, 0.15)', border: '#ff4444' }
+                        : item.type === 'suggestion'
+                        ? { label: '💡 IDEE', color: '#ffd700', bg: 'rgba(255, 215, 0, 0.15)', border: '#ffd700' }
+                        : { label: '💬 FEEDBACK', color: '#70b4ff', bg: 'rgba(112, 180, 255, 0.15)', border: '#70b4ff' };
+
+                      const statusMeta = item.status === 'resolved'
+                        ? { label: 'GELÖST', color: '#39ff14', bg: 'rgba(57, 255, 20, 0.15)' }
+                        : item.status === 'in_progress'
+                        ? { label: 'IN ARBEIT', color: '#70b4ff', bg: 'rgba(112, 180, 255, 0.15)' }
+                        : { label: 'NEU', color: '#ffbb00', bg: 'rgba(255, 187, 0, 0.15)' };
+
+                      return (
+                        <div
+                          key={item.id}
+                          style={{
+                            background: '#151515',
+                            border: `1px solid ${item.status === 'new' ? 'var(--accent)' : '#282828'}`,
+                            borderRadius: '8px',
+                            padding: '12px 14px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <span style={{
+                                fontSize: '0.45rem',
+                                fontFamily: 'var(--font-pixel)',
+                                color: typeMeta.color,
+                                background: typeMeta.bg,
+                                border: `1px solid ${typeMeta.border}`,
+                                padding: '3px 6px',
+                                borderRadius: '4px',
+                              }}>
+                                {typeMeta.label}
+                              </span>
+                              <span style={{
+                                fontSize: '0.45rem',
+                                fontFamily: 'var(--font-pixel)',
+                                color: '#aaa',
+                                background: '#222',
+                                padding: '3px 6px',
+                                borderRadius: '4px',
+                              }}>
+                                🎮 {item.game ? item.game.toUpperCase() : 'ALLGEMEIN'}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#fff' }}>
+                                👤 {item.name || 'Anonym'}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <span style={{
+                                fontSize: '0.45rem',
+                                fontFamily: 'var(--font-pixel)',
+                                color: statusMeta.color,
+                                background: statusMeta.bg,
+                                padding: '3px 6px',
+                                borderRadius: '4px',
+                              }}>
+                                {statusMeta.label}
+                              </span>
+                              <span style={{ fontSize: '0.62rem', color: '#777' }}>
+                                {item.created_at ? new Date(item.created_at).toLocaleString('de-DE') : '-'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{
+                            background: '#0d0d0d',
+                            border: '1px solid #222',
+                            borderRadius: '6px',
+                            padding: '10px',
+                            fontSize: '0.75rem',
+                            color: 'var(--text)',
+                            lineHeight: '1.5',
+                            whiteSpace: 'pre-wrap',
+                            marginBottom: '10px',
+                            wordBreak: 'break-word',
+                          }}>
+                            {item.message}
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>STATUS:</span>
+                              <button
+                                className={`btn ${item.status === 'new' ? 'btn-primary' : 'btn-outline'}`}
+                                style={{ padding: '2px 6px', fontSize: '0.42rem', minHeight: '24px' }}
+                                onClick={() => handleUpdateFeedbackStatus(item.id, 'new')}
+                              >
+                                NEU
+                              </button>
+                              <button
+                                className={`btn ${item.status === 'in_progress' ? 'btn-primary' : 'btn-outline'}`}
+                                style={{ padding: '2px 6px', fontSize: '0.42rem', minHeight: '24px', color: item.status === 'in_progress' ? '#000' : '#70b4ff' }}
+                                onClick={() => handleUpdateFeedbackStatus(item.id, 'in_progress')}
+                              >
+                                IN ARBEIT
+                              </button>
+                              <button
+                                className={`btn ${item.status === 'resolved' ? 'btn-primary' : 'btn-outline'}`}
+                                style={{ padding: '2px 6px', fontSize: '0.42rem', minHeight: '24px', color: item.status === 'resolved' ? '#000' : '#39ff14' }}
+                                onClick={() => handleUpdateFeedbackStatus(item.id, 'resolved')}
+                              >
+                                GELÖST
+                              </button>
+                            </div>
+
+                            <button
+                              className="btn btn-outline"
+                              style={{
+                                padding: '3px 8px',
+                                fontSize: '0.42rem',
+                                minHeight: '24px',
+                                color: 'var(--danger)',
+                                borderColor: 'var(--danger)',
+                              }}
+                              onClick={() => handleDeleteFeedback(item.id)}
+                            >
+                              🗑️ LÖSCHEN
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}

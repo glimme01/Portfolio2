@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import './styles.css';
 import Lobby from './pages/Lobby.jsx';
@@ -10,8 +10,10 @@ import SlotsPage from './games/slots/SlotsPage.jsx';
 import BlackjackPage from './games/blackjack/BlackjackPage.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AdminModal from './components/AdminModal.jsx';
+import FeedbackModal from './components/FeedbackModal.jsx';
 import SessionConflictModal from './components/SessionConflictModal.jsx';
 import { getCurrentUser, logout, onAuthChange } from './lib/auth.js';
+import { getUnreadFeedbackCount } from './lib/feedback.js';
 
 // Offizielles Logo
 function LogoMark() {
@@ -27,13 +29,23 @@ function LogoMark() {
   );
 }
 
-function Header() {
+function Header({ onOpenFeedback }) {
   const [user, setUser] = useState(getCurrentUser());
   const [authOpen, setAuthOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [unreadFeedback, setUnreadFeedback] = useState(0);
 
   useEffect(() => {
     return onAuthChange((newUser) => setUser(newUser));
+  }, []);
+
+  useEffect(() => {
+    function refreshFeedbackCount() {
+      getUnreadFeedbackCount().then(c => setUnreadFeedback(c));
+    }
+    refreshFeedbackCount();
+    window.addEventListener('arcade-feedback-updated', refreshFeedbackCount);
+    return () => window.removeEventListener('arcade-feedback-updated', refreshFeedbackCount);
   }, []);
 
   const isAdmin = Boolean(user && user.isAdmin);
@@ -71,11 +83,17 @@ function Header() {
                     color: '#000',
                     fontWeight: 'bold',
                     boxShadow: '0 0 10px rgba(255, 215, 0, 0.4)',
+                    position: 'relative',
                   }}
                   onClick={() => setAdminOpen(true)}
                   title="Admin Dashboard öffnen"
                 >
                   ADMIN
+                  {unreadFeedback > 0 && (
+                    <span className="admin-badge-indicator" title={`${unreadFeedback} neue Meldungen`}>
+                      {unreadFeedback}
+                    </span>
+                  )}
                 </button>
               )}
               <button
@@ -117,18 +135,37 @@ function Header() {
   );
 }
 
-function Footer() {
+function Footer({ onOpenFeedback }) {
   return (
     <footer className="site-footer">
-      MORITZFREUND ARCADE &mdash; HANDGEMACHT &mdash; {new Date().getFullYear()}
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <span>MORITZFREUND ARCADE &mdash; HANDGEMACHT &mdash; {new Date().getFullYear()}</span>
+        <button
+          className="footer-feedback-link"
+          onClick={onOpenFeedback}
+          title="Feedback senden oder Bug melden"
+        >
+          💬 FEEDBACK / BUG MELDEN
+        </button>
+      </div>
     </footer>
   );
 }
 
 export default function App() {
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+
+  useEffect(() => {
+    function handleOpenFeedback() {
+      setFeedbackOpen(true);
+    }
+    window.addEventListener('open-feedback-modal', handleOpenFeedback);
+    return () => window.removeEventListener('open-feedback-modal', handleOpenFeedback);
+  }, []);
+
   return (
     <BrowserRouter>
-      <Header />
+      <Header onOpenFeedback={() => setFeedbackOpen(true)} />
       <Routes>
         <Route path="/" element={<Lobby />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
@@ -139,7 +176,23 @@ export default function App() {
         <Route path="/slots" element={<SlotsPage />} />
         <Route path="/blackjack" element={<BlackjackPage />} />
       </Routes>
-      <Footer />
+      <Footer onOpenFeedback={() => setFeedbackOpen(true)} />
+
+      {/* Floating Action Button für Feedback & Bug Reports */}
+      <button
+        className="feedback-fab"
+        onClick={() => setFeedbackOpen(true)}
+        title="Feedback oder Bug melden"
+        aria-label="Feedback oder Bug melden"
+      >
+        <span className="feedback-fab-icon">💬</span>
+        <span className="feedback-fab-text">FEEDBACK & BUGS</span>
+      </button>
+
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+      />
     </BrowserRouter>
   );
 }

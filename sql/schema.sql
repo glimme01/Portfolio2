@@ -79,3 +79,27 @@ create policy "anon update profiles" on profiles for update using (true);
 drop policy if exists "anon delete profiles" on profiles;
 create policy "anon delete profiles" on profiles for delete using (true);
 
+-- 4. Feedback & Bug Reports
+create table if not exists feedback (
+  id bigint generated always as identity primary key,
+  name text not null default 'Anonym',
+  type text not null check (type in ('bug', 'feedback', 'suggestion')),
+  game text not null default 'general',
+  message text not null,
+  status text not null default 'new' check (status in ('new', 'in_progress', 'resolved')),
+  created_at timestamptz not null default now()
+);
+
+alter table feedback enable row level security;
+
+drop policy if exists "anon read feedback" on feedback;
+create policy "anon read feedback" on feedback for select using (true);
+
+drop policy if exists "anon insert feedback" on feedback;
+create policy "anon insert feedback" on feedback for insert with check (true);
+
+drop policy if exists "anon update feedback" on feedback;
+create policy "anon update feedback" on feedback for update using (true);
+
+drop policy if exists "anon delete feedback" on feedback;
+create policy "anon delete feedback" on feedback for delete using (true);
