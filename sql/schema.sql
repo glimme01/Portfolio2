@@ -7,8 +7,14 @@ create table if not exists scores (
   name text not null check (char_length(name) between 1 and 16),
   game text not null check (game in ('snake','press','clicker')),
   score int not null check (score >= 0),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (name, game)  -- Ein Eintrag pro Spieler & Spiel (UPSERT)
 );
+
+-- Migration: Constraint nachträglich hinzufügen falls Tabelle schon existiert
+-- (Im Supabase SQL Editor ausführen falls die Tabelle schon angelegt war)
+-- ALTER TABLE scores DROP CONSTRAINT IF EXISTS scores_name_game_key;
+-- ALTER TABLE scores ADD CONSTRAINT scores_name_game_key UNIQUE (name, game);
 
 -- 2. Spielstände pro Spieler & Spiel
 create table if not exists game_states (
@@ -45,6 +51,10 @@ create policy "anon insert scores" on scores for insert with check (true);
 
 drop policy if exists "anon delete scores" on scores;
 create policy "anon delete scores" on scores for delete using (true);
+
+-- UPDATE-Policy für Upsert (Score wird nur überschrieben wenn neuer höher)
+drop policy if exists "anon update scores" on scores;
+create policy "anon update scores" on scores for update using (true) with check (true);
 
 -- Policies für Spielstände
 drop policy if exists "anon read states" on game_states;

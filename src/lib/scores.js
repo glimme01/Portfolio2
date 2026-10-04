@@ -16,14 +16,25 @@ function getStoredLocalScores() {
 
 function saveLocalScore(name, game, score) {
   const list = getStoredLocalScores();
-  const entry = {
-    id: 'local-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-    name,
-    game,
-    score,
-    created_at: new Date().toISOString(),
-  };
-  list.push(entry);
+  const existingIdx = list.findIndex(s => s.name === name && s.game === game);
+
+  let entry;
+  if (existingIdx !== -1) {
+    // Nur updaten wenn neuer Score höher ist
+    if (score <= list[existingIdx].score) return list[existingIdx];
+    list[existingIdx] = { ...list[existingIdx], score, created_at: new Date().toISOString() };
+    entry = list[existingIdx];
+  } else {
+    entry = {
+      id: 'local-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      name,
+      game,
+      score,
+      created_at: new Date().toISOString(),
+    };
+    list.push(entry);
+  }
+
   try {
     localStorage.setItem(LOCAL_SCORES_KEY, JSON.stringify(list));
   } catch {}
@@ -112,9 +123,16 @@ export async function insertScore(name, game, score) {
     const abortController = new AbortController();
     const timer = setTimeout(() => abortController.abort(), 3500);
 
+    // UPSERT: Bei Konflikt auf (name, game) nur updaten wenn neuer Score höher
     const { data, error } = await supabase
       .from('scores')
-      .insert([{ name: cleanName, game, score }])
+      .upsert(
+        [{ name: cleanName, game, score }],
+        {
+          onConflict: 'name,game',
+          ignoreDuplicates: false,
+        }
+      )
       .select()
       .single()
       .abortSignal(abortController.signal);
