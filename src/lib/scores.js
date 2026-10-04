@@ -14,14 +14,17 @@ function getStoredLocalScores() {
   }
 }
 
-function saveLocalScore(name, game, score) {
+function saveLocalScore(name, game, score, alwaysAdapt = false) {
   const list = getStoredLocalScores();
   const existingIdx = list.findIndex(s => s.name === name && s.game === game);
 
   let entry;
   if (existingIdx !== -1) {
-    // Nur updaten wenn neuer Score höher ist
-    if (score <= list[existingIdx].score) return list[existingIdx];
+    // Wenn alwaysAdapt aktiv oder Clicker: Immer an den aktuellen Spielstand/Konto anpassen!
+    // Ansonsten für klassische Highscore-Runs (Snake/Press): Nur wenn höher, außer alwaysAdapt ist true.
+    if (!alwaysAdapt && game !== 'clicker' && score <= list[existingIdx].score) {
+      return list[existingIdx];
+    }
     list[existingIdx] = { ...list[existingIdx], score, created_at: new Date().toISOString() };
     entry = list[existingIdx];
   } else {
@@ -37,6 +40,7 @@ function saveLocalScore(name, game, score) {
 
   try {
     localStorage.setItem(LOCAL_SCORES_KEY, JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent('arcade-scores-updated', { detail: { game, name, score } }));
   } catch {}
   return entry;
 }
@@ -104,16 +108,17 @@ export async function getTotalScoreCount() {
 }
 
 // Score eintragen — Plausibilitäts-Check vor dem Submit
-export async function insertScore(name, game, score) {
-  const maxScore = { snake: 999999, press: 999999, clicker: 999999999 }[game] ?? 999999;
-  const cleanName = name.trim().slice(0, 16);
+export async function insertScore(name, game, score, options = {}) {
+  const maxScore = { snake: 999999, press: 999999, clicker: 999999999999, slots: 999999999999, blackjack: 999999999999 }[game] ?? 999999999999;
+  const cleanName = (name || '').trim().slice(0, 16);
 
   if (!cleanName || score < 0 || score > maxScore) {
     return { error: 'Ungültiger Score oder Name' };
   }
 
-  // Lokal immer mitspeichern
-  const localEntry = saveLocalScore(cleanName, game, score);
+  // Immer an aktuelles Ergebnis anpassen
+  const alwaysAdapt = options.forceUpdate ?? true;
+  const localEntry = saveLocalScore(cleanName, game, score, alwaysAdapt);
 
   if (!isSupabaseConfigured() || !supabase) {
     return { data: localEntry };
@@ -123,7 +128,7 @@ export async function insertScore(name, game, score) {
     const abortController = new AbortController();
     const timer = setTimeout(() => abortController.abort(), 3500);
 
-    // UPSERT: Bei Konflikt auf (name, game) nur updaten wenn neuer Score höher
+    // UPSERT: Auf (name, game) aktuellen Score sofort aktualisieren
     const { data, error } = await supabase
       .from('scores')
       .upsert(
@@ -139,6 +144,7 @@ export async function insertScore(name, game, score) {
 
     clearTimeout(timer);
     if (error) throw error;
+    window.dispatchEvent(new CustomEvent('arcade-scores-updated', { detail: { game, name: cleanName, score } }));
     return { data };
   } catch (e) {
     console.warn('Online-Eintrag fehlgeschlagen, Score lokal gesichert:', e?.message);

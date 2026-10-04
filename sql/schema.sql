@@ -5,16 +5,16 @@
 create table if not exists scores (
   id bigint generated always as identity primary key,
   name text not null check (char_length(name) between 1 and 16),
-  game text not null check (game in ('snake','press','clicker')),
-  score int not null check (score >= 0),
+  game text not null check (game in ('snake','press','clicker','slots','blackjack')),
+  score bigint not null check (score >= 0),
   created_at timestamptz not null default now(),
   unique (name, game)  -- Ein Eintrag pro Spieler & Spiel (UPSERT)
 );
 
--- Migration: Constraint nachträglich hinzufügen falls Tabelle schon existiert
--- (Im Supabase SQL Editor ausführen falls die Tabelle schon angelegt war)
--- ALTER TABLE scores DROP CONSTRAINT IF EXISTS scores_name_game_key;
--- ALTER TABLE scores ADD CONSTRAINT scores_name_game_key UNIQUE (name, game);
+-- Migration falls Tabelle schon existiert:
+-- ALTER TABLE scores DROP CONSTRAINT IF EXISTS scores_game_check;
+-- ALTER TABLE scores ADD CONSTRAINT scores_game_check CHECK (game IN ('snake','press','clicker','slots','blackjack'));
+-- ALTER TABLE scores ALTER COLUMN score TYPE bigint;
 
 -- 2. Spielstände pro Spieler & Spiel
 create table if not exists game_states (

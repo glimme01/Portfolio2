@@ -1996,3 +1996,106 @@ h1, h2, h3 {
   color: var(--accent);
   box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
 }
+
+/* ============================================================
+   ADDICTIVE CASINO ENHANCEMENTS (SLOTS & BLACKJACK)
+   ============================================================ */
+.slot-jackpot-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(90deg, rgba(255, 68, 68, 0.2), rgba(255, 215, 0, 0.25), rgba(255, 68, 68, 0.2));
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.35);
+  animation: jackpot-glow 2s infinite alternate;
+}
+
+@keyframes jackpot-glow {
+  0% { box-shadow: 0 0 12px rgba(255, 215, 0, 0.25); }
+  100% { box-shadow: 0 0 28px rgba(255, 215, 0, 0.6); }
+}
+
+.jackpot-label {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  color: #ffcc00;
+  letter-spacing: 1px;
+}
+
+.jackpot-amount {
+  font-family: var(--font-pixel);
+  font-size: 0.85rem;
+  color: #fff;
+  text-shadow: 0 0 10px #ffd700, 0 0 20px #ff8800;
+  font-weight: bold;
+}
+
+.jackpot-flame {
+  font-size: 1.1rem;
+  animation: flame-pulse 0.8s infinite alternate;
+}
+
+@keyframes flame-pulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.25); }
+}
+
+.slots-streak-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #ff4444, #ff8800);
+  color: #fff;
+  font-family: var(--font-pixel);
+  font-size: 0.45rem;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-top: 6px;
+  box-shadow: 0 0 12px rgba(255, 68, 68, 0.6);
+  animation: pulse-badge 1s infinite alternate;
+}
+
+.slots-freespin-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #7209b7, #4cc9f0);
+  color: #fff;
+  font-family: var(--font-pixel);
+  font-size: 0.45rem;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-top: 6px;
+  box-shadow: 0 0 14px rgba(76, 201, 240, 0.6);
+  animation: pulse-badge 1s infinite alternate;
+}
+
+.slot-freespin-active {
+  border-color: #4cc9f0 !important;
+  box-shadow: 0 0 35px rgba(76, 201, 240, 0.5) !important;
+}
+
+.anticipating {
+  border-color: #ff3333 !important;
+  box-shadow: 0 0 20px #ff3333 !important;
+  animation: pulse-anticipation 0.25s infinite alternate !important;
+}
+
+@keyframes pulse-anticipation {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.03); filter: brightness(1.35); }
+}
+
+/* Screen Shake for Big Wins */
+.screen-shake {
+  animation: screen-shake-anim 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes screen-shake-anim {
+  10%, 90% { transform: translate3d(-2px, 0, 0); }
+  20%, 80% { transform: translate3d(3px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-5px, 0, 0); }
+  40%, 60% { transform: translate3d(5px, 0, 0); }
+}

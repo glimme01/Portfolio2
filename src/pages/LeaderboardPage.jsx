@@ -3,9 +3,11 @@ import { getTopScores } from '../lib/scores.js';
 import { getCurrentUser } from '../lib/auth.js';
 
 const GAMES = [
-  { id: 'snake', label: 'SNAKE' },
-  { id: 'clicker', label: 'COOKIE CLICKER' },
-  { id: 'press', label: 'HYDRAULISCHE PRESSE' },
+  { id: 'clicker', label: '🍪 COOKIE CLICKER (KONTO)' },
+  { id: 'slots', label: '🎰 SLOTS (HOECHSTER GEWINN)' },
+  { id: 'blackjack', label: '🃏 BLACKJACK (BESTER GEWINN)' },
+  { id: 'snake', label: '🐍 SNAKE' },
+  { id: 'press', label: '🔨 PRESSE' },
 ];
 
 function fmt(n) {
@@ -29,6 +31,13 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     fetchScores(activeGame);
+    const onScoresUpdated = (e) => {
+      if (!e?.detail?.game || e.detail.game === activeGame) {
+        fetchScores(activeGame);
+      }
+    };
+    window.addEventListener('arcade-scores-updated', onScoresUpdated);
+    return () => window.removeEventListener('arcade-scores-updated', onScoresUpdated);
   }, [activeGame]);
 
   return (

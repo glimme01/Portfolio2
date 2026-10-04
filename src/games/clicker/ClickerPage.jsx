@@ -383,11 +383,11 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       const state = gsRef.current;
       if (!state) return;
       state.lastSaved = Date.now();
-      await saveGameState(playerName, 'clicker', state);
-      const currentScore = Math.floor(state.totalCookies);
-      if (currentScore > lastSubmittedScoreRef.current) {
+      // Highscore spiegelt immer den aktuellen Kontostand wider
+      const currentScore = Math.floor(state.cookies);
+      if (currentScore !== lastSubmittedScoreRef.current) {
         lastSubmittedScoreRef.current = currentScore;
-        await insertScore(playerName, 'clicker', currentScore);
+        await insertScore(playerName, 'clicker', currentScore, { forceUpdate: true });
       }
       setSaveVisible(true);
       setTimeout(() => setSaveVisible(false), 800);
