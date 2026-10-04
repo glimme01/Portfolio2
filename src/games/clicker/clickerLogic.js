@@ -168,26 +168,136 @@ export const ACHIEVEMENTS = [
   { id: 'event_hunter',   name: 'KOMETEN-JAEGER',    desc: 'Hat ein Random Event oder einen Kometen gefangen', icon: '★', check: (s) => (s.eventsCaught ?? 0) >= 1 },
 ];
 
-// === KEKS-BÖRSE (STOCKS) ===
+// === KEKS-BÖRSE 2.0 — 8 Aktien, Sektoren, Dividenden, Marktphasen ===
 export const INITIAL_STOCKS = [
-  { id: 'mehl',   name: 'MEHL AG',       basePrice: 15,   desc: 'Lieferant für feinstes Weizenmehl' },
-  { id: 'zucker', name: 'ZUCKER GMBH',    basePrice: 60,   desc: 'Puder- und Rohrzucker-Monopol' },
-  { id: 'schoko', name: 'KAKAO-EXPRESS', basePrice: 280,  desc: 'Zartbitter- und Vollmilch-Import' },
-  { id: 'butter', name: 'GOLDENE BUTTER',basePrice: 1200, desc: 'Feinste Sauerrahmbutter aus den Alpen' },
+  // ROHSTOFFE
+  { id: 'mehl',    name: 'MEHL AG',         ticker: 'MEH', sector: 'ROHSTOFFE', basePrice: 50,    volatility: 0.06, dividendRate: 0.04, color: '#f3722c', desc: 'Weizenmehl-Monopolist' },
+  { id: 'zucker',  name: 'ZUCKER CORP',      ticker: 'ZKR', sector: 'ROHSTOFFE', basePrice: 180,   volatility: 0.09, dividendRate: 0.03, color: '#f9c74f', desc: 'Globaler Zuckerlieferant' },
+  // PRODUKTION
+  { id: 'schoko',  name: 'KAKAO GLOBAL',     ticker: 'KKO', sector: 'PRODUKTION',basePrice: 620,   volatility: 0.12, dividendRate: 0.025,color: '#9d4edd', desc: 'Vollmilch & Zartbitter' },
+  { id: 'butter',  name: 'GOLDENE BUTTER AG',ticker: 'BUT', sector: 'PRODUKTION',basePrice: 2500,  volatility: 0.08, dividendRate: 0.035,color: '#ffd700', desc: 'Alpen-Sauerrahmbutter' },
+  // TECH
+  { id: 'backbot', name: 'BACKBOT SYSTEMS',  ticker: 'BBT', sector: 'TECH',      basePrice: 8800,  volatility: 0.18, dividendRate: 0.01, color: '#00e5ff', desc: 'KI-gestützte Backroboter' },
+  { id: 'keksai',  name: 'KEKS.AI INC',      ticker: 'KAI', sector: 'TECH',      basePrice: 45000, volatility: 0.25, dividendRate: 0.005,color: '#7b2fff', desc: 'Cookie-Algorithmus-Startup' },
+  // FINANZEN
+  { id: 'keksbank',name: 'KEKS BANK',        ticker: 'KBK', sector: 'FINANZEN',  basePrice: 1200,  volatility: 0.07, dividendRate: 0.06, color: '#43aa8b', desc: 'Größte Keks-Investmentbank' },
+  { id: 'goldkeks',name: 'GOLDKEKS ETF',     ticker: 'GKX', sector: 'FINANZEN',  basePrice: 400,   volatility: 0.04, dividendRate: 0.05, color: '#ffa62b', desc: 'Diversifizierter Keks-Index' },
 ];
 
-export function updateStockPrices(currentStocks = {}) {
-  const updated = {};
-  INITIAL_STOCKS.forEach(stock => {
-    const cur = currentStocks[stock.id] || { price: stock.basePrice, history: [stock.basePrice] };
-    const changePercent = (Math.random() - 0.48) * 0.18;
-    let newPrice = Math.max(5, Math.round(cur.price * (1 + changePercent)));
-    newPrice = Math.min(newPrice, stock.basePrice * 5);
+// Markt-News-Events die Kurse beeinflussen
+export const MARKET_NEWS = [
+  { id: 'bullrun',   text: 'ANALYSTEN: "Keks-Bullenmarkt erreicht neues Allzeithoch!"', sector: null,        multiplier: 1.15, prob: 0.05 },
+  { id: 'crash',     text: 'CRASH: Massiver Keks-Markteinbruch erschüttert Anleger!',   sector: null,        multiplier: 0.75, prob: 0.04 },
+  { id: 'rohstoff',  text: 'ROHSTOFF-BOOM: Mehl- und Zuckerpreise explodieren!',        sector: 'ROHSTOFFE', multiplier: 1.30, prob: 0.07 },
+  { id: 'techcrash', text: 'TECH-BLASE: KI-Aktien brechen massiv ein!',                 sector: 'TECH',      multiplier: 0.65, prob: 0.05 },
+  { id: 'techboom',  text: 'TECH-BOOM: BackBot meldet revolutionäre neue KI!',          sector: 'TECH',      multiplier: 1.45, prob: 0.06 },
+  { id: 'zinserhöh', text: 'ZENTRALBANK erhöht Zinsen — Bankaktien steigen!',           sector: 'FINANZEN',  multiplier: 1.20, prob: 0.07 },
+  { id: 'rezession', text: 'REZESSION droht — Produktion bricht ein!',                  sector: 'PRODUKTION',multiplier: 0.80, prob: 0.05 },
+  { id: 'dividende', text: 'GOLDKEKS ETF kündigt Sonderdividende an!',                  sector: null,        multiplier: 1.08, prob: 0.08 },
+];
 
-    const history = [...(cur.history || [cur.price]), newPrice].slice(-16);
-    updated[stock.id] = { price: newPrice, history };
+// Interne Marktstate-Struktur
+function initStockState(stock) {
+  return {
+    price: stock.basePrice,
+    history: [stock.basePrice],
+    trend: 0,         // -1 bärisch, 0 neutral, +1 bullisch
+    trendStrength: 0, // 0–1
+    dividendAccrued: 0,
+    allTimeHigh: stock.basePrice,
+    allTimeLow: stock.basePrice,
+  };
+}
+
+export function updateStockPrices(currentStocks = {}, marketEvent = null) {
+  const updated = {};
+
+  INITIAL_STOCKS.forEach(stock => {
+    const cur = currentStocks[stock.id] || initStockState(stock);
+
+    // Momentum: träges Trend-Update
+    let trend = cur.trend ?? 0;
+    const trendShift = (Math.random() - 0.5) * 0.4;
+    trend = Math.max(-1, Math.min(1, trend + trendShift));
+
+    // Basisvolatilität + Trend-Drift
+    const drift = trend * stock.volatility * 0.5;
+    const noise = (Math.random() - 0.5) * stock.volatility * 2;
+    let changePercent = drift + noise;
+
+    // News-Event anwenden
+    if (marketEvent) {
+      const affectsSector = marketEvent.sector === null || marketEvent.sector === stock.sector;
+      if (affectsSector) {
+        changePercent += (marketEvent.multiplier - 1);
+      }
+    }
+
+    // Zufällige Einzelnachrichten
+    MARKET_NEWS.forEach(news => {
+      if (Math.random() < news.prob * 0.15) {
+        const affects = news.sector === null || news.sector === stock.sector;
+        if (affects) changePercent += (news.multiplier - 1) * 0.3;
+      }
+    });
+
+    // Preis-Berechnung mit Mean-Reversion bei starken Abweichungen
+    const deviation = (cur.price - stock.basePrice) / stock.basePrice;
+    const meanReversion = -deviation * 0.05;
+    changePercent += meanReversion;
+
+    let newPrice = Math.max(Math.floor(stock.basePrice * 0.1), Math.round(cur.price * (1 + changePercent)));
+    newPrice = Math.min(newPrice, stock.basePrice * 20); // bis zu 20x möglich!
+
+    const history = [...(cur.history || [cur.price]), newPrice].slice(-32);
+
+    // Dividenden akkumulieren (pro Tick: annualisierte Rate / 8760 Ticks)
+    const newDividend = (cur.dividendAccrued || 0) + newPrice * (stock.dividendRate / 8760);
+
+    updated[stock.id] = {
+      price: newPrice,
+      history,
+      trend,
+      dividendAccrued: newDividend,
+      allTimeHigh: Math.max(cur.allTimeHigh || newPrice, newPrice),
+      allTimeLow: Math.min(cur.allTimeLow || newPrice, newPrice),
+    };
   });
+
   return updated;
+}
+
+// Dividenden ausschütten und von akkumuliertem Betrag abziehen
+export function collectDividends(stockPrices, stockShares) {
+  let totalDividend = 0;
+  const newPrices = { ...stockPrices };
+
+  INITIAL_STOCKS.forEach(stock => {
+    const shares = stockShares?.[stock.id] || 0;
+    if (shares <= 0) return;
+    const accrued = stockPrices[stock.id]?.dividendAccrued || 0;
+    if (accrued < 1) return;
+    const payout = Math.floor(accrued * shares);
+    totalDividend += payout;
+    newPrices[stock.id] = { ...newPrices[stock.id], dividendAccrued: accrued - Math.floor(accrued) };
+  });
+
+  return { totalDividend, newPrices };
+}
+
+// Portfolio-Wert berechnen
+export function calcPortfolioValue(stockPrices, stockShares, stockBuyPrices) {
+  let totalValue = 0;
+  let totalCost = 0;
+  INITIAL_STOCKS.forEach(stock => {
+    const shares = stockShares?.[stock.id] || 0;
+    if (shares <= 0) return;
+    const price = stockPrices?.[stock.id]?.price || stock.basePrice;
+    const buyPrice = stockBuyPrices?.[stock.id] || stock.basePrice;
+    totalValue += price * shares;
+    totalCost += buyPrice * shares;
+  });
+  return { totalValue, totalCost, profit: totalValue - totalCost };
 }
 
 // === PRESTIGE / ASCENSION BERECHNUNG ===

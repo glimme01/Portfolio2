@@ -6,6 +6,8 @@ import LeaderboardPage from './pages/LeaderboardPage.jsx';
 import SnakePage from './games/snake/SnakePage.jsx';
 import PressPage from './games/press/PressPage.jsx';
 import ClickerPage from './games/clicker/ClickerPage.jsx';
+import SlotsPage from './games/slots/SlotsPage.jsx';
+import BlackjackPage from './games/blackjack/BlackjackPage.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AdminModal from './components/AdminModal.jsx';
 import SessionConflictModal from './components/SessionConflictModal.jsx';
@@ -46,6 +48,8 @@ function Header() {
           <NavLink to="/leaderboard" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>RANGLISTE</NavLink>
           <NavLink to="/snake" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>SNAKE</NavLink>
           <NavLink to="/clicker" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>CLICKER</NavLink>
+          <NavLink to="/slots" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>SLOTS</NavLink>
+          <NavLink to="/blackjack" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>BLACKJACK</NavLink>
           <NavLink to="/press" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>PRESS</NavLink>
         </nav>
 
@@ -132,6 +136,8 @@ export default function App() {
         <Route path="/press" element={<PressPage />} />
         <Route path="/clicker" element={<ClickerPage />} />
         <Route path="/clicker/achievements" element={<ClickerPage defaultTab="achievements" />} />
+        <Route path="/slots" element={<SlotsPage />} />
+        <Route path="/blackjack" element={<BlackjackPage />} />
       </Routes>
       <Footer />
     </BrowserRouter>

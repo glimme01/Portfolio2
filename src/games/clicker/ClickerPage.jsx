@@ -3,10 +3,11 @@ import React, {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BUILDINGS, UPGRADES, ACHIEVEMENTS, INITIAL_STOCKS,
+  BUILDINGS, UPGRADES, ACHIEVEMENTS, INITIAL_STOCKS, MARKET_NEWS,
   RANDOM_EVENTS, HEAVENLY_UPGRADES,
   buildingCost, calcCps, calcClickValue, fmtCookies,
   createClickerState, updateStockPrices, calcPrestigeReward,
+  collectDividends, calcPortfolioValue,
 } from './clickerLogic.js';
 import { SKINS, getSkin, isSkinUnlocked, DEFAULT_SKIN } from './skins.js';
 import { loadGameState, saveGameState } from '../../lib/save.js';
@@ -333,6 +334,18 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         state.stockPrices = updateStockPrices(state.stockPrices);
       }
 
+      // Dividenden alle 60 Sekunden ausschütten
+      if (tickCount % 3600 === 0 && state.stockShares && Object.keys(state.stockShares).length > 0) {
+        const { totalDividend, newPrices } = collectDividends(state.stockPrices, state.stockShares);
+        if (totalDividend > 0) {
+          state.cookies += totalDividend;
+          state.totalCookies += totalDividend;
+          state.stockPrices = newPrices;
+          state.totalDividendsEarned = (state.totalDividendsEarned || 0) + totalDividend;
+          setToasts(t => [...t, { icon: '💰', name: 'DIVIDENDEN!', desc: `+${fmtCookies(totalDividend)} Cookies Dividendenausschüttung!` }]);
+        }
+      }
+
       // UI alle 100ms aktualisieren
       if (tickCount % 6 === 0) {
         setGs({ ...state });
@@ -653,32 +666,48 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   }
 
   // Aktien handeln
-  function buyStock(stockId) {
+  function buyStock(stockId, amount = 1) {
     const state = gsRef.current;
     if (!state) return;
     const price = state.stockPrices?.[stockId]?.price || 10;
-    if (state.cookies < price) return;
+    const totalCost = price * amount;
+    if (state.cookies < totalCost) return;
 
-    state.cookies -= price;
+    state.cookies -= totalCost;
     state.stockShares = state.stockShares || {};
-    state.stockShares[stockId] = (state.stockShares[stockId] || 0) + 1;
+    state.stockBuyPrices = state.stockBuyPrices || {};
+    const prevShares = state.stockShares[stockId] || 0;
+    // Durchschnitts-Kaufpreis berechnen
+    const prevAvg = state.stockBuyPrices[stockId] || price;
+    state.stockBuyPrices[stockId] = (prevAvg * prevShares + price * amount) / (prevShares + amount);
+    state.stockShares[stockId] = prevShares + amount;
     state.tradesDone = (state.tradesDone || 0) + 1;
     playClickPip();
+    setToasts(t => [...t, { icon: '📈', name: 'KAUF ERFOLGT!', desc: `${amount}x ${stockId.toUpperCase()} für ${fmtCookies(totalCost)} Cookies` }]);
     setGs({ ...state });
   }
 
-  function sellStock(stockId) {
+  function sellStock(stockId, amount = 1) {
     const state = gsRef.current;
     if (!state) return;
     const shares = state.stockShares?.[stockId] || 0;
-    if (shares <= 0) return;
+    if (shares < amount) return;
 
     const price = state.stockPrices?.[stockId]?.price || 10;
-    state.cookies += price;
-    state.totalCookies += price;
-    state.stockShares[stockId] = shares - 1;
+    const proceeds = price * amount;
+    const buyPrice = state.stockBuyPrices?.[stockId] || price;
+    const profit = (price - buyPrice) * amount;
+    state.cookies += proceeds;
+    state.totalCookies += proceeds;
+    state.stockShares[stockId] = shares - amount;
     state.tradesDone = (state.tradesDone || 0) + 1;
+    state.stockProfitRealized = (state.stockProfitRealized || 0) + profit;
     playClickPip();
+    setToasts(t => [...t, {
+      icon: profit >= 0 ? '📈' : '📉',
+      name: profit >= 0 ? 'GEWINN REALISIERT!' : 'VERLUST REALISIERT',
+      desc: `${profit >= 0 ? '+' : ''}${fmtCookies(profit)} Cookies Profit`
+    }]);
     setGs({ ...state });
   }
 
@@ -940,56 +969,127 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
             </div>
           )}
 
-          {/* TAB 3: BÖRSE */}
-          {tab === 'stocks' && (
-            <div style={{ padding: '16px' }}>
-              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '14px' }}>
-                KAUFE BILLIG, VERKAUFE TEUER. KURSE FLUKTUIEREN ALLE 6 SEKUNDEN.
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {INITIAL_STOCKS.map(st => {
-                  const stockData = gs.stockPrices?.[st.id] || { price: st.basePrice, history: [st.basePrice] };
-                  const shares = gs.stockShares?.[st.id] || 0;
-                  const canBuy = gs.cookies >= stockData.price;
-                  const canSell = shares > 0;
-                  const isUp = (stockData.history?.slice(-1)[0] ?? 0) >= (stockData.history?.slice(-2)[0] ?? 0);
+          {/* TAB 3: BÖRSE 2.0 */}
+          {tab === 'stocks' && (() => {
+            const portfolio = calcPortfolioValue(gs.stockPrices, gs.stockShares, gs.stockBuyPrices);
+            const sectors = [...new Set(INITIAL_STOCKS.map(s => s.sector))];
+            return (
+              <div className="stocks-terminal">
+                {/* Portfolio-Übersicht */}
+                <div className="stocks-portfolio-bar">
+                  <div className="stocks-portfolio-item">
+                    <span className="stocks-portfolio-label">PORTFOLIO-WERT</span>
+                    <span className="stocks-portfolio-value" style={{ color: '#ffd700' }}>{fmtCookies(portfolio.totalValue)}</span>
+                  </div>
+                  <div className="stocks-portfolio-item">
+                    <span className="stocks-portfolio-label">INVESTIERT</span>
+                    <span className="stocks-portfolio-value">{fmtCookies(portfolio.totalCost)}</span>
+                  </div>
+                  <div className="stocks-portfolio-item">
+                    <span className="stocks-portfolio-label">UNREALIS. P&L</span>
+                    <span className="stocks-portfolio-value" style={{ color: portfolio.profit >= 0 ? '#90be6d' : '#f94144' }}>
+                      {portfolio.profit >= 0 ? '+' : ''}{fmtCookies(portfolio.profit)}
+                    </span>
+                  </div>
+                  <div className="stocks-portfolio-item">
+                    <span className="stocks-portfolio-label">REALIS. PROFIT</span>
+                    <span className="stocks-portfolio-value" style={{ color: (gs.stockProfitRealized||0) >= 0 ? '#90be6d' : '#f94144' }}>
+                      {(gs.stockProfitRealized||0) >= 0 ? '+' : ''}{fmtCookies(gs.stockProfitRealized||0)}
+                    </span>
+                  </div>
+                  <div className="stocks-portfolio-item">
+                    <span className="stocks-portfolio-label">DIVIDENDEN</span>
+                    <span className="stocks-portfolio-value" style={{ color: '#90be6d' }}>+{fmtCookies(gs.totalDividendsEarned||0)}</span>
+                  </div>
+                </div>
 
-                  return (
-                    <div key={st.id} className="building-card affordable" style={{ cursor: 'default' }}>
-                      <StockChart history={stockData.history} color={isUp ? '#90be6d' : '#f94144'} />
-                      <div className="building-info" style={{ marginLeft: '12px' }}>
-                        <div className="building-title-row">
-                          <span className="building-name">{st.name}</span>
-                          <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.62rem', color: isUp ? '#90be6d' : '#f94144' }}>
-                            {stockData.price} Cookies
-                          </span>
+                <div style={{ fontSize: '0.48rem', color: 'var(--muted)', padding: '4px 12px 8px', borderBottom: '1px solid #2a2a2a' }}>
+                  KURSE FLUKTUIEREN ALLE 6 SEKUNDEN ∙ DIVIDENDEN ALLE 60 SEKUNDEN ∙ MENGE: {buyAmount}x
+                </div>
+
+                {/* Sektoren */}
+                {sectors.map(sector => (
+                  <div key={sector} className="stocks-sector">
+                    <div className="stocks-sector-header">{sector}</div>
+                    {INITIAL_STOCKS.filter(s => s.sector === sector).map(st => {
+                      const sd = gs.stockPrices?.[st.id] || { price: st.basePrice, history: [st.basePrice] };
+                      const shares = gs.stockShares?.[st.id] || 0;
+                      const buyPrice = gs.stockBuyPrices?.[st.id] || st.basePrice;
+                      const isUp = (sd.history?.slice(-1)[0] ?? 0) >= (sd.history?.slice(-2)[0] ?? 0);
+                      const pct = ((sd.price - sd.history?.[0]) / (sd.history?.[0] || 1) * 100).toFixed(1);
+                      const positionPnl = shares > 0 ? (sd.price - buyPrice) * shares : 0;
+                      const positionPct = shares > 0 ? ((sd.price - buyPrice) / buyPrice * 100).toFixed(1) : null;
+                      const canBuy = gs.cookies >= sd.price * buyAmount;
+                      const accrued = sd.dividendAccrued || 0;
+                      const nextDiv = accrued > 0.1 ? fmtCookies(Math.floor(accrued * shares)) : null;
+                      return (
+                        <div key={st.id} className="stock-row">
+                          <div className="stock-chart-col">
+                            <StockChart history={sd.history} color={st.color} />
+                          </div>
+                          <div className="stock-info-col">
+                            <div className="stock-ticker-row">
+                              <span className="stock-ticker" style={{ color: st.color }}>{st.ticker}</span>
+                              <span className="stock-name-small">{st.name}</span>
+                              <span className="stock-sector-badge">{st.sector}</span>
+                            </div>
+                            <div className="stock-price-row">
+                              <span className="stock-price" style={{ color: isUp ? '#90be6d' : '#f94144' }}>
+                                {fmtCookies(sd.price)}
+                              </span>
+                              <span className="stock-change" style={{ color: isUp ? '#90be6d' : '#f94144' }}>
+                                {isUp ? '▲' : '▼'} {pct}%
+                              </span>
+                              <span className="stock-div-rate">DIV: {(st.dividendRate * 100).toFixed(1)}%</span>
+                              {sd.allTimeHigh && <span className="stock-ath">ATH: {fmtCookies(sd.allTimeHigh)}</span>}
+                            </div>
+                            {shares > 0 && (
+                              <div className="stock-position-row">
+                                <span style={{ color: 'var(--muted)', fontSize: '0.45rem' }}>
+                                  {shares} Aktien @ Ø {fmtCookies(Math.floor(buyPrice))}
+                                </span>
+                                <span style={{ color: positionPnl >= 0 ? '#90be6d' : '#f94144', fontSize: '0.48rem', fontFamily: 'var(--font-pixel)' }}>
+                                  {positionPnl >= 0 ? '+' : ''}{fmtCookies(positionPnl)} ({positionPct}%)
+                                </span>
+                                {nextDiv && <span style={{ color: '#ffa62b', fontSize: '0.4rem' }}>DIV bereit: ~{nextDiv}</span>}
+                              </div>
+                            )}
+                          </div>
+                          <div className="stock-actions-col">
+                            <button
+                              className="btn btn-primary"
+                              disabled={!canBuy}
+                              onClick={() => buyStock(st.id, buyAmount)}
+                              style={{ fontSize: '0.42rem', minHeight: '30px', padding: '4px 10px' }}
+                            >
+                              KAUFEN {buyAmount > 1 ? `(${buyAmount}x)` : ''}
+                            </button>
+                            <button
+                              className="btn btn-outline"
+                              disabled={shares < buyAmount}
+                              onClick={() => sellStock(st.id, buyAmount)}
+                              style={{ fontSize: '0.42rem', minHeight: '30px', padding: '4px 10px' }}
+                            >
+                              VERKAUFEN
+                            </button>
+                            {shares > 0 && (
+                              <button
+                                className="btn"
+                                onClick={() => sellStock(st.id, shares)}
+                                style={{ fontSize: '0.38rem', minHeight: '26px', padding: '3px 8px', background: '#3a0a0a', borderColor: '#f94144', color: '#f94144' }}
+                              >
+                                ALLES
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="building-desc">{st.desc} (Im Depot: {shares})</div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          className="btn btn-primary"
-                          disabled={!canBuy}
-                          onClick={() => buyStock(st.id)}
-                          style={{ fontSize: '0.48rem', minHeight: '34px', padding: '4px 8px' }}
-                        >
-                          KAUFEN
-                        </button>
-                        <button
-                          className="btn btn-outline"
-                          disabled={!canSell}
-                          onClick={() => sellStock(st.id)}
-                          style={{ fontSize: '0.48rem', minHeight: '34px', padding: '4px 8px' }}
-                        >
-                          VERKAUFEN
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 4: HIMMELS-AUFSTIEG (ASTRAL PRESTIGE SHRINE) */}
           {tab === 'prestige' && (
