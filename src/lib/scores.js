@@ -116,8 +116,8 @@ export async function insertScore(name, game, score, options = {}) {
     return { error: 'Ungültiger Score oder Name' };
   }
 
-  // Immer an aktuelles Ergebnis anpassen
-  const alwaysAdapt = options.forceUpdate ?? true;
+  // Clicker passt sich immer an; Snake/Press/Slots/Blackjack nur bei neuem Rekord (außer forceUpdate ist explizit true)
+  const alwaysAdapt = options.forceUpdate !== undefined ? options.forceUpdate : (game === 'clicker');
   const localEntry = saveLocalScore(cleanName, game, score, alwaysAdapt);
 
   if (!isSupabaseConfigured() || !supabase) {
@@ -127,6 +127,21 @@ export async function insertScore(name, game, score, options = {}) {
   try {
     const abortController = new AbortController();
     const timer = setTimeout(() => abortController.abort(), 3500);
+
+    // Prüfe vorher ob bereits ein höherer Score in DB existiert wenn !alwaysAdapt
+    if (!alwaysAdapt) {
+      const { data: curDb } = await supabase
+        .from('scores')
+        .select('score')
+        .ilike('name', cleanName)
+        .eq('game', game)
+        .maybeSingle();
+
+      if (curDb && curDb.score >= score) {
+        clearTimeout(timer);
+        return { data: curDb };
+      }
+    }
 
     // UPSERT: Auf (name, game) aktuellen Score sofort aktualisieren
     const { data, error } = await supabase
@@ -149,6 +164,77 @@ export async function insertScore(name, game, score, options = {}) {
   } catch (e) {
     console.warn('Online-Eintrag fehlgeschlagen, Score lokal gesichert:', e?.message);
     return { data: localEntry };
+  }
+}
+
+// Admin: Einzelnen Score für einen Spieler gezielt setzen
+export async function adminSetPlayerScore(name, game, newScore) {
+  const cleanName = (name || '').trim().slice(0, 16);
+  const scoreVal = Math.max(0, parseInt(newScore, 10) || 0);
+
+  saveLocalScore(cleanName, game, scoreVal, true);
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase
+        .from('scores')
+        .upsert(
+          [{ name: cleanName, game, score: scoreVal }],
+          { onConflict: 'name,game' }
+        );
+    } catch (err) {
+      console.warn('Admin score update error:', err);
+    }
+  }
+
+  window.dispatchEvent(new CustomEvent('arcade-scores-updated', { detail: { game, name: cleanName, score: scoreVal } }));
+  return { success: true };
+}
+
+// Alle Scores eines einzelnen Spielers laden
+export async function getPlayerScores(name) {
+  const cleanName = (name || '').trim();
+  const res = { snake: 0, press: 0, clicker: 0, slots: 0, blackjack: 0 };
+  const localList = getStoredLocalScores().filter(s => s.name.toLowerCase() === cleanName.toLowerCase());
+  localList.forEach(s => { if (s.game && res[s.game] !== undefined) res[s.game] = s.score; });
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data } = await supabase
+        .from('scores')
+        .select('game, score')
+        .ilike('name', cleanName);
+      if (data) {
+        data.forEach(s => {
+          if (s.game && res[s.game] !== undefined) res[s.game] = s.score;
+        });
+      }
+    } catch {}
+  }
+  return res;
+}
+
+// Admin: Scores bei Umbenennung eines Spielers migrieren
+export async function adminRenamePlayerScores(oldName, newName) {
+  const cleanOld = oldName.trim();
+  const cleanNew = newName.trim();
+  if (!cleanOld || !cleanNew || cleanOld.toLowerCase() === cleanNew.toLowerCase()) return;
+
+  const list = getStoredLocalScores().map(s => {
+    if (s.name.toLowerCase() === cleanOld.toLowerCase()) {
+      return { ...s, name: cleanNew };
+    }
+    return s;
+  });
+  try { localStorage.setItem(LOCAL_SCORES_KEY, JSON.stringify(list)); } catch {}
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase
+        .from('scores')
+        .update({ name: cleanNew })
+        .ilike('name', cleanOld);
+    } catch {}
   }
 }
 

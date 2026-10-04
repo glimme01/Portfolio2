@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getActivePlayerName } from '../../lib/auth.js';
-import { fmtCookies } from '../clicker/clickerLogic.js';
-import { insertScore } from '../../lib/scores.js';
+import { insertScore, getPlayerScores } from '../../lib/scores.js';
 import CurrencyExchangeModal from '../../components/CurrencyExchangeModal.jsx';
 import {
   playReelStopSound,
@@ -288,6 +287,12 @@ export default function SlotsPage() {
         heavenlyChips: savedJackpotChips ? Number(savedJackpotChips) : 50,
         gems: savedJackpotGems ? Number(savedJackpotGems) : 200,
       });
+
+      const sc = await getPlayerScores(playerName);
+      if (sc?.slots > 0) {
+        bestWinRef.current = sc.slots;
+        setStats(s => ({ ...s, bestWin: sc.slots }));
+      }
     } catch {}
   }
 
@@ -435,7 +440,7 @@ export default function SlotsPage() {
 
       if (won > bestWinRef.current) {
         bestWinRef.current = won;
-        await insertScore(playerName, 'slots', won, { forceUpdate: true });
+        await insertScore(playerName, 'slots', won);
       }
 
       setStats(s => ({

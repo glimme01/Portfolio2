@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getActivePlayerName } from '../../lib/auth.js';
-import { fmtCookies } from '../clicker/clickerLogic.js';
-import { insertScore } from '../../lib/scores.js';
+import { insertScore, getPlayerScores } from '../../lib/scores.js';
 import CurrencyExchangeModal from '../../components/CurrencyExchangeModal.jsx';
 import {
   playChipSound,
@@ -233,6 +232,14 @@ export default function BlackjackPage() {
     if (state.gems === undefined) state.gems = 10;
     clickerRef.current = state;
     setPlayerState({ ...state });
+
+    try {
+      const sc = await getPlayerScores(playerName);
+      if (sc?.blackjack > 0) {
+        bestWinRef.current = sc.blackjack;
+        setStats(s => ({ ...s, bestWin: sc.blackjack }));
+      }
+    } catch {}
   }
 
   async function persistPlayerState(newState) {
@@ -379,7 +386,7 @@ export default function BlackjackPage() {
     const netWin = payout - activeBet;
     if (netWin > bestWinRef.current) {
       bestWinRef.current = netWin;
-      await insertScore(playerName, 'blackjack', netWin, { forceUpdate: true });
+      await insertScore(playerName, 'blackjack', netWin);
     }
 
     if (won) {

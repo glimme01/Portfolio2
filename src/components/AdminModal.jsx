@@ -7,10 +7,11 @@ import {
   adminQuickAdjustBalance,
   adminResetPlayerProgress,
   adminBroadcastMessage,
+  isCurrentUserAdmin,
 } from '../lib/auth.js';
 import { getAllScoresAdmin, deleteScore, clearAllScores } from '../lib/scores.js';
 import { getAllFeedback, updateFeedbackStatus, deleteFeedback } from '../lib/feedback.js';
-import { fmtCookies } from '../games/clicker/clickerLogic.js';
+import { fmtCookies, BUILDINGS } from '../games/clicker/clickerLogic.js';
 
 export default function AdminModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('accounts');
@@ -24,7 +25,7 @@ export default function AdminModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [alertMsg, setAlertMsg] = useState('');
 
-  // Modals inside Admin
+  // Modal: Neuen Spieler anlegen
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     username: '',
@@ -35,22 +36,35 @@ export default function AdminModal({ isOpen, onClose }) {
     initialGems: 50,
   });
 
+  // Modal: Spieler vollständig & individuell bearbeiten
   const [editingUser, setEditingUser] = useState(null);
+  const [editTab, setEditTab] = useState('account');
   const [editForm, setEditForm] = useState({
-    cookies: 0,
-    heavenlyChips: 0,
-    gems: 0,
-    isAdmin: false,
+    newUsername: '',
     newPassword: '',
+    isAdmin: false,
+    isBanned: false,
+    cookies: 0,
+    totalCookies: 0,
+    heavenlyChips: 0,
+    heavenlyChipsClaimed: 0,
+    gems: 10,
+    totalClicks: 0,
+    ascensionCount: 0,
+    buildings: {},
+    scores: { snake: 0, press: 0, clicker: 0, slots: 0, blackjack: 0 },
   });
 
   const [broadcastText, setBroadcastText] = useState('');
 
+  // Sicherheits-Check: Nur echte Admins dürfen das Modal sehen
+  const isAdmin = isCurrentUserAdmin();
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isAdmin) {
       loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, isAdmin]);
 
   useEffect(() => {
     function handleFeedbackUpdate() {
@@ -80,7 +94,7 @@ export default function AdminModal({ isOpen, onClose }) {
     setTimeout(() => setAlertMsg(''), 3500);
   }
 
-  // Spieler erstellen
+  // Neuen Spieler anlegen
   async function handleCreateUser(e) {
     e.preventDefault();
     if (!createForm.username || createForm.username.trim().length < 2) {
@@ -94,7 +108,7 @@ export default function AdminModal({ isOpen, onClose }) {
       return;
     }
 
-    showAlert(`Spieler "${createForm.username}" erfolgreich erstellt!`);
+    showAlert(`Spieler "${createForm.username}" erfolgreich angelegt!`);
     setCreateOpen(false);
     setCreateForm({
       username: '',
@@ -107,27 +121,71 @@ export default function AdminModal({ isOpen, onClose }) {
     await loadData();
   }
 
-  // Spieler bearbeiten Modal öffnen
+  // Spieler-Editor öffnen und alle Daten vorausfüllen
   function openEditModal(acc) {
     setEditingUser(acc);
+    setEditTab('account');
     setEditForm({
-      cookies: acc.cookies || 0,
-      heavenlyChips: acc.heavenlyChips || 0,
-      gems: acc.gems || 10,
-      isAdmin: Boolean(acc.isAdmin),
+      newUsername: acc.username,
       newPassword: '',
+      isAdmin: Boolean(acc.isAdmin),
+      isBanned: Boolean(acc.isBanned),
+      cookies: acc.cookies || 0,
+      totalCookies: acc.totalCookies || acc.cookies || 0,
+      heavenlyChips: acc.heavenlyChips || 0,
+      heavenlyChipsClaimed: acc.heavenlyChipsClaimed || 0,
+      gems: acc.gems || 10,
+      totalClicks: acc.totalClicks || 0,
+      ascensionCount: acc.ascensionCount || 0,
+      buildings: { ...(acc.buildings || {}) },
+      scores: { ...(acc.scores || { snake: 0, press: 0, clicker: 0, slots: 0, blackjack: 0 }) },
     });
   }
 
-  // Änderungen speichern
+  // Alle Änderungen für diesen Spieler speichern
   async function handleSaveEdit(e) {
     e.preventDefault();
     if (!editingUser) return;
 
-    await adminUpdateAccount(editingUser.username, editForm);
-    showAlert(`Spieler "${editingUser.username}" aktualisiert!`);
+    const res = await adminUpdateAccount(editingUser.username, editForm);
+    if (res.error) {
+      showAlert(`Fehler: ${res.error}`);
+      return;
+    }
+
+    showAlert(`Spieler "${res.username || editingUser.username}" erfolgreich aktualisiert!`);
     setEditingUser(null);
     await loadData();
+  }
+
+  // Gebäude-Mengen im Editor anpassen
+  function handleBuildingChange(buildingId, count) {
+    setEditForm(f => ({
+      ...f,
+      buildings: {
+        ...f.buildings,
+        [buildingId]: Math.max(0, parseInt(count, 10) || 0)
+      }
+    }));
+  }
+
+  function handleBatchBuildings(amount) {
+    const updated = {};
+    BUILDINGS.forEach(b => {
+      updated[b.id] = amount;
+    });
+    setEditForm(f => ({ ...f, buildings: updated }));
+  }
+
+  // Highscores im Editor anpassen
+  function handleScoreChange(gameKey, score) {
+    setEditForm(f => ({
+      ...f,
+      scores: {
+        ...f.scores,
+        [gameKey]: Math.max(0, parseInt(score, 10) || 0)
+      }
+    }));
   }
 
   // Schneller Bonus
@@ -137,7 +195,7 @@ export default function AdminModal({ isOpen, onClose }) {
     await loadData();
   }
 
-  // Fortschritt zurücksetzen
+  // Fortschritt selektiv zurücksetzen
   async function handleResetProgress(username) {
     if (!confirm(`Soll der gesamte Spiel-Fortschritt von "${username}" wirklich auf 0 zurückgesetzt werden?`)) return;
     await adminResetPlayerProgress(username);
@@ -198,7 +256,7 @@ export default function AdminModal({ isOpen, onClose }) {
     showAlert(`Admin-Aktion ausgeführt: ${type}`);
   }
 
-  if (!isOpen) return null;
+  if (!isOpen || !isAdmin) return null;
 
   const filteredAccounts = accounts.filter(a => {
     if (!searchUser.trim()) return true;
@@ -219,7 +277,7 @@ export default function AdminModal({ isOpen, onClose }) {
 
   return (
     <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Admin Dashboard">
-      <div className="overlay-panel admin-panel" style={{ maxWidth: '820px', width: '95%' }}>
+      <div className="overlay-panel admin-panel" style={{ maxWidth: '860px', width: '96%', maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h2 className="overlay-title" style={{ color: 'var(--accent)', fontSize: '0.9rem', margin: 0 }}>
             👑 ADMIN-DASHBOARD & MANAGEMENT
@@ -319,9 +377,9 @@ export default function AdminModal({ isOpen, onClose }) {
                     <thead>
                       <tr>
                         <th>USER</th>
-                        <th>ROLLE</th>
-                        <th>GUTHABEN (COOKIES / CHIPS / GEMS)</th>
-                        <th>ANGELEGT</th>
+                        <th>STATUS</th>
+                        <th>GUTHABEN & STATS</th>
+                        <th>HIGHSCORES</th>
                         <th>AKTIONEN</th>
                       </tr>
                     </thead>
@@ -331,56 +389,67 @@ export default function AdminModal({ isOpen, onClose }) {
                       ) : (
                         filteredAccounts.map(acc => (
                           <tr key={acc.username}>
-                            <td style={{ fontWeight: 'bold', color: acc.isAdmin ? 'var(--accent)' : '#fff' }}>
-                              {acc.username}
+                            <td style={{ fontWeight: 'bold' }}>
+                              <span style={{ color: acc.isAdmin ? 'var(--accent)' : '#fff' }}>
+                                {acc.username}
+                              </span>
+                              {acc.isAdmin && <span style={{ color: 'var(--accent)', fontSize: '0.42rem', marginLeft: '6px' }}>👑 ADMIN</span>}
                             </td>
                             <td>
-                              {acc.isAdmin ? (
-                                <span style={{ color: 'var(--accent)', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)' }}>👑 ADMIN</span>
+                              {acc.isBanned ? (
+                                <span style={{ color: '#ff4444', fontSize: '0.45rem', background: 'rgba(255,68,68,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                                  🚫 GESPERRT
+                                </span>
                               ) : (
-                                <span style={{ color: '#888', fontSize: '0.45rem' }}>SPIELER</span>
+                                <span style={{ color: '#39ff14', fontSize: '0.45rem' }}>
+                                  AKTIV
+                                </span>
                               )}
                             </td>
                             <td>
-                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.62rem' }}>
-                                <span style={{ color: 'var(--accent)' }}>🍪 {fmtCookies(acc.cookies || 0)}</span>
-                                <span style={{ color: '#ffd700' }}>✨ {acc.heavenlyChips || 0}</span>
-                                <span style={{ color: '#00e5ff' }}>💎 {acc.gems || 0}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.58rem' }}>
+                                <span>🍪 <strong>{fmtCookies(acc.cookies || 0)}</strong> Cookies</span>
+                                <span style={{ color: '#ffd700' }}>✨ <strong>{acc.heavenlyChips || 0}</strong> Chips</span>
+                                <span style={{ color: '#00e5ff' }}>💎 <strong>{acc.gems || 0}</strong> Gems</span>
                               </div>
                             </td>
-                            <td style={{ color: '#888', fontSize: '0.68rem' }}>
-                              {acc.createdAt ? new Date(acc.createdAt).toLocaleDateString('de-DE') : '-'}
+                            <td>
+                              <div style={{ fontSize: '0.55rem', color: '#aaa', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span>🐍 Snake: <strong style={{ color: '#fff' }}>{acc.scores?.snake || 0}</strong></span>
+                                <span>🎰 Slots: <strong style={{ color: 'var(--accent)' }}>{fmtCookies(acc.scores?.slots || 0)}</strong></span>
+                                <span>🃏 BJ: <strong style={{ color: '#90be6d' }}>{fmtCookies(acc.scores?.blackjack || 0)}</strong></span>
+                              </div>
                             </td>
                             <td>
                               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                 <button
                                   className="btn btn-outline"
-                                  style={{ padding: '3px 6px', fontSize: '0.42rem', minHeight: '26px', color: '#70b4ff', borderColor: '#70b4ff' }}
+                                  style={{ padding: '4px 8px', fontSize: '0.44rem', minHeight: '26px', color: '#70b4ff', borderColor: '#70b4ff', fontWeight: 'bold' }}
                                   onClick={() => openEditModal(acc)}
-                                  title="Guthaben & Passwort anpassen"
+                                  title="Alle Daten dieses Spielers bearbeiten"
                                 >
-                                  ✏️ EDIT
+                                  ✏️ BEARBEITEN
                                 </button>
                                 <button
                                   className="btn btn-outline"
-                                  style={{ padding: '3px 6px', fontSize: '0.42rem', minHeight: '26px', color: '#ffd700', borderColor: '#ffd700' }}
+                                  style={{ padding: '4px 6px', fontSize: '0.42rem', minHeight: '26px', color: '#ffd700', borderColor: '#ffd700' }}
                                   onClick={() => handleQuickBonus(acc.username, { cookiesDelta: 100000 })}
-                                  title="+100.000 Cookies schenken"
+                                  title="+100.000 Cookies"
                                 >
                                   +100k 🍪
                                 </button>
                                 <button
                                   className="btn btn-outline"
-                                  style={{ padding: '3px 6px', fontSize: '0.42rem', minHeight: '26px', color: '#00e5ff', borderColor: '#00e5ff' }}
+                                  style={{ padding: '4px 6px', fontSize: '0.42rem', minHeight: '26px', color: '#00e5ff', borderColor: '#00e5ff' }}
                                   onClick={() => handleQuickBonus(acc.username, { gemsDelta: 25 })}
-                                  title="+25 Diamanten schenken"
+                                  title="+25 Diamanten"
                                 >
                                   +25 💎
                                 </button>
                                 <button
                                   className="btn btn-outline"
                                   style={{
-                                    padding: '3px 6px',
+                                    padding: '4px 6px',
                                     fontSize: '0.42rem',
                                     minHeight: '26px',
                                     color: 'var(--danger)',
@@ -422,7 +491,7 @@ export default function AdminModal({ isOpen, onClose }) {
                     onChange={(e) => setBroadcastText(e.target.value)}
                   />
 
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       className="btn btn-outline"
@@ -456,7 +525,7 @@ export default function AdminModal({ isOpen, onClose }) {
             {activeTab === 'scores' && (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>FILTER:</span>
                     {['all', 'snake', 'press', 'clicker', 'slots', 'blackjack'].map(g => (
                       <button
@@ -822,9 +891,9 @@ export default function AdminModal({ isOpen, onClose }) {
           </>
         )}
 
-        {/* MODAL: NEUEN SPIELER ANLEGEN */}
+        {/* MODAL 1: NEUEN SPIELER ANLEGEN */}
         {createOpen && (
-          <div className="overlay-backdrop" style={{ zIndex: 1100 }}>
+          <div className="overlay-backdrop" style={{ zIndex: 1200 }}>
             <div className="overlay-panel" style={{ maxWidth: '440px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <h3 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.75rem', color: 'var(--accent)', margin: 0 }}>
@@ -925,94 +994,303 @@ export default function AdminModal({ isOpen, onClose }) {
           </div>
         )}
 
-        {/* MODAL: SPIELER DATEN & GUTHABEN BEARBEITEN */}
+        {/* MODAL 2: SPIELER VOLLSTÄNDIG & INDIVIDUELL EDITIEREN */}
         {editingUser && (
-          <div className="overlay-backdrop" style={{ zIndex: 1100 }}>
-            <div className="overlay-panel" style={{ maxWidth: '440px' }}>
+          <div className="overlay-backdrop" style={{ zIndex: 1200 }}>
+            <div className="overlay-panel" style={{ maxWidth: '650px', width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <h3 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.75rem', color: 'var(--accent)', margin: 0 }}>
-                  ✏️ SPIELER: {editingUser.username}
+                <h3 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.78rem', color: 'var(--accent)', margin: 0 }}>
+                  ✏️ SPIELER BEARBEITEN: {editingUser.username}
                 </h3>
                 <button className="btn btn-outline" style={{ minHeight: '28px', padding: '2px 8px', fontSize: '0.45rem' }} onClick={() => setEditingUser(null)}>
-                  ✕
+                  ✕ SCHLIESSEN
+                </button>
+              </div>
+
+              {/* Sub-Tabs für den Spieler-Editor */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`btn ${editTab === 'account' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{ padding: '4px 10px', fontSize: '0.45rem', minHeight: '28px' }}
+                  onClick={() => setEditTab('account')}
+                >
+                  🔒 KONTO & STATUS
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${editTab === 'currency' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{ padding: '4px 10px', fontSize: '0.45rem', minHeight: '28px' }}
+                  onClick={() => setEditTab('currency')}
+                >
+                  💰 WÄHRUNGEN & STATS
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${editTab === 'buildings' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{ padding: '4px 10px', fontSize: '0.45rem', minHeight: '28px' }}
+                  onClick={() => setEditTab('buildings')}
+                >
+                  🏭 GEBÄUDE ({BUILDINGS.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${editTab === 'scores' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{ padding: '4px 10px', fontSize: '0.45rem', minHeight: '28px' }}
+                  onClick={() => setEditTab('scores')}
+                >
+                  🏆 HIGHSCORES
                 </button>
               </div>
 
               <form onSubmit={handleSaveEdit}>
-                <div style={{ background: '#111', padding: '12px', borderRadius: '8px', border: '1px solid #282828', marginBottom: '14px' }}>
-                  <span style={{ display: 'block', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)', color: 'var(--muted)', marginBottom: '8px' }}>
-                    GUTHABEN SETZEN:
-                  </span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.42rem', color: 'var(--accent)', fontFamily: 'var(--font-pixel)' }}>🍪 COOKIES:</label>
+                {/* 1. KONTO & STATUS TAB */}
+                {editTab === 'account' && (
+                  <div style={{ background: '#111', padding: '14px', borderRadius: '8px', border: '1px solid #282828', marginBottom: '14px' }}>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ display: 'block', fontSize: '0.48rem', fontFamily: 'var(--font-pixel)', color: 'var(--muted)', marginBottom: '4px' }}>
+                        BENUTZERNAME UMBENENNEN:
+                      </label>
                       <input
-                        type="number"
+                        type="text"
+                        maxLength={16}
                         className="custom-bet-input"
-                        style={{ width: '100%', marginTop: '3px', padding: '6px' }}
-                        value={editForm.cookies}
-                        onChange={(e) => setEditForm(f => ({ ...f, cookies: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        style={{ width: '100%', textAlign: 'left', padding: '8px' }}
+                        value={editForm.newUsername}
+                        onChange={(e) => setEditForm(f => ({ ...f, newUsername: e.target.value }))}
+                      />
+                      <span style={{ fontSize: '0.62rem', color: '#777', marginTop: '2px', display: 'block' }}>
+                        Achtung: Benennt alle Spielstände und Highscore-Einträge dieses Nutzers automatisch um!
+                      </span>
+                    </div>
+
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ display: 'block', fontSize: '0.48rem', fontFamily: 'var(--font-pixel)', color: 'var(--muted)', marginBottom: '4px' }}>
+                        NEUES PASSWORT SETZEN (OPTIONAL):
+                      </label>
+                      <input
+                        type="text"
+                        className="custom-bet-input"
+                        style={{ width: '100%', textAlign: 'left', padding: '8px' }}
+                        placeholder="Leer lassen um altes Passwort zu behalten..."
+                        value={editForm.newPassword}
+                        onChange={(e) => setEditForm(f => ({ ...f, newPassword: e.target.value }))}
                       />
                     </div>
-                    <div>
-                      <label style={{ fontSize: '0.42rem', color: '#ffd700', fontFamily: 'var(--font-pixel)' }}>✨ HIMMELSCHIPS:</label>
-                      <input
-                        type="number"
-                        className="custom-bet-input"
-                        style={{ width: '100%', marginTop: '3px', padding: '6px' }}
-                        value={editForm.heavenlyChips}
-                        onChange={(e) => setEditForm(f => ({ ...f, heavenlyChips: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.42rem', color: '#00e5ff', fontFamily: 'var(--font-pixel)' }}>💎 DIAMANTEN:</label>
-                      <input
-                        type="number"
-                        className="custom-bet-input"
-                        style={{ width: '100%', marginTop: '3px', padding: '6px' }}
-                        value={editForm.gems}
-                        onChange={(e) => setEditForm(f => ({ ...f, gems: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
-                      />
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #222', paddingTop: '10px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={editForm.isAdmin}
+                          onChange={(e) => setEditForm(f => ({ ...f, isAdmin: e.target.checked }))}
+                        />
+                        <span style={{ fontSize: '0.7rem', color: editForm.isAdmin ? 'var(--accent)' : '#fff' }}>
+                          👑 Administrator-Rechte aktivieren
+                        </span>
+                      </label>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={editForm.isBanned}
+                          onChange={(e) => setEditForm(f => ({ ...f, isBanned: e.target.checked }))}
+                        />
+                        <span style={{ fontSize: '0.7rem', color: editForm.isBanned ? '#ff4444' : '#fff' }}>
+                          🚫 Account sperren / Bannen (Konto wird sofort ausgeloggt und Login blockiert)
+                        </span>
+                      </label>
                     </div>
                   </div>
-                </div>
+                )}
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)', color: 'var(--muted)', marginBottom: '4px' }}>
-                    NEUES PASSWORT (OPTIONAL LEER LASSEN):
-                  </label>
-                  <input
-                    type="text"
-                    className="custom-bet-input"
-                    style={{ width: '100%', textAlign: 'left', padding: '8px' }}
-                    placeholder="Neues Passwort eingeben..."
-                    value={editForm.newPassword}
-                    onChange={(e) => setEditForm(f => ({ ...f, newPassword: e.target.value }))}
-                  />
-                </div>
+                {/* 2. WÄHRUNGEN & STATS TAB */}
+                {editTab === 'currency' && (
+                  <div style={{ background: '#111', padding: '14px', borderRadius: '8px', border: '1px solid #282828', marginBottom: '14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: 'var(--accent)', fontFamily: 'var(--font-pixel)' }}>🍪 KONTO-COOKIES:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.cookies}
+                          onChange={(e) => setEditForm(f => ({ ...f, cookies: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: 'var(--accent)', fontFamily: 'var(--font-pixel)' }}>🍪 LEBENSZEIT TOTAL COOKIES:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.totalCookies}
+                          onChange={(e) => setEditForm(f => ({ ...f, totalCookies: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        />
+                      </div>
+                    </div>
 
-                <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    id="edit-admin-check"
-                    checked={editForm.isAdmin}
-                    onChange={(e) => setEditForm(f => ({ ...f, isAdmin: e.target.checked }))}
-                  />
-                  <label htmlFor="edit-admin-check" style={{ fontSize: '0.68rem', color: '#fff', cursor: 'pointer' }}>
-                    👑 Administrator-Rechte aktiv
-                  </label>
-                </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#ffd700', fontFamily: 'var(--font-pixel)' }}>✨ HIMMELSCHIPS:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.heavenlyChips}
+                          onChange={(e) => setEditForm(f => ({ ...f, heavenlyChips: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#ffd700', fontFamily: 'var(--font-pixel)' }}>✨ EINGELÖSTE CHIPS:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.heavenlyChipsClaimed}
+                          onChange={(e) => setEditForm(f => ({ ...f, heavenlyChipsClaimed: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        />
+                      </div>
+                    </div>
 
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1, padding: '10px' }}>
-                    ÄNDERUNGEN SPEICHERN
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#00e5ff', fontFamily: 'var(--font-pixel)' }}>💎 DIAMANTEN:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.gems}
+                          onChange={(e) => setEditForm(f => ({ ...f, gems: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#90be6d', fontFamily: 'var(--font-pixel)' }}>🌟 AUFSTIEGE:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.ascensionCount}
+                          onChange={(e) => setEditForm(f => ({ ...f, ascensionCount: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#bbb', fontFamily: 'var(--font-pixel)' }}>🖱️ TOTAL KLICKS:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.totalClicks}
+                          onChange={(e) => setEditForm(f => ({ ...f, totalClicks: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. GEBÄUDE TAB */}
+                {editTab === 'buildings' && (
+                  <div style={{ background: '#111', padding: '14px', borderRadius: '8px', border: '1px solid #282828', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '0.52rem', fontFamily: 'var(--font-pixel)', color: 'var(--muted)' }}>
+                        GEBÄUDE-ANZAHL INDIVIDUELL SETZEN:
+                      </span>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button type="button" className="btn btn-outline" style={{ padding: '2px 6px', fontSize: '0.4rem', minHeight: '22px' }} onClick={() => handleBatchBuildings(0)}>
+                          Alle 0
+                        </button>
+                        <button type="button" className="btn btn-outline" style={{ padding: '2px 6px', fontSize: '0.4rem', minHeight: '22px' }} onClick={() => handleBatchBuildings(25)}>
+                          Alle 25
+                        </button>
+                        <button type="button" className="btn btn-outline" style={{ padding: '2px 6px', fontSize: '0.4rem', minHeight: '22px', borderColor: 'var(--accent)', color: 'var(--accent)' }} onClick={() => handleBatchBuildings(100)}>
+                          Alle 100
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+                      {BUILDINGS.map(b => (
+                        <div key={b.id} style={{ background: '#0a0a0a', border: '1px solid #222', padding: '8px', borderRadius: '6px' }}>
+                          <label style={{ display: 'block', fontSize: '0.44rem', fontFamily: 'var(--font-pixel)', color: b.color, marginBottom: '4px' }}>
+                            {b.name}:
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            className="custom-bet-input"
+                            style={{ width: '100%', padding: '4px', fontSize: '0.75rem' }}
+                            value={editForm.buildings[b.id] ?? 0}
+                            onChange={(e) => handleBuildingChange(b.id, e.target.value)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. HIGHSCORES TAB */}
+                {editTab === 'scores' && (
+                  <div style={{ background: '#111', padding: '14px', borderRadius: '8px', border: '1px solid #282828', marginBottom: '14px' }}>
+                    <p style={{ fontSize: '0.62rem', color: 'var(--muted)', marginBottom: '12px' }}>
+                      Setze für diesen Spieler gezielt die Highscores in den einzelnen Arcade-Spielen fest:
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#39ff14', fontFamily: 'var(--font-pixel)' }}>🐍 SNAKE SCORE:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.scores.snake ?? 0}
+                          onChange={(e) => handleScoreChange('snake', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#ff4444', fontFamily: 'var(--font-pixel)' }}>⏹️ PRESS SCORE:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.scores.press ?? 0}
+                          onChange={(e) => handleScoreChange('press', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: 'var(--accent)', fontFamily: 'var(--font-pixel)' }}>🎰 SLOTS BESTER GEWINN:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.scores.slots ?? 0}
+                          onChange={(e) => handleScoreChange('slots', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.45rem', color: '#90be6d', fontFamily: 'var(--font-pixel)' }}>🃏 BLACKJACK BESTER GEWINN:</label>
+                        <input
+                          type="number"
+                          className="custom-bet-input"
+                          style={{ width: '100%', marginTop: '3px', padding: '6px' }}
+                          value={editForm.scores.blackjack ?? 0}
+                          onChange={(e) => handleScoreChange('blackjack', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Speichern & Reset Buttons */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1, padding: '12px', fontSize: '0.65rem' }}>
+                    💾 ALLES SPEICHERN
                   </button>
                   <button
                     type="button"
                     className="btn btn-outline"
-                    style={{ padding: '10px', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                    style={{ padding: '12px 16px', color: 'var(--danger)', borderColor: 'var(--danger)', fontSize: '0.55rem' }}
                     onClick={() => handleResetProgress(editingUser.username)}
-                    title="Setzt Cookies und Bauten auf Null zurück"
+                    title="Setzt nur Cookies und Fortschritt zurück"
                   >
                     RESET
                   </button>

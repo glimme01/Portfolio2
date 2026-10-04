@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase.js';
+import { getCurrentUser, isCurrentUserAdmin } from './auth.js';
 
 const LOCAL_FEEDBACK_KEY = 'arcade_feedback_v1';
 
@@ -23,6 +24,11 @@ function saveLocalFeedbackList(list) {
  * @param {{ name?: string, type: 'bug'|'feedback'|'suggestion', game?: string, message: string }} payload
  */
 export async function submitFeedback({ name = 'Anonym', type = 'feedback', game = 'general', message }) {
+  const cur = getCurrentUser();
+  if (cur && (cur.isBanned || cur.is_banned)) {
+    throw new Error('Dein Account ist gesperrt. Du kannst kein Feedback einreichen.');
+  }
+
   const cleanName = (name && name.trim()) ? name.trim().slice(0, 24) : 'Anonym';
   const cleanMsg = (message || '').trim().slice(0, 1000);
   const cleanType = ['bug', 'feedback', 'suggestion'].includes(type) ? type : 'feedback';
@@ -124,6 +130,10 @@ export async function getAllFeedback() {
  * Update feedback status (e.g. 'new', 'in_progress', 'resolved')
  */
 export async function updateFeedbackStatus(id, newStatus) {
+  if (!isCurrentUserAdmin()) {
+    console.warn('Unauthorized feedback status update attempt');
+    return false;
+  }
   if (!['new', 'in_progress', 'resolved'].includes(newStatus)) return false;
 
   let updated = false;
@@ -158,6 +168,10 @@ export async function updateFeedbackStatus(id, newStatus) {
  * Delete feedback item
  */
 export async function deleteFeedback(id) {
+  if (!isCurrentUserAdmin()) {
+    console.warn('Unauthorized feedback deletion attempt');
+    return false;
+  }
   let deleted = false;
 
   if (isSupabaseConfigured() && supabase && !String(id).startsWith('fb-')) {

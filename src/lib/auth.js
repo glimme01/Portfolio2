@@ -113,13 +113,20 @@ function startHeartbeat(username, sessionToken) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('active_session_token')
+        .select('active_session_token, is_banned')
         .ilike('username', username)
         .maybeSingle();
 
-      if (!error && data && data.active_session_token && data.active_session_token !== sessionToken) {
-        clearInterval(heartbeatTimer);
-        triggerSessionConflict('Dieses Konto wird gerade auf einem anderen Gerät verwendet.');
+      if (!error && data) {
+        if (data.is_banned) {
+          clearInterval(heartbeatTimer);
+          triggerSessionConflict('Dieses Konto wurde von der Administration gesperrt.');
+          return;
+        }
+        if (data.active_session_token && data.active_session_token !== sessionToken) {
+          clearInterval(heartbeatTimer);
+          triggerSessionConflict('Dieses Konto wird gerade auf einem anderen Gerät verwendet.');
+        }
       }
     } catch {}
   }, 6000);
@@ -234,8 +241,8 @@ export async function login(username, password) {
           };
           accounts.push(user);
         } else {
-          // Cloud-Werte (z.B. is_admin im Supabase-Dashboard geändert) synchronisieren
           user.isAdmin = Boolean(data.is_admin);
+          user.isBanned = Boolean(data.is_banned);
           user.passHash = data.pass_hash;
         }
         saveAccounts(accounts);
@@ -245,6 +252,10 @@ export async function login(username, password) {
 
   if (!user) {
     return { error: 'Benutzer existiert nicht.' };
+  }
+
+  if (user.isBanned) {
+    return { error: 'Dieses Konto wurde von der Administration gesperrt.' };
   }
 
   const passHash = await hashPassword(password);
@@ -300,9 +311,9 @@ export function logout() {
 }
 
 import { loadGameState, saveGameState, deleteGameState, normalizePlayerName } from './save.js';
-import { insertScore, deleteScore } from './scores.js';
+import { insertScore, deleteScore, getPlayerScores, adminSetPlayerScore, adminRenamePlayerScores } from './scores.js';
 
-// Admin Tools: Alle Konten auflisten inkl. Spielstände/Guthaben
+// Admin Tools: Alle Konten auflisten inkl. Spielstände, Gebäude & Highscores
 export async function getAllAccounts() {
   const local = getStoredAccounts();
   let accountsList = local;
@@ -311,7 +322,7 @@ export async function getAllAccounts() {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('username, is_admin, created_at, last_heartbeat')
+        .select('username, is_admin, is_banned, created_at, last_heartbeat')
         .order('created_at', { ascending: false });
       if (data && data.length > 0) {
         const map = new Map();
@@ -319,7 +330,8 @@ export async function getAllAccounts() {
         data.forEach(p => {
           map.set(p.username.toLowerCase(), {
             username: p.username,
-            isAdmin: p.is_admin,
+            isAdmin: Boolean(p.is_admin),
+            isBanned: Boolean(p.is_banned),
             createdAt: p.created_at,
             lastHeartbeat: p.last_heartbeat,
           });
@@ -329,20 +341,40 @@ export async function getAllAccounts() {
     } catch {}
   }
 
-  // Lade Guthaben für jeden Spieler (Cookies, Chips, Gems)
+  // Lade detaillierte Daten für jeden Spieler (Clicker-Guthaben, Gebäude, Highscores)
   const enriched = await Promise.all(
     accountsList.map(async (acc) => {
       try {
-        const { data } = await loadGameState(acc.username, 'clicker');
-        const st = data?.state;
+        const [clickerRes, scoresRes] = await Promise.all([
+          loadGameState(acc.username, 'clicker'),
+          getPlayerScores(acc.username),
+        ]);
+        const st = clickerRes?.data?.state;
         return {
           ...acc,
           cookies: Math.floor(st?.cookies ?? 0),
+          totalCookies: Math.floor(st?.totalCookies ?? 0),
           heavenlyChips: Math.floor(st?.heavenlyChips ?? 0),
+          heavenlyChipsClaimed: Math.floor(st?.heavenlyChipsClaimed ?? 0),
           gems: Math.floor(st?.gems ?? 10),
+          buildings: st?.buildings || {},
+          totalClicks: st?.totalClicks || 0,
+          ascensionCount: st?.ascensionCount || 0,
+          scores: scoresRes || { snake: 0, press: 0, clicker: 0, slots: 0, blackjack: 0 },
         };
       } catch {
-        return { ...acc, cookies: 0, heavenlyChips: 0, gems: 10 };
+        return {
+          ...acc,
+          cookies: 0,
+          totalCookies: 0,
+          heavenlyChips: 0,
+          heavenlyChipsClaimed: 0,
+          gems: 10,
+          buildings: {},
+          totalClicks: 0,
+          ascensionCount: 0,
+          scores: { snake: 0, press: 0, clicker: 0, slots: 0, blackjack: 0 },
+        };
       }
     })
   );
@@ -352,12 +384,14 @@ export async function getAllAccounts() {
 
 // Admin Tools: Konto löschen
 export function deleteAccount(username) {
+  if (!isCurrentUserAdmin()) return { error: 'Nur Admins dürfen Konten löschen.' };
   let list = getStoredAccounts();
   list = list.filter(a => a.username.toLowerCase() !== username.toLowerCase());
   saveAccounts(list);
   if (isSupabaseConfigured() && supabase) {
     supabase.from('profiles').delete().eq('username', username).then(() => {});
   }
+  return { success: true };
 }
 
 // Admin Tools: Neuen Spieler anlegen
@@ -369,6 +403,10 @@ export async function adminCreateAccount({
   initialChips = 0,
   initialGems = 10,
 }) {
+  if (!isCurrentUserAdmin()) {
+    return { error: 'Zugriff verweigert: Nur Administratoren dürfen Spieler anlegen.' };
+  }
+
   const clean = username.trim().slice(0, 16);
   if (!clean || clean.length < 2) {
     return { error: 'Username muss mindestens 2 Zeichen lang sein.' };
@@ -401,6 +439,7 @@ export async function adminCreateAccount({
     username: clean,
     passHash,
     isAdmin: Boolean(isAdmin),
+    isBanned: false,
     createdAt,
     sessionToken,
   };
@@ -414,6 +453,7 @@ export async function adminCreateAccount({
         username: clean,
         pass_hash: passHash,
         is_admin: Boolean(isAdmin),
+        is_banned: false,
         active_session_token: sessionToken,
         last_heartbeat: createdAt,
       }, { onConflict: 'username' });
@@ -458,11 +498,73 @@ export async function adminCreateAccount({
   return { success: true, user: newUser };
 }
 
-// Admin Tools: Spielerdaten & Guthaben editieren
+// Admin Tools: Spielerdaten, Währungen, Gebäude & Highscores einzeln editieren
 export async function adminUpdateAccount(username, updates = {}) {
+  if (!isCurrentUserAdmin()) {
+    return { error: 'Zugriff verweigert: Nur Administratoren dürfen Spieler bearbeiten.' };
+  }
+
   const norm = normalizePlayerName(username);
+  let targetUsername = username;
+
+  // 1. Umbenennung des Spielers (falls newUsername angegeben und anders ist)
+  if (updates.newUsername && updates.newUsername.trim() && updates.newUsername.trim().toLowerCase() !== norm) {
+    const cleanNew = updates.newUsername.trim().slice(0, 16);
+    if (cleanNew.length < 2) return { error: 'Neuer Name muss mind. 2 Zeichen lang sein.' };
+
+    const accounts = getStoredAccounts();
+    if (accounts.some(a => a.username.toLowerCase() === cleanNew.toLowerCase())) {
+      return { error: 'Dieser neue Benutzername ist bereits vergeben.' };
+    }
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data } = await supabase.from('profiles').select('username').ilike('username', cleanNew).maybeSingle();
+        if (data) return { error: 'Dieser Name existiert bereits in der Datenbank.' };
+      } catch {}
+    }
+
+    // In localStorage Konten umbenennen
+    const accIdx = accounts.findIndex(a => a.username.toLowerCase() === norm);
+    if (accIdx >= 0) {
+      accounts[accIdx].username = cleanNew;
+      saveAccounts(accounts);
+    }
+
+    // In Supabase umbenennen
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('profiles').update({ username: cleanNew }).ilike('username', norm);
+      } catch {}
+    }
+
+    // Alle Spielstände migrieren
+    for (const g of ['clicker', 'slots', 'blackjack', 'snake', 'press']) {
+      const { data } = await loadGameState(username, g);
+      if (data && data.state) {
+        await saveGameState(cleanNew, g, data.state);
+        await deleteGameState(username, g);
+      }
+    }
+
+    // Scores migrieren
+    await adminRenamePlayerScores(username, cleanNew);
+
+    // Wenn der aktuelle Spieler umbenannt wurde
+    const cur = getCurrentUser();
+    if (cur && normalizePlayerName(cur.username) === norm) {
+      cur.username = cleanNew;
+      localStorage.setItem(SESSION_KEY, JSON.stringify(cur));
+      setLastName(cleanNew);
+      notifyAuthChange(cur);
+    }
+
+    targetUsername = cleanNew;
+  }
+
+  const currentTargetNorm = normalizePlayerName(targetUsername);
   const accounts = getStoredAccounts();
-  const accIndex = accounts.findIndex(a => a.username.toLowerCase() === norm);
+  const accIndex = accounts.findIndex(a => a.username.toLowerCase() === currentTargetNorm);
 
   let newPassHash = null;
   if (updates.newPassword && updates.newPassword.trim().length >= 3) {
@@ -471,6 +573,7 @@ export async function adminUpdateAccount(username, updates = {}) {
 
   if (accIndex >= 0) {
     if (updates.isAdmin !== undefined) accounts[accIndex].isAdmin = Boolean(updates.isAdmin);
+    if (updates.isBanned !== undefined) accounts[accIndex].isBanned = Boolean(updates.isBanned);
     if (newPassHash) accounts[accIndex].passHash = newPassHash;
     saveAccounts(accounts);
   }
@@ -479,64 +582,91 @@ export async function adminUpdateAccount(username, updates = {}) {
     try {
       const dbUpdates = {};
       if (updates.isAdmin !== undefined) dbUpdates.is_admin = Boolean(updates.isAdmin);
+      if (updates.isBanned !== undefined) {
+        dbUpdates.is_banned = Boolean(updates.isBanned);
+        if (updates.isBanned) dbUpdates.active_session_token = null;
+      }
       if (newPassHash) dbUpdates.pass_hash = newPassHash;
       if (Object.keys(dbUpdates).length > 0) {
-        await supabase.from('profiles').update(dbUpdates).ilike('username', norm);
+        await supabase.from('profiles').update(dbUpdates).ilike('username', currentTargetNorm);
       }
     } catch {}
   }
 
-  // Guthaben aktualisieren (Cookies, Chips, Gems)
-  if (updates.cookies !== undefined || updates.heavenlyChips !== undefined || updates.gems !== undefined) {
-    const { data } = await loadGameState(username, 'clicker');
-    let st = data?.state || {
-      bakeryName: `${username}s Bäckerei`,
-      cookies: 0,
-      totalCookies: 0,
-      buildings: {},
-      upgrades: [],
-      gems: 10,
-      heavenlyChips: 0,
-    };
+  // Clicker Spielstand aktualisieren (Guthaben, Gebäude, Upgrades, Stats)
+  const { data } = await loadGameState(targetUsername, 'clicker');
+  let st = data?.state || {
+    bakeryName: `${targetUsername}s Bäckerei`,
+    cookies: 0,
+    totalCookies: 0,
+    buildings: {},
+    upgrades: [],
+    gems: 10,
+    heavenlyChips: 0,
+  };
 
-    if (updates.cookies !== undefined) {
-      st.cookies = Math.max(0, Number(updates.cookies));
-      st.totalCookies = Math.max(st.totalCookies || 0, st.cookies);
-    }
-    if (updates.heavenlyChips !== undefined) {
-      st.heavenlyChips = Math.max(0, Number(updates.heavenlyChips));
-    }
-    if (updates.gems !== undefined) {
-      st.gems = Math.max(0, Number(updates.gems));
-    }
-    st.lastSaved = Date.now();
+  if (updates.cookies !== undefined) {
+    st.cookies = Math.max(0, Number(updates.cookies));
+    st.totalCookies = Math.max(st.totalCookies || 0, st.cookies);
+  }
+  if (updates.totalCookies !== undefined) {
+    st.totalCookies = Math.max(0, Number(updates.totalCookies));
+  }
+  if (updates.heavenlyChips !== undefined) {
+    st.heavenlyChips = Math.max(0, Number(updates.heavenlyChips));
+  }
+  if (updates.heavenlyChipsClaimed !== undefined) {
+    st.heavenlyChipsClaimed = Math.max(0, Number(updates.heavenlyChipsClaimed));
+  }
+  if (updates.gems !== undefined) {
+    st.gems = Math.max(0, Number(updates.gems));
+  }
+  if (updates.buildings && typeof updates.buildings === 'object') {
+    st.buildings = { ...(st.buildings || {}), ...updates.buildings };
+  }
+  if (updates.ascensionCount !== undefined) {
+    st.ascensionCount = Math.max(0, Number(updates.ascensionCount));
+  }
+  if (updates.totalClicks !== undefined) {
+    st.totalClicks = Math.max(0, Number(updates.totalClicks));
+  }
+  st.lastSaved = Date.now();
 
-    await saveGameState(username, 'clicker', st);
-    if (updates.cookies !== undefined) {
-      await insertScore(username, 'clicker', st.cookies, { forceUpdate: true });
-    }
+  await saveGameState(targetUsername, 'clicker', st);
+  if (updates.cookies !== undefined) {
+    await insertScore(targetUsername, 'clicker', st.cookies, { forceUpdate: true });
+  }
 
-    // Wenn der aktuelle Spieler editiert wurde -> Live Event broadcasten
-    const cur = getCurrentUser();
-    if (cur && normalizePlayerName(cur.username) === norm) {
-      window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
-        detail: {
-          cookies: st.cookies,
-          heavenlyChips: st.heavenlyChips,
-          gems: st.gems,
-          state: st,
-          playerName: norm,
-          lastSaved: Date.now(),
-        }
-      }));
+  // Scores für einzelne Spiele anpassen (Snake, Press, Slots, Blackjack)
+  if (updates.scores && typeof updates.scores === 'object') {
+    for (const [game, sc] of Object.entries(updates.scores)) {
+      if (sc !== undefined && sc !== null) {
+        await adminSetPlayerScore(targetUsername, game, sc);
+      }
     }
   }
 
-  return { success: true };
+  // Wenn der aktuell eingeloggte Spieler editiert wurde: Live Event feuern
+  const cur = getCurrentUser();
+  if (cur && normalizePlayerName(cur.username) === currentTargetNorm) {
+    window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
+      detail: {
+        cookies: st.cookies,
+        heavenlyChips: st.heavenlyChips,
+        gems: st.gems,
+        state: st,
+        playerName: currentTargetNorm,
+        lastSaved: Date.now(),
+      }
+    }));
+  }
+
+  return { success: true, username: targetUsername };
 }
 
 // Admin Tools: Schneller Guthaben-Zuschuss (+ / -)
 export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, chipsDelta = 0, gemsDelta = 0 }) {
+  if (!isCurrentUserAdmin()) return { error: 'Zugriff verweigert: Nur Administratoren erlaubt.' };
   const { data } = await loadGameState(username, 'clicker');
   let st = data?.state || {
     bakeryName: `${username}s Bäckerei`,
@@ -576,6 +706,7 @@ export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, chip
 
 // Admin Tools: Fortschritt eines Spielers zurücksetzen
 export async function adminResetPlayerProgress(username) {
+  if (!isCurrentUserAdmin()) return { error: 'Zugriff verweigert: Nur Administratoren erlaubt.' };
   const norm = normalizePlayerName(username);
   await deleteGameState(norm, 'clicker');
   await deleteGameState(norm, 'slots');
@@ -608,6 +739,7 @@ export async function adminResetPlayerProgress(username) {
 
 // Admin Tools: Globalen Broadcast an alle Tabs & Spieler senden
 export function adminBroadcastMessage(message) {
+  if (!isCurrentUserAdmin()) return { error: 'Zugriff verweigert: Nur Administratoren erlaubt.' };
   const payload = {
     message: message.trim(),
     id: 'msg_' + Date.now(),

@@ -32,10 +32,14 @@ create table if not exists profiles (
   username text unique not null check (char_length(username) between 2 and 16),
   pass_hash text not null,
   is_admin boolean not null default false,
+  is_banned boolean not null default false,
   active_session_token text,
   last_heartbeat timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+
+-- Migration falls profiles bereits existiert:
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_banned boolean not null default false;
 
 -- Row Level Security aktivieren
 alter table scores enable row level security;
