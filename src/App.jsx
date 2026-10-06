@@ -13,6 +13,7 @@ import AdminModal from './components/AdminModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import FeedbackModal from './components/FeedbackModal.jsx';
 import SessionConflictModal from './components/SessionConflictModal.jsx';
+import PatchLogModal from './components/PatchLogModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { getCurrentUser, logout, onAuthChange } from './lib/auth.js';
 import { getUnreadFeedbackCount } from './lib/feedback.js';
@@ -37,6 +38,7 @@ function Header({ onOpenFeedback }) {
   const [authOpen, setAuthOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [patchLogOpen, setPatchLogOpen] = useState(false);
   const [unreadFeedback, setUnreadFeedback] = useState(0);
 
   useEffect(() => {
@@ -54,12 +56,17 @@ function Header({ onOpenFeedback }) {
     function handleOpenAuth() {
       setAuthOpen(true);
     }
+    function handleOpenPatchlog() {
+      setPatchLogOpen(true);
+    }
     refreshFeedbackCount();
     window.addEventListener('arcade-feedback-updated', refreshFeedbackCount);
     window.addEventListener('arcade-open-auth', handleOpenAuth);
+    window.addEventListener('arcade-open-patchlog', handleOpenPatchlog);
     return () => {
       window.removeEventListener('arcade-feedback-updated', refreshFeedbackCount);
       window.removeEventListener('arcade-open-auth', handleOpenAuth);
+      window.removeEventListener('arcade-open-patchlog', handleOpenPatchlog);
     };
   }, []);
 
@@ -80,6 +87,16 @@ function Header({ onOpenFeedback }) {
 
         {/* Benutzer-Konto im Header */}
         <div className="header-auth-box">
+          <button
+            className="btn btn-outline"
+            style={{ padding: '6px 9px', fontSize: '0.48rem', minHeight: '36px', borderColor: '#ffd700', color: '#ffd700' }}
+            onClick={() => setPatchLogOpen(true)}
+            title="Riesigen Patch-Log v3.2 ansehen"
+            aria-label="Patch-Log"
+          >
+            📜 v3.2
+          </button>
+
           <button
             className="btn btn-outline"
             style={{ padding: '6px 9px', fontSize: '0.62rem', minHeight: '36px' }}
@@ -156,6 +173,11 @@ function Header({ onOpenFeedback }) {
         onClose={() => setSettingsOpen(false)}
       />
 
+      <PatchLogModal
+        isOpen={patchLogOpen}
+        onClose={() => setPatchLogOpen(false)}
+      />
+
       <SessionConflictModal
         onReLogin={() => setAuthOpen(true)}
       />
@@ -168,6 +190,14 @@ function Footer({ onOpenFeedback }) {
     <footer className="site-footer">
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <span>MORITZFREUND ARCADE &mdash; HANDGEMACHT &mdash; {new Date().getFullYear()}</span>
+        <button
+          className="footer-feedback-link"
+          style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)' }}
+          onClick={() => window.dispatchEvent(new CustomEvent('arcade-open-patchlog'))}
+          title="Changelog & Patch-Historie ansehen"
+        >
+          📜 PATCH-LOG (v3.2)
+        </button>
         <button
           className="footer-feedback-link"
           onClick={onOpenFeedback}

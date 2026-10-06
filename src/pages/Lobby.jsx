@@ -151,6 +151,29 @@ export default function Lobby() {
         <p className="lobby-subtitle">
           SPIELE FUER UNTERWEGS &mdash; HIGHSCORES FUER ALLE
         </p>
+        <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-outline"
+            onClick={() => window.dispatchEvent(new CustomEvent('arcade-open-patchlog'))}
+            style={{
+              fontSize: '0.52rem',
+              padding: '8px 18px',
+              borderColor: 'var(--accent)',
+              color: 'var(--accent)',
+              background: 'rgba(255, 215, 0, 0.08)',
+              boxShadow: '0 0 16px rgba(255, 215, 0, 0.2)',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>📜</span>
+            <span>RIESIGER PATCH-LOG (v3.2) &bull; ALLE UPDATES ANSEHEN</span>
+            <span style={{ background: '#39ff14', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.42rem', fontWeight: 'bold' }}>NEU</span>
+          </button>
+        </div>
       </div>
 
       <div className="lobby-grid" role="list" aria-label="Spielauswahl">

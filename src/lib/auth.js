@@ -109,6 +109,29 @@ export function isCurrentUserAdmin() {
   return Boolean(user && user.isAdmin);
 }
 
+// Lokale Banned-Liste (Fallback wenn Cloud-Schema keine is_banned Spalte hat)
+export function getBannedUsers() {
+  try {
+    const raw = localStorage.getItem('arcade_banned_users');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setBannedUser(username, banned) {
+  try {
+    let list = getBannedUsers();
+    const clean = username.trim().toLowerCase();
+    if (banned) {
+      if (!list.includes(clean)) list.push(clean);
+    } else {
+      list = list.filter(u => u !== clean);
+    }
+    localStorage.setItem('arcade_banned_users', JSON.stringify(list));
+  } catch {}
+}
+
 // Cloud Heartbeat: Prüft alle 6 Sekunden ob in Supabase ein anderer SessionToken aktiv ist
 let heartbeatTimer = null;
 function startHeartbeat(username, sessionToken) {
@@ -117,18 +140,20 @@ function startHeartbeat(username, sessionToken) {
 
   heartbeatTimer = setInterval(async () => {
     try {
+      const bannedList = getBannedUsers();
+      if (bannedList.includes(username.trim().toLowerCase())) {
+        clearInterval(heartbeatTimer);
+        triggerSessionConflict('Dieses Konto wurde von der Administration gesperrt.');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
-        .select('active_session_token, is_banned')
+        .select('active_session_token')
         .ilike('username', username)
         .maybeSingle();
 
       if (!error && data) {
-        if (data.is_banned) {
-          clearInterval(heartbeatTimer);
-          triggerSessionConflict('Dieses Konto wurde von der Administration gesperrt.');
-          return;
-        }
         if (data.active_session_token && data.active_session_token !== sessionToken) {
           clearInterval(heartbeatTimer);
           triggerSessionConflict('Dieses Konto wird gerade auf einem anderen Gerät verwendet.');
@@ -248,7 +273,7 @@ export async function login(username, password) {
           accounts.push(user);
         } else {
           user.isAdmin = Boolean(data.is_admin);
-          user.isBanned = Boolean(data.is_banned);
+          user.isBanned = Boolean(getBannedUsers().includes(clean.toLowerCase()));
           user.passHash = data.pass_hash;
         }
         saveAccounts(accounts);
@@ -341,30 +366,66 @@ import { insertScore, deleteScore, getPlayerScores, adminSetPlayerScore, adminRe
 // Admin Tools: Alle Konten auflisten inkl. Spielstände, Gebäude & Highscores
 export async function getAllAccounts() {
   const local = getStoredAccounts();
-  let accountsList = local;
+  const bannedList = getBannedUsers();
+  const map = new Map();
 
+  // 1. Lokale Accounts erfassen
+  local.forEach(u => {
+    map.set(u.username.toLowerCase(), {
+      ...u,
+      isBanned: Boolean(u.isBanned || bannedList.includes(u.username.toLowerCase())),
+    });
+  });
+
+  // 2. Supabase Profiles abrufen (nur Spalten, die in der DB existieren)
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select('username, is_admin, is_banned, created_at, last_heartbeat')
+        .select('username, is_admin, created_at, last_heartbeat')
         .order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        const map = new Map();
-        local.forEach(u => map.set(u.username.toLowerCase(), u));
+
+      if (!error && data && data.length > 0) {
         data.forEach(p => {
-          map.set(p.username.toLowerCase(), {
+          const key = p.username.toLowerCase();
+          const existing = map.get(key) || {};
+          map.set(key, {
+            ...existing,
             username: p.username,
             isAdmin: Boolean(p.is_admin),
-            isBanned: Boolean(p.is_banned),
-            createdAt: p.created_at,
-            lastHeartbeat: p.last_heartbeat,
+            isBanned: Boolean(existing.isBanned || bannedList.includes(key)),
+            createdAt: p.created_at || existing.createdAt || new Date().toISOString(),
+            lastHeartbeat: p.last_heartbeat || existing.lastHeartbeat,
           });
         });
-        accountsList = Array.from(map.values());
+      }
+    } catch (err) {
+      console.warn('Profiles fetch error:', err);
+    }
+
+    // 3. Auch alle registrierten Spieler aus scores erfassen (außer 'Gast')
+    try {
+      const { data: scorePlayers } = await supabase
+        .from('scores')
+        .select('name');
+      if (scorePlayers && scorePlayers.length > 0) {
+        scorePlayers.forEach(sp => {
+          if (!sp.name || sp.name.trim().toLowerCase() === 'gast') return;
+          const key = sp.name.trim().toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, {
+              username: sp.name.trim(),
+              isAdmin: false,
+              isBanned: Boolean(bannedList.includes(key)),
+              createdAt: new Date().toISOString(),
+            });
+          }
+        });
       }
     } catch {}
   }
+
+  const accountsList = Array.from(map.values());
 
   // Lade detaillierte Daten für jeden Spieler (Clicker-Guthaben, Gebäude, Highscores)
   const enriched = await Promise.all(
@@ -474,7 +535,6 @@ export async function adminCreateAccount({
         username: clean,
         pass_hash: passHash,
         is_admin: Boolean(isAdmin),
-        is_banned: false,
         active_session_token: sessionToken,
         last_heartbeat: createdAt,
       }, { onConflict: 'username' });
@@ -588,6 +648,10 @@ export async function adminUpdateAccount(username, updates = {}) {
     newPassHash = await hashPassword(updates.newPassword.trim());
   }
 
+  if (updates.isBanned !== undefined) {
+    setBannedUser(targetUsername, updates.isBanned);
+  }
+
   if (accIndex >= 0) {
     if (updates.isAdmin !== undefined) accounts[accIndex].isAdmin = Boolean(updates.isAdmin);
     if (updates.isBanned !== undefined) accounts[accIndex].isBanned = Boolean(updates.isBanned);
@@ -608,10 +672,7 @@ export async function adminUpdateAccount(username, updates = {}) {
     try {
       const dbUpdates = {};
       if (updates.isAdmin !== undefined) dbUpdates.is_admin = Boolean(updates.isAdmin);
-      if (updates.isBanned !== undefined) {
-        dbUpdates.is_banned = Boolean(updates.isBanned);
-        if (updates.isBanned) dbUpdates.active_session_token = null;
-      }
+      if (updates.isBanned) dbUpdates.active_session_token = null;
       if (newPassHash) dbUpdates.pass_hash = newPassHash;
       if (Object.keys(dbUpdates).length > 0) {
         const { error: pErr } = await supabase.from('profiles').update(dbUpdates).ilike('username', currentTargetNorm);

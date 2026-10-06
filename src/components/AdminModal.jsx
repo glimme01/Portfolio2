@@ -34,7 +34,7 @@ export default function AdminModal({ isOpen, onClose }) {
     password: 'password123',
     isAdmin: false,
     initialCookies: 10000,
-    initialChips: 5,
+    initialAscension: 0,
     initialGems: 50,
   });
 
@@ -304,13 +304,24 @@ export default function AdminModal({ isOpen, onClose }) {
     <div className="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Admin Dashboard">
       <div className="overlay-panel admin-panel" style={{ maxWidth: '860px', width: '96%', maxHeight: '92vh', overflowY: 'auto' }}>
         {/* Haupt-Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
           <h2 className="overlay-title" style={{ color: 'var(--accent)', fontSize: '0.9rem', margin: 0, textAlign: 'left' }}>
             👑 ADMIN-DASHBOARD &amp; MANAGEMENT
           </h2>
-          <button className="btn btn-outline" style={{ minHeight: '34px', padding: '4px 10px', fontSize: '0.5rem' }} onClick={onClose}>
-            SCHLIESSEN
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ minHeight: '34px', padding: '4px 10px', fontSize: '0.48rem', borderColor: '#ffd700', color: '#ffd700' }}
+              onClick={() => window.dispatchEvent(new CustomEvent('arcade-open-patchlog'))}
+              title="Vollständigen Patch-Log ansehen"
+            >
+              📜 PATCH-LOG v3.2
+            </button>
+            <button className="btn btn-outline" style={{ minHeight: '34px', padding: '4px 10px', fontSize: '0.5rem' }} onClick={onClose}>
+              SCHLIESSEN
+            </button>
+          </div>
         </div>
 
         {alertMsg && (
@@ -703,15 +714,15 @@ export default function AdminModal({ isOpen, onClose }) {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.42rem', fontFamily: 'var(--font-pixel)', color: '#ffd700', marginBottom: '4px' }}>
-                    ✨ CHIPS:
+                  <label style={{ display: 'block', fontSize: '0.42rem', fontFamily: 'var(--font-pixel)', color: '#bf5af2', marginBottom: '4px' }}>
+                    🌌 AUFSTIEG (LVL):
                   </label>
                   <input
                     type="number"
                     className="custom-bet-input"
                     style={{ width: '100%', padding: '6px' }}
-                    value={createForm.initialChips}
-                    onChange={(e) => setCreateForm(f => ({ ...f, initialChips: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                    value={createForm.initialAscension ?? 0}
+                    onChange={(e) => setCreateForm(f => ({ ...f, initialAscension: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
                   />
                 </div>
                 <div>
@@ -1128,10 +1139,10 @@ export default function AdminModal({ isOpen, onClose }) {
 
                       <button
                         className="btn btn-outline"
-                        style={{ padding: '10px 8px', fontSize: '0.48rem', borderColor: '#70b4ff', color: '#70b4ff' }}
-                        onClick={() => triggerDevTool('ADD_CHIPS', { amount: 50 })}
+                        style={{ padding: '10px 8px', fontSize: '0.48rem', borderColor: '#bf5af2', color: '#bf5af2' }}
+                        onClick={() => triggerDevTool('ADD_ASCENSION', { amount: 1 })}
                       >
-                        🌟 +50 HIMMELSCHIPS
+                        🌌 +1 AUFSTIEG (ASCEND)
                       </button>
 
                       <button
