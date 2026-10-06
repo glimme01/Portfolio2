@@ -15,15 +15,33 @@ import {
 const SUITS = ['♠', '♥', '♦', '♣'];
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-function freshDeck() {
+function freshShoe(numDecks = 4) {
   const d = [];
-  for (const suit of SUITS) for (const rank of RANKS) d.push({ suit, rank });
+  for (let k = 0; k < numDecks; k++) {
+    for (const suit of SUITS) for (const rank of RANKS) d.push({ suit, rank });
+  }
   for (let i = d.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [d[i], d[j]] = [d[j], d[i]];
   }
   return d;
 }
+
+// Spielerfreundliches Ziehen: Verhindert frustrierende Dauer-Busts auf 12-16
+function drawPlayerCard(currentDeck, currentHand) {
+  const d = [...currentDeck];
+  const val = handValue(currentHand);
+  if (val >= 12 && val <= 16 && Math.random() < 0.68) {
+    const safeIdx = d.findIndex(c => handValue([...currentHand, c]) <= 21);
+    if (safeIdx >= 0) {
+      const [card] = d.splice(safeIdx, 1);
+      return { card, newDeck: d };
+    }
+  }
+  const card = d.pop();
+  return { card, newDeck: d };
+}
+
 
 function cardValue(rank) {
   if (['J', 'Q', 'K'].includes(rank)) return 10;
@@ -103,7 +121,7 @@ function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
     setTimeout(() => {
       const suits = color === 'red' ? ['♥', '♦'] : ['♠', '♣'];
       const otherSuits = color === 'red' ? ['♠', '♣'] : ['♥', '♦'];
-      const won = Math.random() < 0.49;
+      const won = Math.random() < 0.60;
       const actualSuit = won
         ? suits[Math.floor(Math.random() * suits.length)]
         : otherSuits[Math.floor(Math.random() * otherSuits.length)];
@@ -200,7 +218,7 @@ function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
 
 const PHASE = { BETTING: 'BETTING', PLAYING: 'PLAYING', DEALER: 'DEALER', RESULT: 'RESULT' };
 
-export default function BlackjackPage() {
+export default function BlackjackPage({ embedded = false }) {
   const playerName = getActivePlayerName();
   const [activeCurrency, setActiveCurrency] = useState('cookies');
   const [playerState, setPlayerState] = useState(null);
@@ -208,6 +226,8 @@ export default function BlackjackPage() {
   const [deck, setDeck] = useState([]);
   const [playerHand, setPlayerHand] = useState([]);
   const [dealerHand, setDealerHand] = useState([]);
+  const [splitHands, setSplitHands] = useState(null);
+  const [activeHandIndex, setActiveHandIndex] = useState(0);
   const [phase, setPhase] = useState(PHASE.BETTING);
   const [result, setResult] = useState(null);
   const [stats, setStats] = useState({ played: 0, won: 0, lost: 0, pushed: 0, totalWon: 0, totalBet: 0, bestWin: 0 });
@@ -257,6 +277,9 @@ export default function BlackjackPage() {
   // Live Cookie/Currency Sync
   useEffect(() => {
     function onCookiesSynced(e) {
+      if (e?.detail?.playerName && playerName && e.detail.playerName.toLowerCase() !== playerName.toLowerCase()) {
+        return;
+      }
       if (e?.detail && phase === PHASE.BETTING) {
         setPlayerState(prev => {
           if (!prev) return prev;
@@ -271,7 +294,7 @@ export default function BlackjackPage() {
     }
     window.addEventListener('arcade-cookies-synced', onCookiesSynced);
     return () => window.removeEventListener('arcade-cookies-synced', onCookiesSynced);
-  }, [phase]);
+  }, [phase, playerName]);
 
   function handleSelectCurrency(currId) {
     if (phase !== PHASE.BETTING) return;
@@ -289,8 +312,18 @@ export default function BlackjackPage() {
     playChipSound();
     playCardDealSound();
 
-    const d = freshDeck();
-    const ph = [d.pop(), d.pop()];
+    const d = freshShoe(4);
+    let ph;
+    // 14% Chance auf ein direktes Natural Blackjack (oder starkes 20er Blatt) für mehr Spielspaß
+    if (Math.random() < 0.14) {
+      const aceIdx = d.findIndex(c => c.rank === 'A');
+      const ace = d.splice(aceIdx >= 0 ? aceIdx : 0, 1)[0];
+      const tenIdx = d.findIndex(c => ['10', 'J', 'Q', 'K'].includes(c.rank));
+      const ten = d.splice(tenIdx >= 0 ? tenIdx : 0, 1)[0];
+      ph = [ace, ten];
+    } else {
+      ph = [d.pop(), d.pop()];
+    }
     const dh = [d.pop(), d.pop()];
     const nextBal = currentBalance - b;
 
@@ -299,6 +332,8 @@ export default function BlackjackPage() {
     setDeck(d);
     setPlayerHand(ph);
     setDealerHand(dh);
+    setSplitHands(null);
+    setActiveHandIndex(0);
     setPhase(PHASE.PLAYING);
     setResult(null);
     setDoubledDown(false);
@@ -317,16 +352,96 @@ export default function BlackjackPage() {
 
   function hit(currentDeck, hand, setHand) {
     playCardDealSound();
-    const d = [...currentDeck];
-    const card = d.pop();
+    const { card, newDeck: d } = drawPlayerCard(currentDeck, hand);
     const newHand = [...hand, card];
     setHand(newHand);
     setDeck(d);
+
+    // 5-Card Charlie Regel: 5 Karten ohne Bust gewinnt sofort!
+    if (newHand.length === 5 && handValue(newHand) <= 21) {
+      playBigWinSound();
+      const activeBet = doubledDown ? bet * 2 : bet;
+      endGame(d, newHand, dealerHand, '🌟 5-CARD CHARLIE! AUTOMATISCHER GEWINN! 🏆', activeBet * 2);
+      return newHand;
+    }
 
     if (handValue(newHand) > 21) {
       endGame(d, newHand, dealerHand, '💥 BUST! ÜBER 21', 0);
     }
     return newHand;
+  }
+
+  function split() {
+    if (!canSplit) return;
+    const b = Number(bet);
+    playChipSound();
+    playCardDealSound();
+
+    const nextBal = currentBalance - b;
+    persistPlayerState({ ...clickerRef.current, [activeCurrency]: nextBal });
+
+    const d = [...deck];
+    const c1 = d.pop();
+    const c2 = d.pop();
+
+    const h0 = {
+      cards: [playerHand[0], c1],
+      bet: b,
+      doubled: false,
+      busted: false,
+      stood: false,
+    };
+    const h1 = {
+      cards: [playerHand[1], c2],
+      bet: b,
+      doubled: false,
+      busted: false,
+      stood: false,
+    };
+
+    setDeck(d);
+    setSplitHands([h0, h1]);
+    setActiveHandIndex(0);
+  }
+
+  function handleHit() {
+    if (!splitHands) {
+      hit(deck, playerHand, setPlayerHand);
+      return;
+    }
+    playCardDealSound();
+    const activeH = splitHands[activeHandIndex];
+    const { card, newDeck: d } = drawPlayerCard(deck, activeH.cards);
+    const updated = splitHands.map((h, i) => {
+      if (i !== activeHandIndex) return h;
+      const nextCards = [...h.cards, card];
+      const val = handValue(nextCards);
+      return {
+        ...h,
+        cards: nextCards,
+        busted: val > 21,
+      };
+    });
+    setDeck(d);
+    setSplitHands(updated);
+
+    const updatedH = updated[activeHandIndex];
+    if (updatedH.cards.length === 5 && !updatedH.busted) {
+      playBigWinSound();
+      updatedH.stood = true;
+    }
+
+    if (updatedH.busted || updatedH.cards.length === 5) {
+      if (activeHandIndex === 0) {
+        setActiveHandIndex(1);
+      } else {
+        if (updated[0].busted && updatedH.busted) {
+          endGameSplit(d, updated, dealerHand, '💥 BEIDE HÄNDE BUST! ÜBER 21', 0, updated[0].bet + updated[1].bet);
+        } else {
+          dealerTurnForSplit(d, updated, dealerHand);
+        }
+      }
+    }
   }
 
   function stand(currentDeck, ph, dh) {
@@ -342,6 +457,39 @@ export default function BlackjackPage() {
         setTimeout(dealerPlay, 500);
       } else {
         finishRound(curDeck, ph, curDealer);
+      }
+    };
+    setTimeout(dealerPlay, 500);
+  }
+
+  function handleStand() {
+    if (!splitHands) {
+      stand(deck, playerHand, dealerHand);
+      return;
+    }
+    const updated = splitHands.map((h, i) => i === activeHandIndex ? { ...h, stood: true } : h);
+    setSplitHands(updated);
+
+    if (activeHandIndex === 0) {
+      setActiveHandIndex(1);
+    } else {
+      dealerTurnForSplit(deck, updated, dealerHand);
+    }
+  }
+
+  function dealerTurnForSplit(curDeck, hands, curDealer) {
+    setPhase(PHASE.DEALER);
+    let d = [...curDeck];
+    let dh = [...curDealer];
+
+    const dealerPlay = () => {
+      if (handValue(dh) < 17) {
+        playCardDealSound();
+        dh = [...dh, d.pop()];
+        setDealerHand([...dh]);
+        setTimeout(dealerPlay, 500);
+      } else {
+        finishSplitRound(d, hands, dh);
       }
     };
     setTimeout(dealerPlay, 500);
@@ -366,12 +514,132 @@ export default function BlackjackPage() {
     }
   }
 
-  async function endGame(d, ph, dh, msg, payout) {
-    const activeBet = doubledDown ? bet * 2 : bet;
-    const curBal = playerState ? Math.floor(playerState[activeCurrency] ?? 0) : 0;
-    const finalBal = curBal + payout;
+  function finishSplitRound(d, hands, dh) {
+    const dv = handValue(dh);
+    let totalPayout = 0;
+    let totalInvested = 0;
+    const summaries = [];
 
-    const updated = { ...clickerRef.current, [activeCurrency]: finalBal };
+    hands.forEach((h, idx) => {
+      const hv = handValue(h.cards);
+      const hBet = h.doubled ? h.bet * 2 : h.bet;
+      totalInvested += hBet;
+
+      if (h.busted) {
+        summaries.push(`H${idx + 1}: BUST (${hv}) ❌`);
+      } else if (dv > 21) {
+        totalPayout += hBet * 2;
+        summaries.push(`H${idx + 1}: GEWONNEN (${hv} vs BUST) 🎉`);
+      } else if (hv > dv) {
+        totalPayout += hBet * 2;
+        summaries.push(`H${idx + 1}: GEWONNEN (${hv} vs ${dv}) 🏆`);
+      } else if (hv === dv) {
+        totalPayout += hBet;
+        summaries.push(`H${idx + 1}: PUSH (${hv}) 🤝`);
+      } else {
+        summaries.push(`H${idx + 1}: VERLOREN (${hv} vs ${dv}) ❌`);
+      }
+    });
+
+    const net = totalPayout - totalInvested;
+    const banner = net > 0 ? `GEWINN! +${curr.format(net)} ${curr.icon} (${summaries.join(' | ')})`
+      : net === 0 ? `BREAK-EVEN! (${summaries.join(' | ')})`
+      : `VERLUST! ${curr.format(Math.abs(net))} ${curr.icon} (${summaries.join(' | ')})`;
+
+    endGameSplit(d, hands, dh, banner, totalPayout, totalInvested);
+  }
+
+  async function endGameSplit(d, hands, dh, msg, rawPayout, totalInvested) {
+    let payout = rawPayout;
+    const hasLuckyCharm = Boolean(clickerRef.current?.vipLuckyCharm);
+    if (payout > totalInvested && hasLuckyCharm) {
+      payout = Math.floor(payout * 1.05);
+      msg += ' 🍀 (VIP +5%)';
+    }
+
+    let insuranceRefund = 0;
+    let insuranceLeft = clickerRef.current?.casinoInsuranceCharges || 0;
+    if (payout < totalInvested && insuranceLeft > 0) {
+      insuranceRefund = Math.min(50000, Math.floor(totalInvested * 0.25));
+      insuranceLeft -= 1;
+      msg += ` (🛡️ Versicherung: +${curr.format(insuranceRefund)} erstattet!)`;
+    }
+
+    const curBal = playerState ? Math.floor(playerState[activeCurrency] ?? 0) : 0;
+    const finalBal = curBal + payout + insuranceRefund;
+
+    const updated = {
+      ...clickerRef.current,
+      [activeCurrency]: finalBal,
+      casinoInsuranceCharges: insuranceLeft,
+    };
+    if (activeCurrency === 'cookies') {
+      updated.totalCookies = Math.max(updated.totalCookies || 0, finalBal);
+    }
+    await persistPlayerState(updated);
+
+    setPhase(PHASE.RESULT);
+    setResult(msg);
+
+    const netWin = payout - totalInvested;
+    const won = payout > totalInvested;
+    const lost = payout < totalInvested;
+    const pushed = payout === totalInvested && payout > 0;
+
+    if (won) playWinChime();
+
+    if (netWin > bestWinRef.current) {
+      bestWinRef.current = netWin;
+      await insertScore(playerName, 'blackjack', netWin);
+    }
+
+    if (won) {
+      setStreak(s => s + 1);
+      setGambleAmount(payout);
+    } else if (lost) {
+      setStreak(0);
+      setGambleAmount(payout > 0 ? payout : null);
+    } else {
+      setGambleAmount(payout > 0 ? payout : null);
+    }
+
+    setStats(s => ({
+      played: s.played + 1,
+      won: won ? s.won + 1 : s.won,
+      lost: lost ? s.lost + 1 : s.lost,
+      pushed: pushed ? s.pushed + 1 : s.pushed,
+      totalWon: s.totalWon + payout,
+      totalBet: s.totalBet + totalInvested,
+      bestWin: Math.max(s.bestWin, netWin),
+    }));
+  }
+
+  async function endGame(d, ph, dh, msg, rawPayout) {
+    const activeBet = doubledDown ? bet * 2 : bet;
+    let payout = rawPayout;
+
+    const hasLuckyCharm = Boolean(clickerRef.current?.vipLuckyCharm);
+    if (payout > activeBet && hasLuckyCharm) {
+      payout = Math.floor(payout * 1.05);
+      msg += ' 🍀 (VIP +5%)';
+    }
+
+    let insuranceRefund = 0;
+    let insuranceLeft = clickerRef.current?.casinoInsuranceCharges || 0;
+    if (payout === 0 && insuranceLeft > 0) {
+      insuranceRefund = Math.min(50000, Math.floor(activeBet * 0.25));
+      insuranceLeft -= 1;
+      msg += ` (🛡️ Casino-Versicherung: +${curr.format(insuranceRefund)} erstattet!)`;
+    }
+
+    const curBal = playerState ? Math.floor(playerState[activeCurrency] ?? 0) : 0;
+    const finalBal = curBal + payout + insuranceRefund;
+
+    const updated = {
+      ...clickerRef.current,
+      [activeCurrency]: finalBal,
+      casinoInsuranceCharges: insuranceLeft,
+    };
     if (activeCurrency === 'cookies') {
       updated.totalCookies = Math.max(updated.totalCookies || 0, finalBal);
     }
@@ -431,6 +699,49 @@ export default function BlackjackPage() {
     }
   }
 
+  function handleDouble() {
+    if (!splitHands) {
+      doubleDown();
+      return;
+    }
+    const currentH = splitHands[activeHandIndex];
+    if (currentBalance < currentH.bet) return;
+    playChipSound();
+    playCardDealSound();
+
+    const nextBal = currentBalance - currentH.bet;
+    persistPlayerState({ ...clickerRef.current, [activeCurrency]: nextBal });
+
+    const d = [...deck];
+    const card = d.pop();
+    const updated = splitHands.map((h, i) => {
+      if (i !== activeHandIndex) return h;
+      const nextCards = [...h.cards, card];
+      const val = handValue(nextCards);
+      return {
+        ...h,
+        cards: nextCards,
+        doubled: true,
+        stood: val <= 21,
+        busted: val > 21,
+      };
+    });
+    setDeck(d);
+    setSplitHands(updated);
+
+    if (activeHandIndex === 0) {
+      setActiveHandIndex(1);
+    } else {
+      if (updated[0].busted && updated[1].busted) {
+        const totalInvested = (updated[0].doubled ? updated[0].bet * 2 : updated[0].bet) +
+                              (updated[1].doubled ? updated[1].bet * 2 : updated[1].bet);
+        endGameSplit(d, updated, dealerHand, '💥 BEIDE HÄNDE BUST!', 0, totalInvested);
+      } else {
+        dealerTurnForSplit(d, updated, dealerHand);
+      }
+    }
+  }
+
   // Custom Amount Helpers
   function stepBet(delta) {
     if (phase !== PHASE.BETTING) return;
@@ -479,7 +790,14 @@ export default function BlackjackPage() {
 
   const pv = handValue(playerHand);
   const dv = handValue(dealerHand);
-  const canDouble = phase === PHASE.PLAYING && playerHand.length === 2 && currentBalance >= bet;
+  const canSplit = phase === PHASE.PLAYING && !splitHands && playerHand.length === 2 &&
+    cardValue(playerHand[0].rank) === cardValue(playerHand[1].rank) &&
+    currentBalance >= bet;
+  const canDouble = phase === PHASE.PLAYING && (
+    splitHands
+      ? (splitHands[activeHandIndex]?.cards.length === 2 && currentBalance >= splitHands[activeHandIndex]?.bet)
+      : (playerHand.length === 2 && currentBalance >= bet)
+  );
 
   const resultColor = result?.includes('GEWONNEN') || result?.includes('BLACKJACK') ? '#90be6d'
     : result?.includes('VERLOREN') || result?.includes('BUST') ? '#f94144' : '#ffd700';
@@ -493,7 +811,7 @@ export default function BlackjackPage() {
   }
 
   return (
-    <div className="page-content bj-page">
+    <div className={`page-content bj-page ${embedded ? 'embedded-game' : ''}`} style={embedded ? { padding: '8px 0', maxWidth: '100%' } : {}}>
       {/* Währungs-Umschalter & Wechselstube */}
       <div className="currency-selector-bar">
         <div className="currency-tabs">
@@ -664,39 +982,85 @@ export default function BlackjackPage() {
         </div>
 
         {/* Spieler */}
-        <div className="bj-hand-area">
-          <div className="bj-hand-label">
-            DU ({pv}){pv === 21 && playerHand.length === 2 ? ' — 👑 BLACKJACK!' : pv > 21 ? ' — 💥 BUST!' : ''}
-          </div>
-          <div className="bj-hand">
-            {playerHand.map((c, i) => <Card key={i} card={c} />)}
-          </div>
-          {phase === PHASE.PLAYING && (
-            <div className="bj-action-row">
-              <button className="btn btn-primary" onClick={() => hit(deck, playerHand, setPlayerHand)} id="bj-hit-btn">
-                HIT (+ KARTE)
-              </button>
-              <button className="btn btn-outline" onClick={() => stand(deck, playerHand, dealerHand)} id="bj-stand-btn">
-                STAND (HALTEN)
-              </button>
-              {canDouble && (
-                <button
-                  className="btn"
-                  style={{ background: 'linear-gradient(135deg, #7209b7, #9d4edd)', color: '#fff', border: 'none' }}
-                  onClick={doubleDown}
-                  id="bj-double-btn"
+        {splitHands ? (
+          <div className="bj-split-container">
+            {splitHands.map((h, idx) => {
+              const hv = handValue(h.cards);
+              const isActive = phase === PHASE.PLAYING && activeHandIndex === idx;
+              return (
+                <div
+                  key={idx}
+                  className={`bj-split-hand-box ${isActive ? 'active' : ''} ${h.busted ? 'busted' : ''}`}
                 >
-                  ⚡ DOUBLE DOWN
-                </button>
-              )}
+                  <div className="bj-hand-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>
+                      HAND {idx + 1} ({hv})
+                      {isActive ? ' ◀ AKTIV' : ''}
+                      {h.busted ? ' 💥 BUST' : h.stood ? ' ✋ STAND' : ''}
+                    </span>
+                    <span className="bj-split-badge">
+                      {curr.format(h.doubled ? h.bet * 2 : h.bet)} {curr.icon}
+                    </span>
+                  </div>
+                  <div className="bj-hand">
+                    {h.cards.map((c, i) => (
+                      <Card key={i} card={c} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bj-hand-area">
+            <div className="bj-hand-label">
+              DU ({pv}){pv === 21 && playerHand.length === 2 ? ' — 👑 BLACKJACK!' : pv > 21 ? ' — 💥 BUST!' : ''}
             </div>
-          )}
-        </div>
+            <div className="bj-hand">
+              {playerHand.map((c, i) => <Card key={i} card={c} />)}
+            </div>
+          </div>
+        )}
+
+        {phase === PHASE.PLAYING && (
+          <div className="bj-action-row">
+            <button className="btn btn-primary" onClick={handleHit} id="bj-hit-btn">
+              HIT (+ KARTE)
+            </button>
+            <button className="btn btn-outline" onClick={handleStand} id="bj-stand-btn">
+              STAND (HALTEN)
+            </button>
+            {canDouble && (
+              <button
+                className="btn"
+                style={{ background: 'linear-gradient(135deg, #7209b7, #9d4edd)', color: '#fff', border: 'none' }}
+                onClick={handleDouble}
+                id="bj-double-btn"
+              >
+                ⚡ DOUBLE DOWN
+              </button>
+            )}
+            {canSplit && (
+              <button
+                className="btn"
+                style={{ background: 'linear-gradient(135deg, #0077b6, #00b4d8)', color: '#fff', border: 'none' }}
+                onClick={split}
+                id="bj-split-btn"
+              >
+                ✂️ SPLIT ({curr.format(bet)} {curr.icon})
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Aktueller Einsatz */}
         {phase !== PHASE.BETTING && (
           <div className="bj-current-bet">
-            EINSATZ: {curr.format(doubledDown ? bet * 2 : bet)} {curr.icon}
+            EINSATZ: {curr.format(
+              splitHands
+                ? splitHands.reduce((acc, h) => acc + (h.doubled ? h.bet * 2 : h.bet), 0)
+                : (doubledDown ? bet * 2 : bet)
+            )} {curr.icon}
           </div>
         )}
       </div>
@@ -744,6 +1108,7 @@ export default function BlackjackPage() {
           <div>Natural Blackjack zahlt 3:2 (150%)</div>
           <div>Dealer muss bis 17 ziehen</div>
           <div>Double Down verdoppelt Einsatz + 1 Karte</div>
+          <div>Paare splitten (teilen) in 2 separate Hände</div>
           <div>Unentschieden (Push) gibt vollen Einsatz zurück</div>
         </div>
       </div>

@@ -10,6 +10,7 @@ export const SKINS = [
   { id: 'yellow',       name: 'GOLD-KEKS',         emoji: '🟡', particleColor: '#ffd700', unlockAt: 'cookies_1m' },
   { id: 'rainbow',      name: 'REGENBOGEN',        emoji: '🌈', particleColor: '#ff6ec7', unlockAt: 'all_skins' },
   { id: 'retro_arcade', name: 'RETRO PIXEL (EASTER EGG)', emoji: '👾', particleColor: '#ffd700', unlockAt: 'konami' },
+  { id: 'crystal',      name: '💎 KRISTALL-MORITZ (VIP)', emoji: '💎', particleColor: '#00f2fe', unlockAt: 'crystal_skin' },
 ];
 
 export const DEFAULT_SKIN = 'moritz';
@@ -28,7 +29,8 @@ export function isSkinUnlocked(skin, state) {
     case 'first_golden': return (state.goldenClicks ?? 0) >= 1;
     case 'cookies_1m':   return state.totalCookies >= 1_000_000;
     case 'konami':       return state.easterEggs?.includes('konami') ?? false;
-    case 'all_skins':    return SKINS.filter(s => s.id !== 'rainbow' && s.id !== 'retro_arcade').every(s => isSkinUnlocked(s, state));
+    case 'crystal_skin': return Boolean(state.unlockedGemSkins?.includes('crystal'));
+    case 'all_skins':    return SKINS.filter(s => s.id !== 'rainbow' && s.id !== 'retro_arcade' && s.id !== 'crystal').every(s => isSkinUnlocked(s, state));
     default: return false;
   }
 }

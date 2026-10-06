@@ -14,7 +14,19 @@ function getStoredLocalScores() {
   }
 }
 
+function getLoggedInUser() {
+  try {
+    const raw = localStorage.getItem('arcade_current_user_v2');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 function saveLocalScore(name, game, score, alwaysAdapt = false) {
+  if (!name || name.toLowerCase() === 'gast' || name.toLowerCase() === 'anonym') {
+    return null;
+  }
   const list = getStoredLocalScores();
   const existingIdx = list.findIndex(s => s.name === name && s.game === game);
 
@@ -50,7 +62,7 @@ export async function getTopScores(game, limit = 10) {
   // Wenn Supabase nicht konfiguriert ist -> sofort lokale Scores
   if (!isSupabaseConfigured() || !supabase) {
     const local = getStoredLocalScores()
-      .filter(s => s.game === game)
+      .filter(s => s.game === game && s.name && s.name.toLowerCase() !== 'gast' && s.name.toLowerCase() !== 'anonym')
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
     return { data: local, offline: true };
@@ -66,16 +78,19 @@ export async function getTopScores(game, limit = 10) {
       .select('id, name, score, created_at')
       .eq('game', game)
       .order('score', { ascending: false })
-      .limit(limit)
+      .limit(limit * 2) // leicht erhöhen um gefilterte Gäste auszugleichen
       .abortSignal(abortController.signal);
 
     clearTimeout(timer);
     if (error) throw error;
-    return { data: data ?? [], offline: false };
+    const cleanList = (data ?? [])
+      .filter(s => s && s.name && s.name.toLowerCase() !== 'gast' && s.name.toLowerCase() !== 'anonym')
+      .slice(0, limit);
+    return { data: cleanList, offline: false };
   } catch (err) {
     console.warn('Supabase offline oder Fehler, nutze lokale Scores:', err?.message);
     const local = getStoredLocalScores()
-      .filter(s => s.game === game)
+      .filter(s => s.game === game && s.name && s.name.toLowerCase() !== 'gast' && s.name.toLowerCase() !== 'anonym')
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
     return { data: local, offline: true };
@@ -85,7 +100,7 @@ export async function getTopScores(game, limit = 10) {
 // Gesamtanzahl aller Scores (für Lobby-Statistik)
 export async function getTotalScoreCount() {
   if (!isSupabaseConfigured() || !supabase) {
-    const local = getStoredLocalScores();
+    const local = getStoredLocalScores().filter(s => s && s.name && s.name.toLowerCase() !== 'gast');
     return { count: local.length, offline: true };
   }
 
@@ -96,13 +111,14 @@ export async function getTotalScoreCount() {
     const { count, error } = await supabase
       .from('scores')
       .select('*', { count: 'exact', head: true })
+      .not('name', 'ilike', 'gast')
       .abortSignal(abortController.signal);
 
     clearTimeout(timer);
     if (error) throw error;
     return { count: count ?? 0, offline: false };
   } catch {
-    const local = getStoredLocalScores();
+    const local = getStoredLocalScores().filter(s => s && s.name && s.name.toLowerCase() !== 'gast');
     return { count: local.length, offline: true };
   }
 }
@@ -112,7 +128,13 @@ export async function insertScore(name, game, score, options = {}) {
   const maxScore = { snake: 999999, press: 999999, clicker: 999999999999, slots: 999999999999, blackjack: 999999999999 }[game] ?? 999999999999;
   const cleanName = (name || '').trim().slice(0, 16);
 
-  if (!cleanName || score < 0 || score > maxScore) {
+  // Wer nicht angemeldet ist oder 'Gast' heißt, darf keinen Highscore einreichen!
+  const user = getLoggedInUser();
+  if (!user || !cleanName || cleanName.toLowerCase() === 'gast' || cleanName.toLowerCase() === 'anonym') {
+    return { error: 'Nur angemeldete Spieler können Scores in die Rangliste eintragen.' };
+  }
+
+  if (score < 0 || score > maxScore) {
     return { error: 'Ungültiger Score oder Name' };
   }
 
@@ -176,12 +198,25 @@ export async function adminSetPlayerScore(name, game, newScore) {
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      await supabase
+      const { error: upsertErr } = await supabase
         .from('scores')
         .upsert(
           [{ name: cleanName, game, score: scoreVal }],
           { onConflict: 'name,game' }
         );
+      if (upsertErr) {
+        const { data: existing } = await supabase
+          .from('scores')
+          .select('id')
+          .ilike('name', cleanName)
+          .eq('game', game)
+          .maybeSingle();
+        if (existing?.id) {
+          await supabase.from('scores').update({ score: scoreVal }).eq('id', existing.id);
+        } else {
+          await supabase.from('scores').insert([{ name: cleanName, game, score: scoreVal }]);
+        }
+      }
     } catch (err) {
       console.warn('Admin score update error:', err);
     }

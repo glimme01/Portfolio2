@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getTopScores, insertScore } from '../lib/scores.js';
+import { getLoggedInUser } from '../lib/auth.js';
 import NameInput from './NameInput.jsx';
 
 const RANK_LABELS = ['#1', '#2', '#3', '#4', '#5', '#6', '#7', '#8', '#9', '#10'];
@@ -26,6 +27,7 @@ export default function HighscoreList({
   const [submitted, setSubmitted] = useState(false);
   const [newId, setNewId] = useState(null);
   const newRowRef = useRef(null);
+  const loggedInUser = getLoggedInUser();
 
   // Scores laden
   async function load() {
@@ -40,14 +42,15 @@ export default function HighscoreList({
 
   // Nach Eintrag neu laden
   async function handleSubmit() {
-    if (!name.trim() || submitting || submitted) return;
+    const submitName = (loggedInUser || name || '').trim();
+    if (!submitName || submitting || submitted) return;
     setSubmitting(true);
-    const { data, error } = await insertScore(name.trim(), game, newScore);
+    const { data, error } = await insertScore(submitName, game, newScore);
     if (data) {
       setNewId(data.id);
       setSubmitted(true);
       await load();
-      if (onSubmitted) onSubmitted(name.trim());
+      if (onSubmitted) onSubmitted(submitName);
     } else {
       console.warn('Score-Eintrag fehlgeschlagen:', error);
     }
@@ -71,20 +74,37 @@ export default function HighscoreList({
 
       {/* Eintrag-Formular */}
       {!compact && newScore !== null && !submitted && (
-        <div style={{ marginBottom: '16px' }}>
-          <p style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: 'var(--muted)', marginBottom: '10px' }}>
-            NEUER HIGHSCORE: {fmt(newScore)} — NAME EINTRAGEN
-          </p>
-          <NameInput value={name} onChange={setName} />
-          <button
-            className="btn btn-primary"
-            style={{ marginTop: '10px', width: '100%' }}
-            onClick={handleSubmit}
-            disabled={submitting || !name.trim()}
-          >
-            {submitting ? 'WIRD EINGETRAGEN...' : 'EINTRAGEN'}
-          </button>
-        </div>
+        !loggedInUser ? (
+          <div style={{ marginBottom: '16px', padding: '14px', background: 'rgba(255,215,0,0.06)', border: '1px solid rgba(255,215,0,0.3)', borderRadius: '10px', textAlign: 'center' }}>
+            <p style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.52rem', color: 'var(--accent)', marginBottom: '6px' }}>
+              🏆 NEUER SCORE: {fmt(newScore)}
+            </p>
+            <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '12px' }}>
+              Melde dich an, um deinen Highscore auf der Rangliste einzutragen!
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', fontSize: '0.55rem', padding: '10px' }}
+              onClick={() => window.dispatchEvent(new CustomEvent('arcade-open-auth'))}
+            >
+              🔑 JETZT ANMELDEN
+            </button>
+          </div>
+        ) : (
+          <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid #333', borderRadius: '10px' }}>
+            <p style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: 'var(--muted)', marginBottom: '8px' }}>
+              NEUER HIGHSCORE: {fmt(newScore)} — SPIELER: <strong style={{ color: 'var(--accent)' }}>{loggedInUser}</strong>
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '10px', fontSize: '0.58rem' }}
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting ? 'WIRD EINGETRAGEN...' : `👑 SCORE FÜR "${loggedInUser}" EINTRAGEN`}
+            </button>
+          </div>
+        )
       )}
 
       {/* Tabelle */}

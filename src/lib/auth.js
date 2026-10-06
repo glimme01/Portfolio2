@@ -90,6 +90,12 @@ export function getCurrentUser() {
   }
 }
 
+export function getLoggedInUser() {
+  const user = getCurrentUser();
+  return user && user.username ? user.username.trim() : null;
+}
+
+
 export function getActivePlayerName() {
   const user = getCurrentUser();
   if (user && user.username) return user.username.trim();
@@ -290,12 +296,32 @@ export async function login(username, password) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
   setLastName(user.username);
 
+  // Cloud Spielstand des angemeldeten Benutzers sofort in den lokalen Browser synchronisieren
+  try {
+    const { data: cloudSave } = await loadGameState(user.username, 'clicker');
+    if (cloudSave?.state) {
+      window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
+        detail: {
+          cookies: cloudSave.state.cookies,
+          heavenlyChips: cloudSave.state.heavenlyChips,
+          gems: cloudSave.state.gems,
+          state: cloudSave.state,
+          playerName: normalizePlayerName(user.username),
+          lastSaved: Date.now(),
+        }
+      }));
+    }
+  } catch (err) {
+    console.warn('Fehler beim Laden des Cloud-Spielstands beim Login:', err);
+  }
+
   // Broadcast an andere Tabs/Geräte auf dem Rechner
   if (syncChannel) {
     syncChannel.postMessage({ type: 'DEVICE_LOGIN', username: clean, sessionToken, clientId: CLIENT_ID });
   }
   startHeartbeat(clean, sessionToken);
 
+  window.dispatchEvent(new CustomEvent('arcade-user-logged-in', { detail: { user: sessionUser } }));
   notifyAuthChange(sessionUser);
   return { user: sessionUser };
 }
@@ -576,6 +602,15 @@ export async function adminUpdateAccount(username, updates = {}) {
     if (updates.isBanned !== undefined) accounts[accIndex].isBanned = Boolean(updates.isBanned);
     if (newPassHash) accounts[accIndex].passHash = newPassHash;
     saveAccounts(accounts);
+  } else {
+    accounts.push({
+      username: targetUsername,
+      isAdmin: Boolean(updates.isAdmin),
+      isBanned: Boolean(updates.isBanned),
+      passHash: newPassHash || '',
+      createdAt: new Date().toISOString(),
+    });
+    saveAccounts(accounts);
   }
 
   if (isSupabaseConfigured() && supabase) {
@@ -588,9 +623,12 @@ export async function adminUpdateAccount(username, updates = {}) {
       }
       if (newPassHash) dbUpdates.pass_hash = newPassHash;
       if (Object.keys(dbUpdates).length > 0) {
-        await supabase.from('profiles').update(dbUpdates).ilike('username', currentTargetNorm);
+        const { error: pErr } = await supabase.from('profiles').update(dbUpdates).ilike('username', currentTargetNorm);
+        if (pErr) console.warn('Supabase profile update warning:', pErr);
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Profile Supabase update failed:', err);
+    }
   }
 
   // Clicker Spielstand aktualisieren (Guthaben, Gebäude, Upgrades, Stats)
@@ -632,7 +670,7 @@ export async function adminUpdateAccount(username, updates = {}) {
   }
   st.lastSaved = Date.now();
 
-  await saveGameState(targetUsername, 'clicker', st);
+  await saveGameState(targetUsername, 'clicker', st, { forceOverwrite: true });
   if (updates.cookies !== undefined) {
     await insertScore(targetUsername, 'clicker', st.cookies, { forceUpdate: true });
   }

@@ -26,6 +26,31 @@ export function buildingCost(building, owned = 0, amount = 1) {
   return total;
 }
 
+export function maxAffordable(building, owned = 0, cookies = 0) {
+  if (cookies <= 0) return { count: 0, cost: 0 };
+  const nextSingle = buildingCost(building, owned, 1);
+  if (cookies < nextSingle) return { count: 0, cost: 0 };
+
+  const base = building.baseCost * Math.pow(1.15, owned);
+  const est = Math.floor(Math.log(1 + (cookies * 0.15) / base) / Math.log(1.15));
+  let k = Math.max(0, est);
+  let cost = buildingCost(building, owned, k);
+  while (cost > cookies && k > 0) {
+    k--;
+    cost = buildingCost(building, owned, k);
+  }
+  while (true) {
+    const nextC = buildingCost(building, owned + k, 1);
+    if (cost + nextC <= cookies) {
+      cost += nextC;
+      k++;
+    } else {
+      break;
+    }
+  }
+  return { count: k, cost };
+}
+
 // === 18 REGULÄRE UPGRADES ===
 export const UPGRADES = [
   { id: 'click_x2',    name: 'DOPPELKLICK',         desc: 'Doppelte Cookies pro Klick', cost: 100, effect: 'clickMulti', value: 2, unlockAt: { type: 'clicks', amount: 15 } },
@@ -301,14 +326,16 @@ export function calcPortfolioValue(stockPrices, stockShares, stockBuyPrices) {
 }
 
 // === PRESTIGE / ASCENSION BERECHNUNG ===
+// Berechnet Himmels-Chips für den Aufstieg:
+// Bereits ab 5.000 gebackenen Cookies möglich, gewährt mindestens 1 Chip & Aufstiegs-Stufe
 export function calcPrestigeReward(totalCookies, alreadyClaimed = 0) {
-  if (!totalCookies || totalCookies < 100_000) return 0;
-  const lifetimeChips = Math.floor(Math.cbrt(totalCookies / 100_000));
-  return Math.max(0, lifetimeChips - alreadyClaimed);
+  if (!totalCookies || totalCookies < 5000) return 0;
+  const lifetimeChips = Math.floor(Math.sqrt(totalCookies / 2000));
+  return Math.max(1, lifetimeChips - (alreadyClaimed || 0));
 }
 
 // Gesamte Cookies-pro-Sekunde berechnen
-export function calcCps(buildings, upgrades, prestigeChips = 0, buffMultiplier = 1, heavenlyUpgrades = [], grandmaBoost = 1) {
+export function calcCps(buildings, upgrades, prestigeChips = 0, buffMultiplier = 1, heavenlyUpgrades = [], grandmaBoost = 1, diamondOvens = 0, ascensionCount = 0) {
   let total = 0;
   for (const b of BUILDINGS) {
     const count = buildings[b.id] ?? 0;
@@ -336,6 +363,12 @@ export function calcCps(buildings, upgrades, prestigeChips = 0, buffMultiplier =
     total += buildingCps;
   }
 
+  // VIP Diamanten-Öfen: Max 5 Öfen, jeder gibt +5% CPS + 20 Basis-CPS
+  const cappedOvens = Math.min(5, Math.max(0, diamondOvens));
+  if (cappedOvens > 0) {
+    total = (total + cappedOvens * 20) * (1 + cappedOvens * 0.05);
+  }
+
   // Himmlisches Upgrade: Göttlicher Ofen (+25% CPS)
   if (heavenlyUpgrades.includes('heavenly_oven')) {
     total *= 1.25;
@@ -346,14 +379,15 @@ export function calcCps(buildings, upgrades, prestigeChips = 0, buffMultiplier =
     total *= 1.5;
   }
 
-  // Prestige-Bonus: +1% pro verdienten Himmlischem Chip
-  const prestigeBonus = 1 + (prestigeChips * 0.01);
+  // Dauerhafter Aufstiegs- & Himmels-Bonus:
+  // Jeder Aufstieg bringt dauerhaft +10% und jeder Himmels-Chip +2%
+  const prestigeBonus = 1 + ((ascensionCount || 0) * 0.10) + ((prestigeChips || 0) * 0.02);
 
   return total * prestigeBonus * buffMultiplier;
 }
 
 // Cookies pro Klick berechnen
-export function calcClickValue(upgrades, critActive = false, buffMultiplier = 1, currentCps = 0, heavenlyUpgrades = []) {
+export function calcClickValue(upgrades, critActive = false, buffMultiplier = 1, currentCps = 0, heavenlyUpgrades = [], currentSkin = 'moritz', ascensionCount = 0, prestigeChips = 0) {
   let base = 1;
   for (const u of upgrades) {
     if (u.effect === 'clickMulti') base *= u.value;
@@ -368,6 +402,15 @@ export function calcClickValue(upgrades, critActive = false, buffMultiplier = 1,
   if (heavenlyUpgrades.includes('cosmic_multiplier')) {
     base *= 1.5;
   }
+
+  // VIP Kristall-Moritz Skin (+5% Klick-Stärke)
+  if (currentSkin === 'crystal') {
+    base *= 1.05;
+  }
+
+  // Dauerhafter Aufstiegs- & Himmels-Bonus auch auf Klicks:
+  const prestigeBonus = 1 + ((ascensionCount || 0) * 0.10) + ((prestigeChips || 0) * 0.02);
+  base *= prestigeBonus;
 
   if (critActive) base *= 10;
   return base * buffMultiplier;
@@ -405,7 +448,7 @@ export function createClickerState() {
     heavenlyChipsClaimed: 0,
     spentHeavenlyChips: 0,
     heavenlyUpgrades: [],
-    gems: 10,
+    gems: 5,
     ascensionCount: 0,
     wrinklers: [],
     lastSaved: Date.now(),

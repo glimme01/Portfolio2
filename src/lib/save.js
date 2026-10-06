@@ -56,8 +56,8 @@ function removeLocalSave(name, game) {
 export async function loadGameState(name, game) {
   const norm = normalizePlayerName(name);
 
-  // Wenn offline oder nicht konfiguriert -> sofort aus localStorage
-  if (!isSupabaseConfigured() || !supabase) {
+  // Gast-Spielstand existiert ausschließlich lokal im Browser
+  if (norm === 'gast' || !isSupabaseConfigured() || !supabase) {
     const local = getLocalSave(norm, game);
     return { data: local, offline: true };
   }
@@ -84,7 +84,7 @@ export async function loadGameState(name, game) {
 }
 
 // Spielstand speichern (upsert per name+game)
-export async function saveGameState(name, game, state) {
+export async function saveGameState(name, game, state, options = {}) {
   const norm = normalizePlayerName(name);
 
   if (state && typeof state === 'object') {
@@ -108,6 +108,11 @@ export async function saveGameState(name, game, state) {
     }));
   }
 
+  // GAST-KONTEN WERDEN NIEMALS IN DIE CLOUD GESCHRIEBEN!
+  if (norm === 'gast') {
+    return { success: true, localOnly: true };
+  }
+
   if (!isSupabaseConfigured() || !supabase) {
     return { success: true };
   }
@@ -115,6 +120,23 @@ export async function saveGameState(name, game, state) {
   try {
     const abortController = new AbortController();
     const timer = setTimeout(() => abortController.abort(), 2500);
+
+    // Schutz vor versehentlichem Überschreiben eines gefüllten Cloud-Accounts mit 0 Cookies
+    if (game === 'clicker' && !options.forceOverwrite && (!state?.cookies || state.cookies <= 100)) {
+      try {
+        const { data: existing } = await supabase
+          .from('game_states')
+          .select('state')
+          .ilike('name', norm)
+          .eq('game', 'clicker')
+          .maybeSingle();
+        if (existing?.state?.cookies && existing.state.cookies > 500 && (state.cookies || 0) < existing.state.cookies) {
+          // Cloud hat bereits deutlich mehr Fortschritt! Überschreiben abbrechen.
+          clearTimeout(timer);
+          return { success: false, conflict: true, cloudState: existing.state };
+        }
+      } catch {}
+    }
 
     const { error } = await supabase
       .from('game_states')

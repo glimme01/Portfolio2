@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import './styles.css';
 import Lobby from './pages/Lobby.jsx';
 import LeaderboardPage from './pages/LeaderboardPage.jsx';
@@ -10,11 +10,13 @@ import SlotsPage from './games/slots/SlotsPage.jsx';
 import BlackjackPage from './games/blackjack/BlackjackPage.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AdminModal from './components/AdminModal.jsx';
+import SettingsModal from './components/SettingsModal.jsx';
 import FeedbackModal from './components/FeedbackModal.jsx';
 import SessionConflictModal from './components/SessionConflictModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { getCurrentUser, logout, onAuthChange } from './lib/auth.js';
 import { getUnreadFeedbackCount } from './lib/feedback.js';
+import { loadUserSettings } from './lib/userSettings.js';
 
 // Offizielles Logo
 function LogoMark() {
@@ -34,7 +36,12 @@ function Header({ onOpenFeedback }) {
   const [user, setUser] = useState(getCurrentUser());
   const [authOpen, setAuthOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [unreadFeedback, setUnreadFeedback] = useState(0);
+
+  useEffect(() => {
+    loadUserSettings(user?.username);
+  }, [user]);
 
   useEffect(() => {
     return onAuthChange((newUser) => setUser(newUser));
@@ -44,9 +51,16 @@ function Header({ onOpenFeedback }) {
     function refreshFeedbackCount() {
       getUnreadFeedbackCount().then(c => setUnreadFeedback(c));
     }
+    function handleOpenAuth() {
+      setAuthOpen(true);
+    }
     refreshFeedbackCount();
     window.addEventListener('arcade-feedback-updated', refreshFeedbackCount);
-    return () => window.removeEventListener('arcade-feedback-updated', refreshFeedbackCount);
+    window.addEventListener('arcade-open-auth', handleOpenAuth);
+    return () => {
+      window.removeEventListener('arcade-feedback-updated', refreshFeedbackCount);
+      window.removeEventListener('arcade-open-auth', handleOpenAuth);
+    };
   }, []);
 
   const isAdmin = Boolean(user && user.isAdmin);
@@ -61,13 +75,21 @@ function Header({ onOpenFeedback }) {
           <NavLink to="/leaderboard" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>RANGLISTE</NavLink>
           <NavLink to="/snake" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>SNAKE</NavLink>
           <NavLink to="/clicker" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>CLICKER</NavLink>
-          <NavLink to="/slots" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>SLOTS</NavLink>
-          <NavLink to="/blackjack" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>BLACKJACK</NavLink>
           <NavLink to="/press" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>PRESS</NavLink>
         </nav>
 
         {/* Benutzer-Konto im Header */}
         <div className="header-auth-box">
+          <button
+            className="btn btn-outline"
+            style={{ padding: '6px 9px', fontSize: '0.62rem', minHeight: '36px' }}
+            onClick={() => setSettingsOpen(true)}
+            title="Einstellungen öffnen"
+            aria-label="Einstellungen"
+          >
+            ⚙️
+          </button>
+
           {user ? (
             <div className="user-badge-wrap">
               <span className="user-badge" title="Angemeldeter Spieler">
@@ -127,6 +149,11 @@ function Header({ onOpenFeedback }) {
       <AdminModal
         isOpen={adminOpen}
         onClose={() => setAdminOpen(false)}
+      />
+
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
 
       <SessionConflictModal
@@ -207,8 +234,8 @@ export default function App() {
           <Route path="/press" element={<PressPage />} />
           <Route path="/clicker" element={<ClickerPage />} />
           <Route path="/clicker/achievements" element={<ClickerPage defaultTab="achievements" />} />
-          <Route path="/slots" element={<SlotsPage />} />
-          <Route path="/blackjack" element={<BlackjackPage />} />
+          <Route path="/slots" element={<Navigate to="/clicker?tab=slots" replace />} />
+          <Route path="/blackjack" element={<Navigate to="/clicker?tab=blackjack" replace />} />
         </Routes>
       </ErrorBoundary>
       <Footer onOpenFeedback={() => setFeedbackOpen(true)} />

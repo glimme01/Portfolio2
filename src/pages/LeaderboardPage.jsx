@@ -85,6 +85,37 @@ export default function LeaderboardPage() {
           )}
         </div>
 
+        {!currentUser && (
+          <div style={{
+            background: 'rgba(255, 215, 0, 0.08)',
+            border: '1px solid rgba(255, 215, 0, 0.3)',
+            borderRadius: '10px',
+            padding: '12px 16px',
+            marginBottom: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}>
+            <div>
+              <p style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.48rem', color: 'var(--accent)', margin: '0 0 4px 0' }}>
+                🔒 NICHT ANGEMELDET
+              </p>
+              <p style={{ fontSize: '0.72rem', color: 'var(--muted)', margin: 0 }}>
+                Nur registrierte Spieler werden in der Hall of Fame gelistet. Erstelle ein kostenloses Konto!
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              style={{ padding: '6px 14px', fontSize: '0.52rem' }}
+              onClick={() => window.dispatchEvent(new CustomEvent('arcade-open-auth'))}
+            >
+              🔑 ANMELDEN
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <p className="hs-empty">SCORES WERDEN GELADEN...</p>
         ) : scores.length === 0 ? (

@@ -1,20 +1,27 @@
 import React, {
   useState, useEffect, useRef, useCallback, useMemo,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BUILDINGS, UPGRADES, ACHIEVEMENTS, INITIAL_STOCKS, MARKET_NEWS,
   RANDOM_EVENTS, HEAVENLY_UPGRADES,
-  buildingCost, calcCps, calcClickValue, fmtCookies,
+  buildingCost, maxAffordable, calcCps, calcClickValue, fmtCookies,
   createClickerState, updateStockPrices, calcPrestigeReward,
   collectDividends, calcPortfolioValue,
 } from './clickerLogic.js';
+import {
+  getDiamondOvenCost,
+  MAX_DIAMOND_OVENS,
+  TIME_WARP_COOLDOWN_MS,
+  GOLD_FRENZY_COOLDOWN_MS,
+} from './gemPerks.js';
 import { SKINS, getSkin, isSkinUnlocked, DEFAULT_SKIN } from './skins.js';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getLastName } from '../../lib/prefs.js';
-import { getActivePlayerName } from '../../lib/auth.js';
+import { getCurrentUser, onAuthChange, getActivePlayerName } from '../../lib/auth.js';
 import { insertScore } from '../../lib/scores.js';
 import SaveIndicator from '../../components/SaveIndicator.jsx';
+import ClickerGamblingTab from './ClickerGamblingTab.jsx';
 
 const MAX_OFFLINE_S = 86400; // Bis zu 24 Stunden Offline-Fortschritt
 
@@ -159,10 +166,40 @@ function OfflineDialog({ gained, onClose }) {
 }
 
 export default function ClickerPage({ defaultTab = 'buildings' }) {
-  const playerName = getActivePlayerName();
+  const [currentUser, setCurrentUser] = useState(getCurrentUser());
+  useEffect(() => {
+    return onAuthChange((u) => setCurrentUser(u));
+  }, []);
+  const playerName = currentUser?.username ? currentUser.username.trim() : 'Gast';
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const urlSub = searchParams.get('sub');
+
+  const [tab, setTab] = useState(() => {
+    if (urlTab === 'slots' || urlTab === 'blackjack' || urlTab === 'gems' || urlTab === 'diamonds' || urlTab === 'casino') {
+      return 'casino';
+    }
+    return urlTab || defaultTab;
+  });
+
+  const initialCasinoSubTab = useMemo(() => {
+    if (urlTab === 'slots' || urlTab === 'blackjack') return urlTab;
+    if (urlTab === 'gems' || urlTab === 'diamonds') return 'diamonds';
+    if (urlTab === 'coinflip' || urlTab === 'muenzwurf') return 'coinflip';
+    if (urlSub) return urlSub;
+    return 'coinflip';
+  }, [urlTab, urlSub]);
+
+  useEffect(() => {
+    if (urlTab === 'slots' || urlTab === 'blackjack' || urlTab === 'gems' || urlTab === 'diamonds' || urlTab === 'casino') {
+      setTab('casino');
+    } else if (urlTab) {
+      setTab(urlTab);
+    }
+  }, [urlTab]);
+
   const [gs, setGs] = useState(null);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState(defaultTab);
   const [floats, setFloats] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [goldenVisible, setGoldenVisible] = useState(false);
@@ -245,7 +282,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         // Offline Fortschritt berechnen (data.state.lastSaved oder data.updated_at)
         const lastSavedTs = data.state.lastSaved || (data.updated_at ? new Date(data.updated_at).getTime() : null);
         const offlineEfficiency = state.heavenlyUpgrades?.includes('warp_drive') ? 1.0 : 0.5;
-        const cps = calcCps(state.buildings, getActiveUpgrades(state), state.heavenlyChips, 1, state.heavenlyUpgrades || []);
+        const cps = calcCps(state.buildings, getActiveUpgrades(state), state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, state.diamondOvens || 0, state.ascensionCount || 0);
 
         if (cps > 0 && lastSavedTs) {
           const elapsed = Math.min((Date.now() - lastSavedTs) / 1000, MAX_OFFLINE_S);
@@ -260,7 +297,9 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         }
         state.lastSaved = Date.now();
         await saveGameState(playerName, 'clicker', state);
-        await insertScore(playerName, 'clicker', state.cookies, { forceUpdate: true });
+        if (playerName.toLowerCase() !== 'gast') {
+          await insertScore(playerName, 'clicker', state.cookies, { forceUpdate: true });
+        }
       }
 
       gsRef.current = state;
@@ -275,8 +314,8 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       if (eventTimerRef.current) clearTimeout(eventTimerRef.current);
       if (autosaveRef.current) clearInterval(autosaveRef.current);
 
-      // Beim Verlassen der Seite IMMER sofort speichern!
-      if (gsRef.current && playerName) {
+      // Beim Verlassen der Seite speichern falls geladen
+      if (gsRef.current && playerName && loaded) {
         gsRef.current.lastSaved = Date.now();
         saveGameState(playerName, 'clicker', gsRef.current);
       }
@@ -302,8 +341,9 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       const activeUpgrades = getActiveUpgrades(state);
       const isSugarFestival = activeEvent?.id === 'sugar_festival';
       const isGrandmaParty = activeEvent?.id === 'grandma_party';
+      const isGoldFrenzy = activeEvent?.id === 'gold_frenzy';
 
-      const buffMulti = (goldenBoost ? 2 : 1) * (isSugarFestival ? 2 : 1);
+      const buffMulti = (goldenBoost ? 2 : 1) * (isSugarFestival ? 2 : 1) * (isGoldFrenzy ? 3 : 1);
       const grandmaBoost = isGrandmaParty ? 5 : 1;
 
       const cps = calcCps(
@@ -312,7 +352,9 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         state.heavenlyChips,
         buffMulti,
         state.heavenlyUpgrades || [],
-        grandmaBoost
+        grandmaBoost,
+        state.diamondOvens || 0,
+        state.ascensionCount || 0
       );
 
       // Wrinkler-Abzug (5% pro Wrinkler)
@@ -400,9 +442,9 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       state.lastSaved = Date.now();
       await saveGameState(playerName, 'clicker', state);
 
-      // Highscore spiegelt immer den aktuellen Kontostand wider
+      // Highscore spiegelt immer den aktuellen Kontostand wider (nur für angemeldete Spieler)
       const currentScore = Math.floor(state.cookies);
-      if (currentScore !== lastSubmittedScoreRef.current) {
+      if (playerName.toLowerCase() !== 'gast' && currentScore !== lastSubmittedScoreRef.current) {
         lastSubmittedScoreRef.current = currentScore;
         await insertScore(playerName, 'clicker', currentScore, { forceUpdate: true });
       }
@@ -426,8 +468,16 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   // Live Cookie-Sync von Slots & Blackjack empfangen
   useEffect(() => {
     function onCookiesSynced(e) {
+      if (e?.detail?.playerName && playerName && e.detail.playerName.toLowerCase() !== playerName.toLowerCase()) {
+        return;
+      }
       if (e?.detail && gsRef.current) {
         let changed = false;
+        if (e.detail.state && Object.keys(e.detail.state.buildings || {}).length > 0) {
+          gsRef.current = { ...createClickerState(), ...e.detail.state };
+          setGs({ ...gsRef.current });
+          return;
+        }
         if (e.detail.cookies !== undefined) {
           const nextCookies = Math.floor(e.detail.cookies);
           if (gsRef.current.cookies !== nextCookies) {
@@ -461,7 +511,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     }
     window.addEventListener('arcade-cookies-synced', onCookiesSynced);
     return () => window.removeEventListener('arcade-cookies-synced', onCookiesSynced);
-  }, []);
+  }, [playerName]);
 
   // Golden Cookie Spawner
   useEffect(() => {
@@ -589,7 +639,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     setActiveComet(false);
 
     const activeUpgrades = getActiveUpgrades(state);
-    const cps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || []);
+    const cps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, state.diamondOvens || 0, state.ascensionCount || 0);
     // Belohnung: 15 Minuten CPS oder mindestens 7.777 Cookies
     const reward = Math.max(7777, Math.floor(cps * 900));
 
@@ -614,8 +664,8 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     const isGoldRush = activeEvent?.id === 'gold_rush';
     const clickMultiplier = (isGoldRush ? 7 : 1) * (goldenBoost ? 2 : 1);
 
-    const currentCps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || []);
-    const val = calcClickValue(activeUpgrades, isCrit, clickMultiplier, currentCps, state.heavenlyUpgrades || []);
+    const currentCps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, state.diamondOvens || 0, state.ascensionCount || 0);
+    const val = calcClickValue(activeUpgrades, isCrit, clickMultiplier, currentCps, state.heavenlyUpgrades || [], state.skin, state.ascensionCount || 0, state.heavenlyChips || 0);
 
     state.cookies += val;
     state.totalCookies += val;
@@ -669,11 +719,22 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     const state = gsRef.current;
     if (!state) return;
     const owned = state.buildings[b.id] ?? 0;
-    const cost = buildingCost(b, owned, amount);
-    if (state.cookies < cost) return;
+    let actualAmount = amount;
+    let cost = 0;
+
+    if (amount === 'max') {
+      const calc = maxAffordable(b, owned, state.cookies);
+      if (calc.count <= 0) return;
+      actualAmount = calc.count;
+      cost = calc.cost;
+    } else {
+      actualAmount = Number(amount) || 1;
+      cost = buildingCost(b, owned, actualAmount);
+      if (state.cookies < cost) return;
+    }
 
     state.cookies -= cost;
-    state.buildings[b.id] = owned + amount;
+    state.buildings[b.id] = owned + actualAmount;
     playClickPip();
     setGs({ ...state });
   }
@@ -711,17 +772,19 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     setGs({ ...state });
   }
 
-  // Prestige / Himmels-Aufstieg durchführen
+  // Prestige / Himmels-Aufstieg durchführen (Belohnt mit dauerhaftem Multiplikator)
   async function executeAscension() {
     const state = gsRef.current;
     if (!state) return;
     const reward = calcPrestigeReward(state.totalCookies, state.heavenlyChipsClaimed || 0);
-    if (reward <= 0) return;
+    const canAscend = (state.totalCookies || 0) >= 5000 || reward > 0;
+    if (!canAscend) return;
 
+    const actualReward = Math.max(1, reward);
     const startingCookies = state.heavenlyUpgrades?.includes('heavenly_oven') ? 500 : 0;
 
-    state.heavenlyChips = (state.heavenlyChips || 0) + reward;
-    state.heavenlyChipsClaimed = (state.heavenlyChipsClaimed || 0) + reward;
+    state.heavenlyChips = (state.heavenlyChips || 0) + actualReward;
+    state.heavenlyChipsClaimed = (state.heavenlyChipsClaimed || 0) + actualReward;
     state.ascensionCount = (state.ascensionCount || 0) + 1;
     state.cookies = startingCookies;
     state.buildings = {};
@@ -734,8 +797,13 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     await saveGameState(playerName, 'clicker', state);
     await insertScore(playerName, 'clicker', startingCookies, { forceUpdate: true });
 
+    const totalBonusPct = (state.ascensionCount * 10) + (state.heavenlyChips * 2);
     playFanfare();
-    setToasts(t => [...t, { icon: '🌟', name: 'AUFSTIEG VOLLBRACHT!', desc: `+${reward} Himmlische Chips erhalten!` }]);
+    setToasts(t => [...t, {
+      icon: '🌌',
+      name: 'AUFSTIEG VOLLBRACHT!',
+      desc: `Stufe ${state.ascensionCount} freigeschaltet (+${totalBonusPct}% Dauerbonus auf CPS & Klicks)!`,
+    }]);
     setGs({ ...state });
   }
 
@@ -819,6 +887,97 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     });
   }
 
+  // VIP Diamanten-Perks kaufen (Balanciert ohne Exploits)
+  function handleBuyGemPerk(perk) {
+    const state = gsRef.current;
+    if (!state) return;
+
+    const currentOvens = state.diamondOvens || 0;
+    const cost = perk.id === 'diamond_oven' ? getDiamondOvenCost(currentOvens) : perk.cost;
+    if (cost === null || (state.gems || 0) < cost) return;
+
+    const now = Date.now();
+
+    if (perk.id === 'time_warp') {
+      const lastUsed = state.lastTimeWarpUsed || 0;
+      if (now - lastUsed < TIME_WARP_COOLDOWN_MS) {
+        const remainingMin = Math.ceil((TIME_WARP_COOLDOWN_MS - (now - lastUsed)) / 60000);
+        setToasts(t => [...t, { icon: '⏳', name: 'ABKLINGZEIT!', desc: `Zeit-Sprung ist noch ${remainingMin} Min. auf Cooldown!` }]);
+        return;
+      }
+      state.gems = (state.gems || 0) - cost;
+      state.lastTimeWarpUsed = now;
+      const activeUpgrades = getActiveUpgrades(state);
+      const activeCps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, currentOvens, state.ascensionCount || 0);
+      const reward = Math.max(10000, Math.floor(activeCps * 900)); // 15 Min. Basis-CPS
+      state.cookies += reward;
+      state.totalCookies += reward;
+      playFanfare();
+      setToasts(t => [...t, { icon: '⏳', name: 'ZEIT-SPRUNG!', desc: `+${fmtCookies(reward)} Cookies (15 Min. CPS) erhalten!` }]);
+    } else if (perk.id === 'gold_frenzy') {
+      const lastUsed = state.lastGoldFrenzyUsed || 0;
+      if (now - lastUsed < GOLD_FRENZY_COOLDOWN_MS) {
+        const remainingMin = Math.ceil((GOLD_FRENZY_COOLDOWN_MS - (now - lastUsed)) / 60000);
+        setToasts(t => [...t, { icon: '🌟', name: 'ABKLINGZEIT!', desc: `Gold-Frenzy ist noch ${remainingMin} Min. auf Cooldown!` }]);
+        return;
+      }
+      state.gems = (state.gems || 0) - cost;
+      state.lastGoldFrenzyUsed = now;
+      setActiveEvent({
+        id: 'gold_frenzy',
+        name: '🌟 DIAMANT-FRENZY!',
+        badge: '3x CPS BOOST',
+        duration: 30,
+        remaining: 30,
+        color: '#ffd700',
+        desc: 'Diamantene Energie durchflutet deine Öfen: 30s lang 3-fache Keks-Produktion!',
+      });
+      playFanfare();
+      setToasts(t => [...t, { icon: '🌟', name: 'GOLD-FRENZY AKTIV!', desc: '30s lang 3-fache Keks-Produktion gestartet!' }]);
+    } else if (perk.id === 'diamond_oven') {
+      if (currentOvens >= MAX_DIAMOND_OVENS) {
+        setToasts(t => [...t, { icon: '💎', name: 'MAXIMAL ERREICHT!', desc: `Maximal ${MAX_DIAMOND_OVENS} Diamant-Öfen erlaubt!` }]);
+        return;
+      }
+      state.gems = (state.gems || 0) - cost;
+      state.diamondOvens = currentOvens + 1;
+      playFanfare();
+      setToasts(t => [...t, { icon: '💎', name: 'DIAMANTEN-OFEN!', desc: `Ofen #${state.diamondOvens}/${MAX_DIAMOND_OVENS} aktiv (+5% Gesamt-CPS & +20 Basis-CPS)!` }]);
+    } else if (perk.id === 'lucky_clover') {
+      if (state.vipLuckyCharm) return;
+      state.gems = (state.gems || 0) - cost;
+      state.vipLuckyCharm = true;
+      playFanfare();
+      setToasts(t => [...t, { icon: '🍀', name: 'VIP GLÜCKSKLEE!', desc: '+5% Gewinne in allen Casino-Spielen dauerhaft aktiv!' }]);
+    } else if (perk.id === 'casino_insurance') {
+      if ((state.casinoInsuranceCharges || 0) >= 3) {
+        setToasts(t => [...t, { icon: '🛡️', name: 'VERSICHERUNG VOLL!', desc: 'Du hast bereits 3 Schutz-Ladungen aktiv!' }]);
+        return;
+      }
+      state.gems = (state.gems || 0) - cost;
+      state.casinoInsuranceCharges = 3;
+      playFanfare();
+      setToasts(t => [...t, { icon: '🛡️', name: 'CASINO-VERSICHERUNG!', desc: '3 Schutz-Ladungen aufgeladen (25% Erstattung bei Verlust, max 50k Cookies)!' }]);
+    } else if (perk.id === 'crystal_skin') {
+      if (state.unlockedGemSkins?.includes('crystal')) return;
+      state.gems = (state.gems || 0) - cost;
+      state.unlockedGemSkins = [...new Set([...(state.unlockedGemSkins || []), 'crystal'])];
+      state.skin = 'crystal';
+      playFanfare();
+      setToasts(t => [...t, { icon: '✨', name: 'KRISTALL-MORITZ SKIN!', desc: 'Legendärer Kristall-Skin ausgerüstet (+5% Klick-Stärke)!' }]);
+    }
+
+    setGs({ ...state });
+    saveGameState(playerName, 'clicker', state);
+  }
+
+  function handleUpdateState(newState) {
+    if (!gsRef.current) return;
+    gsRef.current = { ...gsRef.current, ...newState };
+    setGs({ ...gsRef.current });
+    saveGameState(playerName, 'clicker', gsRef.current);
+  }
+
   if (!loaded || !gs) {
     return (
       <div className="page-content" style={{ textAlign: 'center', padding: '80px 16px' }}>
@@ -830,7 +989,8 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   const activeUpgrades = getActiveUpgrades(gs);
   const isSugarFestival = activeEvent?.id === 'sugar_festival';
   const isGrandmaParty = activeEvent?.id === 'grandma_party';
-  const buffMulti = (goldenBoost ? 2 : 1) * (isSugarFestival ? 2 : 1);
+  const isGoldFrenzy = activeEvent?.id === 'gold_frenzy';
+  const buffMulti = (goldenBoost ? 2 : 1) * (isSugarFestival ? 2 : 1) * (isGoldFrenzy ? 3 : 1);
   const grandmaBoost = isGrandmaParty ? 5 : 1;
 
   const currentCps = calcCps(
@@ -839,7 +999,9 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     gs.heavenlyChips,
     buffMulti,
     gs.heavenlyUpgrades || [],
-    grandmaBoost
+    grandmaBoost,
+    gs.diamondOvens || 0,
+    gs.ascensionCount || 0
   );
 
   const isGoldRush = activeEvent?.id === 'gold_rush';
@@ -848,7 +1010,10 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     false,
     (isGoldRush ? 7 : 1) * (goldenBoost ? 2 : 1),
     currentCps,
-    gs.heavenlyUpgrades || []
+    gs.heavenlyUpgrades || [],
+    gs.skin,
+    gs.ascensionCount || 0,
+    gs.heavenlyChips || 0
   );
 
   const currentSkin = getSkin(gs.skin);
@@ -863,7 +1028,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         <span className="ticker-text">{NEWS_HEADLINES[newsIndex].text}</span>
       </div>
 
-      <div className="clicker-layout">
+      <div className={`clicker-layout ${tab === 'casino' ? 'casino-active' : ''}`}>
         {/* LINKE SPALTE: Bäckerei, Großer Keks, Statistiken */}
         <div className="clicker-cookie-area">
           <div
@@ -959,13 +1124,13 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         <div className="clicker-right">
           <div className="clicker-top-controls">
             <div className="buy-amount-selector">
-              {[1, 10, 100].map(amt => (
+              {[1, 10, 100, 'max'].map(amt => (
                 <button
                   key={amt}
                   className={`buy-amount-btn ${buyAmount === amt ? 'active' : ''}`}
                   onClick={() => setBuyAmount(amt)}
                 >
-                  {amt}x
+                  {amt === 'max' ? 'MAX' : `${amt}x`}
                 </button>
               ))}
             </div>
@@ -975,6 +1140,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
             {[
               { id: 'buildings', label: 'GEBÄUDE' },
               { id: 'upgrades', label: `UPGRADES (${UPGRADES.filter(u => !gs.upgrades?.includes(u.id) && gs.cookies >= u.cost * 0.5).length})` },
+              { id: 'casino', label: '🎰 CASINO' },
               { id: 'stocks', label: 'BÖRSE' },
               { id: 'prestige', label: `AUFSTIEG (${availableChips})` },
               { id: 'skins', label: 'SKINS' },
@@ -995,8 +1161,21 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
             <div className="building-list">
               {BUILDINGS.map(b => {
                 const owned = gs.buildings[b.id] ?? 0;
-                const cost = buildingCost(b, owned, buyAmount);
-                const canAfford = gs.cookies >= cost;
+                let cost = 0;
+                let count = 1;
+                let canAfford = false;
+
+                if (buyAmount === 'max') {
+                  const maxRes = maxAffordable(b, owned, gs.cookies);
+                  count = maxRes.count;
+                  cost = count > 0 ? maxRes.cost : buildingCost(b, owned, 1);
+                  canAfford = count > 0;
+                } else {
+                  count = buyAmount;
+                  cost = buildingCost(b, owned, buyAmount);
+                  canAfford = gs.cookies >= cost;
+                }
+
                 return (
                   <button
                     key={b.id}
@@ -1011,13 +1190,20 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
                     <div className="building-info">
                       <div className="building-title-row">
                         <span className="building-name">{b.name}</span>
-                        <span className="building-cps-rate">+{fmtCookies(b.baseCps * buyAmount)}/s</span>
+                        <span className="building-cps-rate">
+                          +{fmtCookies(b.baseCps * (buyAmount === 'max' ? (count || 1) : count))}/s
+                          {buyAmount === 'max' && count > 0 && (
+                            <span style={{ color: '#39ff14', marginLeft: '6px', fontWeight: 'bold' }}>
+                              (+{count})
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <div className="building-desc">{b.desc}</div>
                     </div>
 
                     <div className="building-action-wrap">
-                      <div className="building-cost">{fmtCookies(cost)}</div>
+                      <div className="building-cost">{fmtCookies(cost)} 🍪</div>
                       <div className="building-owned-badge">{owned}</div>
                     </div>
                   </button>
@@ -1049,6 +1235,41 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
                 );
               })}
             </div>
+          )}
+
+          {/* TAB: GLÜCKSSPIEL */}
+          {tab === 'casino' && (
+            <ClickerGamblingTab
+              cookies={gs.cookies}
+              gems={gs.gems || 0}
+              heavenlyChips={gs.heavenlyChips || 0}
+              diamondOvens={gs.diamondOvens || 0}
+              vipLuckyCharm={Boolean(gs.vipLuckyCharm)}
+              casinoInsuranceCharges={gs.casinoInsuranceCharges || 0}
+              unlockedGemSkins={gs.unlockedGemSkins || []}
+              currentCps={currentCps}
+              lastTimeWarpUsed={gs.lastTimeWarpUsed || 0}
+              lastGoldFrenzyUsed={gs.lastGoldFrenzyUsed || 0}
+              onUpdateCookies={(delta) => {
+                if (!gsRef.current) return;
+                gsRef.current.cookies = Math.max(0, gsRef.current.cookies + delta);
+                if (delta > 0) {
+                  gsRef.current.totalCookies = (gsRef.current.totalCookies || 0) + delta;
+                }
+                setGs({ ...gsRef.current });
+              }}
+              onUpdateGems={(delta) => {
+                if (!gsRef.current) return;
+                gsRef.current.gems = Math.max(0, (gsRef.current.gems || 0) + delta);
+                setGs({ ...gsRef.current });
+              }}
+              onBuyPerk={handleBuyGemPerk}
+              onUpdateState={handleUpdateState}
+              onTriggerEvent={(evtId) => {
+                triggerSpecificEvent(evtId);
+              }}
+              initialSubTab={initialCasinoSubTab}
+            />
           )}
 
           {/* TAB 3: BÖRSE 2.0 */}
@@ -1174,86 +1395,96 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
           })()}
 
           {/* TAB 4: HIMMELS-AUFSTIEG (ASTRAL PRESTIGE SHRINE) */}
-          {tab === 'prestige' && (
-            <div className="heavenly-shrine">
-              <div className="heavenly-header-box">
-                <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.75rem', color: '#70b4ff', letterSpacing: '1px' }}>
-                  ASTRALSCHREIN & HIMMELSKRÄFTE
-                </div>
-                <div className="heavenly-chips-available">
-                  {availableChips} CHIPS VERFÜGBAR
-                </div>
-                <div style={{ fontSize: '0.74rem', color: '#bbb', marginBottom: '16px', lineHeight: 1.5 }}>
-                  Insgesamt verdient: <strong>{gs.heavenlyChips || 0} Chips</strong> (+{gs.heavenlyChips || 0}% dauerhafter CPS-Bonus).<br />
-                  Aufstiege: <strong>{gs.ascensionCount || 0}</strong> | Nächster Aufstieg bringt: <strong>+{nextAscendReward} Chips</strong>
+          {tab === 'prestige' && (() => {
+            const currentBonusPct = ((gs.ascensionCount || 0) * 10) + ((gs.heavenlyChips || 0) * 2);
+            const actualNextReward = Math.max(1, nextAscendReward);
+            const canAscend = (gs.totalCookies || 0) >= 5000 || nextAscendReward > 0;
+
+            return (
+              <div className="heavenly-shrine">
+                <div className="heavenly-header-box">
+                  <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.75rem', color: '#70b4ff', letterSpacing: '1px' }}>
+                    🌌 ASTRAL-PRESTIGE & WIEDERGEBURT
+                  </div>
+                  <div className="heavenly-chips-available" style={{ color: '#39ff14', textShadow: '0 0 14px rgba(57,255,20,0.6)' }}>
+                    +{currentBonusPct}% DAUERHAFTER PRODUKTIONS-BONUS
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#bbb', marginBottom: '16px', lineHeight: 1.6 }}>
+                    Aufstiegs-Stufe: <strong style={{ color: '#00e5ff' }}>Level {gs.ascensionCount || 0}</strong> (+{ (gs.ascensionCount || 0) * 10 }% CPS & Klickstärke)<br />
+                    Himmlische Chips: <strong style={{ color: '#ffd700' }}>{gs.heavenlyChips || 0} Chips</strong> (+{ (gs.heavenlyChips || 0) * 2 }% Bonus & {availableChips} verfügbar für Skills)<br />
+                    Nächster Aufstieg bringt: <strong style={{ color: '#39ff14' }}>+1 Stufe & +{actualNextReward} Chips (+{10 + actualNextReward * 2}% MEHR POWER!)</strong>
+                  </div>
+
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      if (!canAscend) {
+                        alert('Du benötigst mindestens 5.000 gebackene Cookies insgesamt für deinen ersten Himmels-Aufstieg!');
+                      } else {
+                        setAscendModalOpen(true);
+                      }
+                    }}
+                    style={{
+                      background: canAscend ? 'linear-gradient(135deg, #0077b6, #70b4ff)' : '#222',
+                      borderColor: canAscend ? '#70b4ff' : '#444',
+                      color: canAscend ? '#fff' : '#666',
+                      fontSize: '0.62rem',
+                      padding: '12px 24px',
+                      boxShadow: canAscend ? '0 0 20px rgba(112, 180, 255, 0.4)' : 'none',
+                    }}
+                  >
+                    {canAscend
+                      ? `JETZT AUFSTEIGEN (+1 STUFE & +${actualNextReward} CHIPS)`
+                      : 'BENÖTIGT 5.000 COOKIES FÜR ERSTEN AUFSTIEG'}
+                  </button>
                 </div>
 
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    if (nextAscendReward <= 0) {
-                      alert('Du benötigst mindestens 1.000.000 gebackene Cookies für deinen nächsten Himmels-Chip!');
-                    } else {
-                      setAscendModalOpen(true);
-                    }
-                  }}
-                  style={{
-                    background: nextAscendReward > 0 ? 'linear-gradient(135deg, #0077b6, #70b4ff)' : '#222',
-                    borderColor: nextAscendReward > 0 ? '#70b4ff' : '#444',
-                    color: nextAscendReward > 0 ? '#fff' : '#666',
-                    fontSize: '0.62rem',
-                    padding: '12px 24px',
-                  }}
-                >
-                  {nextAscendReward > 0 ? `JETZT AUFSTEIGEN (+${nextAscendReward} CHIPS)` : 'NICHT GENUG COOKIES FÜR AUFSTIEG'}
-                </button>
-              </div>
+                <h3 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.72rem', color: '#fff', textAlign: 'left', marginTop: '24px' }}>
+                  HIMMLISCHE UPGRADES (DAUERHAFTE SKILLS)
+                </h3>
 
-              <h3 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.72rem', color: '#fff', textAlign: 'left', marginTop: '24px' }}>
-                HIMMLISCHE UPGRADES (DAUERHAFTE SKILLS)
-              </h3>
-
-              <div className="heavenly-grid">
-                {HEAVENLY_UPGRADES.map(u => {
-                  const owned = gs.heavenlyUpgrades?.includes(u.id);
-                  const canAfford = availableChips >= u.cost;
-                  return (
-                    <div key={u.id} className={`heavenly-card ${owned ? 'owned' : ''} ${!canAfford && !owned ? 'locked' : ''}`}>
-                      <div className="heavenly-card-header">
-                        <span className="heavenly-icon">{u.icon}</span>
+                <div className="heavenly-grid">
+                  {HEAVENLY_UPGRADES.map(u => {
+                    const owned = gs.heavenlyUpgrades?.includes(u.id);
+                    const canAfford = availableChips >= u.cost;
+                    return (
+                      <div key={u.id} className={`heavenly-card ${owned ? 'owned' : ''} ${!canAfford && !owned ? 'locked' : ''}`}>
+                        <div className="heavenly-card-header">
+                          <span className="heavenly-icon">{u.icon}</span>
+                          <div>
+                            <div className="heavenly-title">{u.name}</div>
+                            <div className="heavenly-cost">{owned ? 'ERWORBEN' : `${u.cost} CHIPS`}</div>
+                          </div>
+                        </div>
+                        <div className="heavenly-desc">{u.desc}</div>
                         <div>
-                          <div className="heavenly-title">{u.name}</div>
-                          <div className="heavenly-cost">{owned ? 'ERWORBEN' : `${u.cost} CHIPS`}</div>
+                          {owned ? (
+                            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: '#ffd700' }}>
+                              ✓ FREIGESCHALTET
+                            </span>
+                          ) : (
+                            <button
+                              className="btn btn-primary"
+                              disabled={!canAfford}
+                              onClick={() => buyHeavenlyUpgrade(u)}
+                              style={{
+                                fontSize: '0.48rem',
+                                padding: '6px 12px',
+                                minHeight: '32px',
+                                background: canAfford ? 'linear-gradient(135deg, #0077b6, #70b4ff)' : '#222',
+                              }}
+                            >
+                              KAUFEN ({u.cost} CHIPS)
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="heavenly-desc">{u.desc}</div>
-                      <div>
-                        {owned ? (
-                          <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: '#ffd700' }}>
-                            ✓ FREIGESCHALTET
-                          </span>
-                        ) : (
-                          <button
-                            className="btn btn-primary"
-                            disabled={!canAfford}
-                            onClick={() => buyHeavenlyUpgrade(u)}
-                            style={{
-                              fontSize: '0.48rem',
-                              padding: '6px 12px',
-                              minHeight: '32px',
-                              background: canAfford ? 'linear-gradient(135deg, #0077b6, #70b4ff)' : '#222',
-                            }}
-                          >
-                            KAUFEN ({u.cost} CHIPS)
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 5: SKINS */}
           {tab === 'skins' && (
@@ -1360,38 +1591,50 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       )}
 
       {/* Aufstiegs-Bestätigungs-Modal */}
-      {ascendModalOpen && (
-        <div className="overlay-backdrop" role="dialog" aria-modal="true">
-          <div className="overlay-panel" style={{ maxWidth: '520px', borderColor: '#70b4ff', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🌌</div>
-            <h2 className="overlay-title" style={{ color: '#70b4ff', fontSize: '0.9rem', marginBottom: '14px' }}>
-              BEREIT FÜR DEN HIMMELS-AUFSTIEG?
-            </h2>
-            <p style={{ color: '#ddd', fontSize: '0.8rem', lineHeight: 1.6, marginBottom: '20px' }}>
-              Deine irdischen Gebäude und Klicks werden im kosmischen Ofen neu geschmiedet.<br />
-              Du erhältst sofort <strong style={{ color: '#ffd700' }}>+{nextAscendReward} Himmlische Chips</strong>.<br /><br />
-              <span style={{ color: '#90be6d' }}>
-                Alle freigeschalteten Skins, Achievements und Himmlischen Upgrades bleiben dauerhaft erhalten!
-              </span>
-            </p>
-            <div className="overlay-btn-row">
-              <button
-                className="btn btn-primary"
-                onClick={executeAscension}
-                style={{ flex: 1, background: 'linear-gradient(135deg, #0077b6, #70b4ff)', borderColor: '#70b4ff' }}
-              >
-                AUFSTEIGEN
-              </button>
-              <button
-                className="btn btn-outline"
-                onClick={() => setAscendModalOpen(false)}
-              >
-                ABBRECHEN
-              </button>
+      {ascendModalOpen && (() => {
+        const actualReward = Math.max(1, nextAscendReward);
+        const nextBonusPct = (((gs.ascensionCount || 0) + 1) * 10) + (((gs.heavenlyChips || 0) + actualReward) * 2);
+
+        return (
+          <div className="overlay-backdrop" role="dialog" aria-modal="true">
+            <div className="overlay-panel" style={{ maxWidth: '520px', borderColor: '#70b4ff', textAlign: 'center' }}>
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>🌌</div>
+              <h2 className="overlay-title" style={{ color: '#70b4ff', fontSize: '0.9rem', marginBottom: '14px' }}>
+                BEREIT FÜR DIE WIEDERGEBURT?
+              </h2>
+              <p style={{ color: '#ddd', fontSize: '0.8rem', lineHeight: 1.6, marginBottom: '20px' }}>
+                Deine irdischen Cookies, Gebäude und normalen Upgrades werden zurückgesetzt.<br />
+                <strong style={{ color: '#39ff14', fontSize: '0.88rem' }}>
+                  ABER DU ERHÄLTST EINEN RIESIGEN DAUERHAFTEN BOOST:
+                </strong><br />
+                🏆 <strong>+1 Aufstiegs-Stufe</strong> (+10% permanenter Bonus!)<br />
+                ✨ <strong style={{ color: '#ffd700' }}>+{actualReward} Himmlische Chips</strong> (+{actualReward * 2}% permanenter Bonus!)<br />
+                <span style={{ color: '#00e5ff', fontWeight: 'bold' }}>
+                  Neuer dauerhafter Gesamtbonus: +{nextBonusPct}% auf ALLE Klicks & Gebäude!
+                </span><br /><br />
+                <span style={{ color: '#90be6d', fontSize: '0.72rem' }}>
+                  💎 Diamanten, Skins, Achievements und Himmlische Upgrades bleiben dauerhaft erhalten!
+                </span>
+              </p>
+              <div className="overlay-btn-row">
+                <button
+                  className="btn btn-primary"
+                  onClick={executeAscension}
+                  style={{ flex: 1, background: 'linear-gradient(135deg, #0077b6, #70b4ff)', borderColor: '#70b4ff' }}
+                >
+                  JETZT AUFSTEIGEN (+{10 + actualReward * 2}%)
+                </button>
+                <button
+                  className="btn btn-outline"
+                  onClick={() => setAscendModalOpen(false)}
+                >
+                  ABBRECHEN
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Toasts */}
       <div className="toast-container">

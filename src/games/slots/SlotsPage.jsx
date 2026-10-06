@@ -14,14 +14,25 @@ import {
 } from '../../lib/casinoAudio.js';
 
 const SYMBOLS = [
-  { id: 'jackpot', emoji: '🍪', name: 'JACKPOT', weight: 1, payout: 500 },
-  { id: 'star', emoji: '⭐', name: 'STERN (BONUS)', weight: 2, payout: 150 },
-  { id: 'gold', emoji: '🏆', name: 'TROPHAE', weight: 3, payout: 75 },
-  { id: 'seven', emoji: '7️⃣', name: 'SIEBEN', weight: 5, payout: 40 },
-  { id: 'cherry', emoji: '🍒', name: 'KIRSCHE', weight: 8, payout: 15 },
-  { id: 'lemon', emoji: '🍋', name: 'ZITRONE', weight: 10, payout: 8 },
-  { id: 'melon', emoji: '🍈', name: 'MELONE', weight: 12, payout: 5 },
-  { id: 'bar', emoji: '📊', name: 'BAR', weight: 15, payout: 3 },
+  { id: 'jackpot', emoji: '🍪', name: 'JACKPOT', weight: 2, payout: 250 },
+  { id: 'star', emoji: '⭐', name: 'BONUS STERN', weight: 4, payout: 100, isScatter: true },
+  { id: 'wild', emoji: '🃏', name: 'WILD JOKER', weight: 6, payout: 80, isWild: true },
+  { id: 'gold', emoji: '🏆', name: 'TROPHÄE', weight: 7, payout: 40 },
+  { id: 'seven', emoji: '7️⃣', name: 'GLÜCKS-7', weight: 9, payout: 25 },
+  { id: 'cherry', emoji: '🍒', name: 'KIRSCHE', weight: 14, payout: 15 },
+  { id: 'lemon', emoji: '🍋', name: 'ZITRONE', weight: 16, payout: 10 },
+  { id: 'melon', emoji: '🍈', name: 'MELONE', weight: 18, payout: 7 },
+  { id: 'bar', emoji: '📊', name: 'BAR', weight: 20, payout: 5 },
+];
+
+const PAYLINES = [
+  { id: 0, name: 'Obere Reihe', coords: [[0,0], [1,0], [2,0]] },
+  { id: 1, name: 'Mittlere Reihe', coords: [[0,1], [1,1], [2,1]] },
+  { id: 2, name: 'Untere Reihe', coords: [[0,2], [1,2], [2,2]] },
+  { id: 3, name: 'Diagonale Runter', coords: [[0,0], [1,1], [2,2]] },
+  { id: 4, name: 'Diagonale Hoch', coords: [[0,2], [1,1], [2,0]] },
+  { id: 5, name: 'V-Form', coords: [[0,0], [1,1], [2,0]] },
+  { id: 6, name: 'Dach-Form', coords: [[0,2], [1,1], [2,2]] },
 ];
 
 const WEIGHTED_POOL = SYMBOLS.flatMap(s => Array(s.weight).fill(s));
@@ -29,22 +40,95 @@ function pickSymbol() { return WEIGHTED_POOL[Math.floor(Math.random() * WEIGHTED
 function pickReel() { return Array.from({ length: 3 }, pickSymbol); }
 
 function checkWin(reels) {
-  const lines = [
-    [reels[0][0], reels[1][0], reels[2][0]], // Top horizontal
-    [reels[0][1], reels[1][1], reels[2][1]], // Middle horizontal
-    [reels[0][2], reels[1][2], reels[2][2]], // Bottom horizontal
-    [reels[0][0], reels[1][1], reels[2][2]], // Diagonal top-left to bottom-right
-    [reels[0][2], reels[1][1], reels[2][0]], // Diagonal bottom-left to top-right
-  ];
   let total = 0;
   const wonLines = [];
-  lines.forEach((line, idx) => {
-    if (line[0].id === line[1].id && line[1].id === line[2].id) {
-      wonLines.push({ lineIdx: idx, symbol: line[0], payout: line[0].payout });
-      total += line[0].payout;
+  const winningCells = new Set();
+
+  // 1. 7 Gewinnlinien prüfen (mit Wild-Joker & 2er-Treffern)
+  PAYLINES.forEach((line) => {
+    const [c0, c1, c2] = line.coords;
+    const s0 = reels[c0[0]][c0[1]];
+    const s1 = reels[c1[0]][c1[1]];
+    const s2 = reels[c2[0]][c2[1]];
+
+    // 3-of-a-kind (unter Berücksichtigung von Wilds)
+    const nonWilds3 = [s0, s1, s2].filter(s => !s.isWild);
+    const is3Match = nonWilds3.length === 0 || nonWilds3.every(s => s.id === nonWilds3[0].id);
+
+    if (is3Match) {
+      const targetSymbol = nonWilds3[0] || s0;
+      const payout = targetSymbol.payout;
+      total += payout;
+      wonLines.push({
+        lineIdx: line.id,
+        name: line.name,
+        type: '3-match',
+        symbol: targetSymbol,
+        payout,
+        coords: line.coords,
+      });
+      line.coords.forEach(([c, r]) => winningCells.add(`${c}-${r}`));
+      return;
+    }
+
+    // 2-of-a-kind von links nach rechts (Trefferquote massiv erhöht!)
+    const nonWilds2 = [s0, s1].filter(s => !s.isWild);
+    const is2Match = nonWilds2.length === 0 || nonWilds2.length === 1 || s0.id === s1.id;
+
+    if (is2Match) {
+      const targetSymbol = nonWilds2[0] || s0;
+      const payout = Math.max(1.5, Math.round(targetSymbol.payout * 0.3));
+      total += payout;
+      wonLines.push({
+        lineIdx: line.id,
+        name: line.name,
+        type: '2-match',
+        symbol: targetSymbol,
+        payout,
+        coords: [c0, c1],
+      });
+      winningCells.add(`${c0[0]}-${c0[1]}`);
+      winningCells.add(`${c1[0]}-${c1[1]}`);
     }
   });
-  return { total, wonLines };
+
+  // 2. Scatter Sterne (⭐) überall auf dem 3x3 Raster
+  let starCount = 0;
+  const starCoords = [];
+  for (let c = 0; c < 3; c++) {
+    for (let r = 0; r < 3; r++) {
+      if (reels[c][r].id === 'star') {
+        starCount++;
+        starCoords.push([c, r]);
+      }
+    }
+  }
+
+  let scatterFreeSpins = 0;
+  let scatterPayout = 0;
+  if (starCount >= 2) {
+    starCoords.forEach(([c, r]) => winningCells.add(`${c}-${r}`));
+    if (starCount === 2) {
+      scatterFreeSpins = 5;
+      scatterPayout = 5;
+    } else if (starCount === 3) {
+      scatterFreeSpins = 12;
+      scatterPayout = 20;
+    } else {
+      scatterFreeSpins = 25;
+      scatterPayout = 50;
+    }
+    total += scatterPayout;
+  }
+
+  return {
+    total,
+    wonLines,
+    winningCells,
+    starCount,
+    scatterFreeSpins,
+    scatterPayout,
+  };
 }
 
 const CURRENCIES = {
@@ -83,7 +167,7 @@ const CURRENCIES = {
   },
 };
 
-function Reel({ symbols, spinning, spinDelay, finalSymbols, isAnticipating }) {
+function Reel({ reelIndex, symbols, spinning, spinDelay, finalSymbols, isAnticipating, winningCells }) {
   const [displayed, setDisplayed] = useState(symbols);
   const [blur, setBlur] = useState(false);
   const iRef = useRef(null);
@@ -110,11 +194,93 @@ function Reel({ symbols, spinning, spinDelay, finalSymbols, isAnticipating }) {
         transition: 'filter 0.15s, border-color 0.2s',
       }}
     >
-      {displayed.map((sym, i) => (
-        <div key={i} className="slot-cell">
-          <span className="slot-symbol">{sym.emoji}</span>
+      {displayed.map((sym, i) => {
+        const isWin = !spinning && winningCells?.has(`${reelIndex}-${i}`);
+        return (
+          <div
+            key={i}
+            className={`slot-cell ${isWin ? 'win-cell' : ''}`}
+          >
+            <span
+              className="slot-symbol"
+              style={isWin ? {
+                textShadow: '0 0 16px #ffd700, 0 0 24px #ff9e00',
+                transform: 'scale(1.15)',
+                display: 'inline-block',
+                transition: 'transform 0.2s',
+              } : {}}
+            >
+              {sym.emoji}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// 🏆 Big Win & Jackpot Celebration Overlay
+function BigWinModal({ type, won, currency, onClose }) {
+  const curr = CURRENCIES[currency] || CURRENCIES.cookies;
+  const isJackpot = type === 'jackpot';
+  const isMega = type === 'mega' || isJackpot;
+
+  return (
+    <div className="overlay-backdrop" style={{ zIndex: 9999, background: 'rgba(0,0,0,0.85)' }} role="dialog" aria-modal="true" onClick={onClose}>
+      <div
+        className="overlay-panel"
+        style={{
+          maxWidth: '460px',
+          textAlign: 'center',
+          border: `3px solid ${isJackpot ? '#ffd700' : isMega ? '#ff007f' : '#00e5ff'}`,
+          boxShadow: `0 0 50px ${isJackpot ? 'rgba(255,215,0,0.8)' : isMega ? 'rgba(255,0,127,0.8)' : 'rgba(0,229,255,0.8)'}`,
+          background: 'linear-gradient(180deg, #1f1000 0%, #0a0800 100%)',
+          animation: 'jackpotPulse 0.5s ease-in-out infinite alternate',
+          padding: '30px 20px',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: '3.5rem', marginBottom: '8px' }}>
+          {isJackpot ? '🚨 🍪 🚨' : isMega ? '💥 🏆 💥' : '✨ 🌟 ✨'}
         </div>
-      ))}
+        <h2 style={{
+          fontFamily: 'var(--font-pixel)',
+          fontSize: '1.1rem',
+          color: isJackpot ? '#ffd700' : isMega ? '#ff3b81' : '#00f2fe',
+          textShadow: '0 0 20px currentColor',
+          marginBottom: '10px',
+          letterSpacing: '2px',
+        }}>
+          {isJackpot ? 'MEGA PROGRESSIVER JACKPOT!' : isMega ? 'ULTRA MEGA GEWINN!' : 'GROSSER GEWINN!'}
+        </h2>
+        <div style={{
+          fontFamily: 'var(--font-pixel)',
+          fontSize: '1.4rem',
+          color: '#39ff14',
+          textShadow: '0 0 24px rgba(57,255,20,0.8)',
+          margin: '20px 0',
+          fontWeight: 'bold',
+        }}>
+          +{curr.format(won)} {curr.icon}
+        </div>
+        <p style={{ fontSize: '0.72rem', color: '#ccc', marginBottom: '24px' }}>
+          Wahnsinn! Die Keks-Walzen haben geglüht!
+        </p>
+        <button
+          className="btn btn-primary"
+          style={{
+            fontSize: '0.65rem',
+            padding: '12px 24px',
+            background: 'linear-gradient(135deg, #ffd700, #ff8c00)',
+            color: '#000',
+            fontWeight: 'bold',
+            boxShadow: '0 0 25px rgba(255,215,0,0.8)',
+          }}
+          onClick={onClose}
+        >
+          💰 KASSIEREN & WEITERDREHEN!
+        </button>
+      </div>
     </div>
   );
 }
@@ -231,7 +397,7 @@ function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
   );
 }
 
-export default function SlotsPage() {
+export default function SlotsPage({ embedded = false }) {
   const playerName = getActivePlayerName();
   const [activeCurrency, setActiveCurrency] = useState('cookies');
   const [playerState, setPlayerState] = useState(null);
@@ -259,6 +425,8 @@ export default function SlotsPage() {
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [screenShake, setScreenShake] = useState(false);
   const [anticipating, setAnticipating] = useState(false);
+  const [winningCells, setWinningCells] = useState(new Set());
+  const [bigWinOverlay, setBigWinOverlay] = useState(null);
 
   const clickerRef = useRef(null);
   const spinningRef = useRef(false);
@@ -311,6 +479,9 @@ export default function SlotsPage() {
   // Live Sync empfangen
   useEffect(() => {
     function onCookiesSynced(e) {
+      if (e?.detail?.playerName && playerName && e.detail.playerName.toLowerCase() !== playerName.toLowerCase()) {
+        return;
+      }
       if (e?.detail && !spinningRef.current) {
         setPlayerState(prev => {
           if (!prev) return prev;
@@ -339,8 +510,8 @@ export default function SlotsPage() {
     setIsGambleOpen(false);
   }
 
-  // Multiplier from hot streak
-  const streakMult = streak >= 5 ? 5.0 : streak >= 4 ? 3.0 : streak >= 3 ? 2.0 : streak >= 2 ? 1.5 : 1.0;
+  // Multiplier from hot streak (Bis zu 7x!)
+  const streakMult = streak >= 5 ? 7.0 : streak >= 4 ? 4.0 : streak >= 3 ? 2.5 : streak >= 2 ? 1.5 : 1.0;
 
   const triggerShake = () => {
     setScreenShake(true);
@@ -364,6 +535,7 @@ export default function SlotsPage() {
     setAnticipating(false);
     setGambleAmount(null);
     setIsGambleOpen(false);
+    setWinningCells(new Set());
 
     let nextBal = bal;
     if (!isFree) {
@@ -384,10 +556,12 @@ export default function SlotsPage() {
 
     const newReels = [pickReel(), pickReel(), pickReel()];
 
-    // Anticipation check: Wenn Walze 1 und 2 Jackpot- oder Stern-Symbole haben
-    const r1Jackpots = newReels[0].filter(s => s.id === 'jackpot' || s.id === 'star').length;
-    const r2Jackpots = newReels[1].filter(s => s.id === 'jackpot' || s.id === 'star').length;
-    const willAnticipate = r1Jackpots > 0 && r2Jackpots > 0;
+    // Anticipation check: Wenn Walze 1 und 2 zwei Jackpots, Sterne oder Wilds haben, oder zwei übereinstimmende Symbole
+    const willAnticipate = PAYLINES.some(line => {
+      const s0 = newReels[0][line.coords[0][1]];
+      const s1 = newReels[1][line.coords[1][1]];
+      return (s0.id === s1.id || s0.isWild || s1.isWild) && (['jackpot', 'star', 'wild', 'gold', 'seven'].includes(s0.id) || ['jackpot', 'star', 'wild', 'gold', 'seven'].includes(s1.id));
+    });
 
     if (willAnticipate) {
       setTimeout(() => {
@@ -409,31 +583,52 @@ export default function SlotsPage() {
       setReels(newReels);
 
       const win = checkWin(newReels);
+      setWinningCells(win.winningCells);
       let won = win.total * b;
 
-      // Free Spins Bonus Multiplier (2x)
-      if (isFree) won *= 2;
+      // Free Spins Bonus Multiplier (3x Auszahlung für maximalen Thrill!)
+      if (isFree) won *= 3;
 
       // Hot Streak Multiplier
       won = Math.floor(won * streakMult);
 
+      // VIP Glücksklee (+5% Casino-Gewinn)
+      const hasLuckyCharm = Boolean(clickerRef.current?.vipLuckyCharm);
+      if (won > 0 && hasLuckyCharm) {
+        won = Math.floor(won * 1.05);
+      }
+
       // Progressive Jackpot (3x 🍪 auf mittlerer Gewinnlinie)
       const currentJackpot = jackpotPools[activeCurrency] || curr.jackpotDefault;
-      const hitJackpot = win.wonLines.some(l => l.lineIdx === 1 && l.symbol.id === 'jackpot');
+      const hitJackpot = win.wonLines.some(l => l.lineIdx === 1 && l.symbol.id === 'jackpot' && l.type === '3-match');
       if (hitJackpot) {
         won += currentJackpot;
         setJackpotPools(p => ({ ...p, [activeCurrency]: curr.jackpotDefault }));
         try { localStorage.setItem(`arcade_slot_jackpot_${activeCurrency}`, String(curr.jackpotDefault)); } catch {}
       }
 
-      // Free Spins trigger (3x ⭐ irgendwo)
-      const hitFreeSpins = win.wonLines.some(l => l.symbol.id === 'star');
-      if (hitFreeSpins) {
-        setFreeSpins(fs => fs + 10);
+      // Scatter Free Spins trigger (2+ ⭐)
+      if (win.scatterFreeSpins > 0) {
+        setFreeSpins(fs => fs + win.scatterFreeSpins);
       }
 
-      const finalBal = nextBal + won;
-      const nextUpdated = { ...clickerRef.current, [activeCurrency]: finalBal, lastSaved: Date.now() };
+      let finalBal = nextBal + won;
+      let insuranceRefund = 0;
+      let insuranceLeft = clickerRef.current?.casinoInsuranceCharges || 0;
+
+      // Casino Verlust-Versicherung bei Verlust (25%, max 50.000)
+      if (won === 0 && !isFree && insuranceLeft > 0) {
+        insuranceRefund = Math.min(50000, Math.floor(b * 0.25));
+        finalBal += insuranceRefund;
+        insuranceLeft -= 1;
+      }
+
+      const nextUpdated = {
+        ...clickerRef.current,
+        [activeCurrency]: finalBal,
+        casinoInsuranceCharges: insuranceLeft,
+        lastSaved: Date.now(),
+      };
       if (activeCurrency === 'cookies') {
         nextUpdated.totalCookies = Math.max(nextUpdated.totalCookies || 0, finalBal);
       }
@@ -463,17 +658,25 @@ export default function SlotsPage() {
           triggerShake();
           playJackpotSirens();
           setMessage({ text: `🚨 MEGA PROGRESSIVER JACKPOT!! +${curr.format(won)} ${curr.icon}! 🚨`, type: 'jackpot' });
-        } else if (win.total >= 75 || won >= b * 30) {
+          setBigWinOverlay({ type: 'jackpot', won });
+        } else if (won >= b * 25 || win.total >= 40) {
           triggerShake();
           playBigWinSound();
-          setMessage({ text: `🏆 MEGA WIN! +${curr.format(won)} ${curr.icon}!`, type: 'big' });
+          setMessage({ text: `🏆 MEGA WIN! +${curr.format(won)} ${curr.icon}!${hasLuckyCharm ? ' (🍀 VIP +5%)' : ''}`, type: 'big' });
+          setBigWinOverlay({ type: 'mega', won });
+        } else if (won >= b * 10) {
+          triggerShake();
+          playBigWinSound();
+          setMessage({ text: `🌟 BIG WIN! +${curr.format(won)} ${curr.icon}!${hasLuckyCharm ? ' (🍀 VIP +5%)' : ''}`, type: 'big' });
+          setBigWinOverlay({ type: 'big', won });
         } else {
           playWinChime();
-          setMessage({ text: `GEWINN! +${curr.format(won)} ${curr.icon}${streakMult > 1 ? ` (x${streakMult} STREAK!)` : ''}`, type: 'win' });
+          const lineText = win.wonLines.length > 1 ? ` (${win.wonLines.length} LINIEN-COMBO!)` : '';
+          setMessage({ text: `🎉 GEWINN! +${curr.format(won)} ${curr.icon}${lineText}${streakMult > 1 ? ` (x${streakMult} STREAK!)` : ''}${hasLuckyCharm ? ' (🍀 VIP +5%)' : ''}`, type: 'win' });
         }
 
-        if (hitFreeSpins) {
-          setMessage(m => ({ ...m, text: (m?.text || '') + ' 🌟 +10 FREISPIELE!' }));
+        if (win.scatterFreeSpins > 0) {
+          setMessage(m => ({ ...m, text: (m?.text || '') + ` 🌟 +${win.scatterFreeSpins} FREISPIELE!` }));
         }
 
         // Enable gamble opportunity if not in autoplay
@@ -482,7 +685,11 @@ export default function SlotsPage() {
         }
       } else {
         setStreak(0);
-        setMessage({ text: `-${curr.format(b)} ${curr.icon} — Kein Treffer`, type: 'loss' });
+        if (insuranceRefund > 0) {
+          setMessage({ text: `-${curr.format(b)} ${curr.icon} (🛡️ VERSICHERUNG: +${curr.format(insuranceRefund)} erstattet! Noch ${insuranceLeft}x Ladungen)`, type: 'loss' });
+        } else {
+          setMessage({ text: `-${curr.format(b)} ${curr.icon} — Kein Treffer`, type: 'loss' });
+        }
         setGambleAmount(null);
       }
     }, spinDuration);
@@ -565,7 +772,7 @@ export default function SlotsPage() {
   const currentJackpot = jackpotPools[activeCurrency] || curr.jackpotDefault;
 
   return (
-    <div className={`page-content slots-page ${screenShake ? 'screen-shake' : ''}`}>
+    <div className={`page-content slots-page ${screenShake ? 'screen-shake' : ''} ${embedded ? 'embedded-game' : ''}`} style={embedded ? { padding: '8px 0', maxWidth: '100%', minHeight: 'auto' } : {}}>
       {/* Progressive Jackpot Ticker */}
       <div className="slot-jackpot-banner">
         <span className="jackpot-flame">🔥</span>
@@ -612,7 +819,7 @@ export default function SlotsPage() {
           )}
           {freeSpins > 0 && (
             <div className="slots-freespin-badge">
-              🌟 {freeSpins} FREISPIELE AKTIV &bull; 2X AUSZAHLUNG!
+              🌟 {freeSpins} FREISPIELE AKTIV &bull; 3X AUSZAHLUNG!
             </div>
           )}
         </div>
@@ -634,11 +841,13 @@ export default function SlotsPage() {
           {reels.map((reel, i) => (
             <Reel
               key={i}
+              reelIndex={i}
               symbols={reel}
               spinning={spinning}
               spinDelay={turbo ? i * 80 : i * 160}
               finalSymbols={spinning ? null : reel}
               isAnticipating={anticipating && i === 2}
+              winningCells={winningCells}
             />
           ))}
           <div className="slot-payline" />
@@ -813,24 +1022,34 @@ export default function SlotsPage() {
         onExchange={persistPlayerState}
       />
 
+      {/* Big Win & Jackpot Celebration Overlay */}
+      {bigWinOverlay && (
+        <BigWinModal
+          type={bigWinOverlay.type}
+          won={bigWinOverlay.won}
+          currency={activeCurrency}
+          onClose={() => setBigWinOverlay(null)}
+        />
+      )}
+
       {/* Auszahlungstabelle */}
       <div className="slots-paytable">
         <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.5rem', color: 'var(--accent)', marginBottom: 12 }}>
-          AUSZAHLUNGSTABELLE (x EINSATZ) &bull; AUSZAHLUNG IN {curr.name}
+          AUSZAHLUNGSTABELLE &bull; 7 GEWINNLINIEN + 2ER-TREFFER &bull; WILD JOKER &bull; FREISPIELE (3X)
         </div>
         <div className="slots-paytable-grid">
           {SYMBOLS.map(s => (
             <div key={s.id} className="paytable-row">
               <span className="paytable-sym">{s.emoji}{s.emoji}{s.emoji}</span>
               <span className="paytable-name">{s.name}</span>
-              <span className="paytable-mult" style={{ color: s.payout >= 100 ? '#ffd700' : s.payout >= 40 ? '#90be6d' : 'var(--text)' }}>
-                x{s.payout}
+              <span className="paytable-mult" style={{ color: s.payout >= 80 ? '#ffd700' : s.payout >= 25 ? '#90be6d' : 'var(--text)' }}>
+                3x: x{s.payout} | 2x: x{Math.max(1.5, Math.round(s.payout * 0.3))}
               </span>
             </div>
           ))}
         </div>
         <div style={{ fontSize: '0.48rem', color: 'var(--muted)', marginTop: 10 }}>
-          5 GEWINNLINIEN &bull; 3x ⭐ = 10 FREISPIELE &bull; 3x 🍪 = PROGRESSIVER JACKPOT!
+          🃏 WILD JOKER ersetzt alle Symbole &bull; 2+ ⭐ = 5–25 FREISPIELE (3X BOOST) &bull; 3x 🍪 = PROGRESSIVER JACKPOT!
         </div>
       </div>
 

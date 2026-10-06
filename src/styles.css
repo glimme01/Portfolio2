@@ -1780,6 +1780,19 @@ h1, h2, h3 {
 .slot-cell:last-child { border-bottom: none; }
 .slot-symbol { font-size: 2.2rem; line-height: 1; }
 
+.slot-cell.win-cell {
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.35) 0%, rgba(30, 20, 0, 0.8) 100%) !important;
+  border: 2px solid #ffd700 !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.9), inset 0 0 12px rgba(255, 215, 0, 0.6) !important;
+  animation: winCellPulse 0.4s ease-in-out infinite alternate;
+  z-index: 5;
+}
+
+@keyframes winCellPulse {
+  from { transform: scale(1); filter: brightness(1); }
+  to { transform: scale(1.06); filter: brightness(1.3); }
+}
+
 .slot-payline { position: absolute; left: 0; right: 0; top: calc(50% - 1px); height: 3px; background: rgba(255,215,0,0.6); box-shadow: 0 0 8px rgba(255,215,0,0.8); pointer-events: none; }
 
 .slot-result-msg { font-family: var(--font-pixel); font-size: 0.55rem; text-align: center; min-height: 24px; margin-bottom: 16px; color: var(--muted); transition: color 0.3s; }
@@ -1840,6 +1853,12 @@ h1, h2, h3 {
 .bj-current-bet { position: absolute; top: 12px; right: 16px; font-family: var(--font-pixel); font-size: 0.42rem; color: var(--accent); background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); }
 .bj-rules { background: var(--card); border: 1px solid #2a2a2a; border-radius: 14px; padding: 16px; margin-bottom: 20px; }
 .bj-rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.7rem; color: var(--muted); }
+
+.bj-split-container { display: flex; gap: 14px; margin-bottom: 20px; width: 100%; flex-wrap: wrap; }
+.bj-split-hand-box { flex: 1; min-width: 220px; background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 12px; transition: all 0.25s ease; position: relative; }
+.bj-split-hand-box.active { border-color: var(--accent); box-shadow: 0 0 18px rgba(255,215,0,0.35); background: rgba(255,215,0,0.06); }
+.bj-split-hand-box.busted { border-color: var(--danger); opacity: 0.8; }
+.bj-split-badge { font-family: var(--font-pixel); font-size: 0.38rem; padding: 2px 6px; border-radius: 4px; background: rgba(255,215,0,0.2); color: var(--accent); }
 
 /* ============================================================
    STOCKS TERMINAL 2.0
@@ -2333,4 +2352,51 @@ h1, h2, h3 {
   background: rgba(255, 68, 68, 0.3);
   border-color: #ff4444;
 }
+
+/* ============================================================
+   EMBEDDED CASINO & VIP DIAMOND SHOP IN CLICKER
+   ============================================================ */
+.clicker-layout.casino-active {
+  max-width: 1260px;
+}
+
+.embedded-game {
+  padding: 4px 0 !important;
+  max-width: 100% !important;
+  min-height: auto !important;
+  box-shadow: none !important;
+}
+
+.embedded-game .slot-jackpot-banner {
+  margin-bottom: 12px;
+}
+
+.embedded-game .slots-header,
+.embedded-game .bj-header {
+  margin-bottom: 12px;
+}
+
+.embedded-game .slots-machine-frame {
+  margin: 0 auto 16px;
+}
+
+.embedded-game .bj-table {
+  margin-bottom: 16px;
+}
+
+.embedded-slots-wrap,
+.embedded-blackjack-wrap {
+  width: 100%;
+  animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes spinSlow {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+.diamonds-vip-shop {
+  animation: fadeIn 0.25s ease-out;
+}
+
 

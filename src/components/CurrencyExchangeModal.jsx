@@ -14,70 +14,48 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
 
   const OPTIONS = [
     {
-      id: 'cookies_to_gems',
-      name: '🍪 Cookies ➔ 💎 Diamanten',
-      rateText: '10.000 Cookies = 1 Diamant',
-      costUnit: 'Cookies',
-      costAmount: 10000,
-      gainUnit: 'Diamanten',
-      gainAmount: 1,
-      maxAfford: Math.floor(cookies / 10000),
-      currentBal: cookies,
-    },
-    {
       id: 'gems_to_cookies',
       name: '💎 Diamanten ➔ 🍪 Cookies',
-      rateText: '1 Diamant = 8.000 Cookies',
+      rateText: '1 Diamant = 25.000 Cookies',
       costUnit: 'Diamanten',
       costAmount: 1,
       gainUnit: 'Cookies',
-      gainAmount: 8000,
+      gainAmount: 25000,
       maxAfford: gems,
       currentBal: gems,
     },
     {
-      id: 'gems_to_chips',
-      name: '💎 Diamanten ➔ ✨ Himmels-Chips',
-      rateText: '10 Diamanten = 1 Himmels-Chip',
-      costUnit: 'Diamanten',
-      costAmount: 10,
-      gainUnit: 'Himmels-Chips',
+      id: 'cookies_to_gems',
+      name: '🍪 Cookies ➔ 💎 Diamanten (VIP)',
+      rateText: '1.000.000 Cookies = 1 Diamant (Max 3)',
+      costUnit: 'Cookies',
+      costAmount: 1000000,
+      gainUnit: 'Diamanten',
       gainAmount: 1,
-      maxAfford: Math.floor(gems / 10),
-      currentBal: gems,
+      maxAfford: Math.min(3, Math.floor(cookies / 1000000)),
+      currentBal: cookies,
     },
     {
       id: 'chips_to_gems',
       name: '✨ Himmels-Chips ➔ 💎 Diamanten',
-      rateText: '1 Himmels-Chip = 8 Diamanten',
+      rateText: '1 Himmels-Chip = 2 Diamanten',
       costUnit: 'Himmels-Chips',
       costAmount: 1,
       gainUnit: 'Diamanten',
-      gainAmount: 8,
+      gainAmount: 2,
       maxAfford: heavenlyChips,
       currentBal: heavenlyChips,
-    },
-    {
-      id: 'cookies_to_chips',
-      name: '🍪 Cookies ➔ ✨ Himmels-Chips',
-      rateText: '100.000 Cookies = 1 Himmels-Chip',
-      costUnit: 'Cookies',
-      costAmount: 100000,
-      gainUnit: 'Himmels-Chips',
-      gainAmount: 1,
-      maxAfford: Math.floor(cookies / 100000),
-      currentBal: cookies,
     },
   ];
 
   const currentOpt = OPTIONS.find(o => o.id === exchangeType) || OPTIONS[0];
   const totalCost = currentOpt.costAmount * amount;
   const totalGain = currentOpt.gainAmount * amount;
-  const canAfford = currentOpt.currentBal >= totalCost && amount > 0;
+  const canAfford = currentOpt.currentBal >= totalCost && amount > 0 && amount <= currentOpt.maxAfford;
 
   function handleExecute() {
     if (!canAfford) {
-      setStatusMsg('Nicht genügend Guthaben vorhanden!');
+      setStatusMsg('Nicht genügend Guthaben oder Limit überschritten!');
       return;
     }
 
@@ -89,15 +67,9 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
       nextState.gems -= totalCost;
       nextState.cookies += totalGain;
       nextState.totalCookies = Math.max(nextState.totalCookies || 0, nextState.cookies);
-    } else if (exchangeType === 'gems_to_chips') {
-      nextState.gems -= totalCost;
-      nextState.heavenlyChips = (nextState.heavenlyChips || 0) + totalGain;
     } else if (exchangeType === 'chips_to_gems') {
       nextState.heavenlyChips -= totalCost;
       nextState.gems = (nextState.gems || 0) + totalGain;
-    } else if (exchangeType === 'cookies_to_chips') {
-      nextState.cookies -= totalCost;
-      nextState.heavenlyChips = (nextState.heavenlyChips || 0) + totalGain;
     }
 
     onExchange(nextState);
