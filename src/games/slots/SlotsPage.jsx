@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { loadGameState, saveGameState } from '../../lib/save.js';
 import { getActivePlayerName } from '../../lib/auth.js';
 import { fmtCookies } from '../clicker/clickerLogic.js';
@@ -71,24 +72,30 @@ function checkWin(reels) {
       return;
     }
 
-    // 2-of-a-kind von links nach rechts (Trefferquote massiv erhöht!)
+    // 2-of-a-kind von links nach rechts:
+    // Klassische Kasino-Regel: Nur Kirschen (🍒) und Wild Joker (🃏) zahlen bei 2er-Treffern.
+    // Alle anderen Früchte/Symbole benötigen einen vollen 3er-Treffer auf einer Gewinnlinie.
+    // Dadurch verliert man realistisch bei ~60% der Spins ("hin und wieder verlieren"),
+    // während Gewinne spannend bleiben und sich echt verdient anfühlen!
     const nonWilds2 = [s0, s1].filter(s => !s.isWild);
     const is2Match = nonWilds2.length === 0 || nonWilds2.length === 1 || s0.id === s1.id;
 
     if (is2Match) {
       const targetSymbol = nonWilds2[0] || s0;
-      const payout = Math.max(1.5, Math.round(targetSymbol.payout * 0.3));
-      total += payout;
-      wonLines.push({
-        lineIdx: line.id,
-        name: line.name,
-        type: '2-match',
-        symbol: targetSymbol,
-        payout,
-        coords: [c0, c1],
-      });
-      winningCells.add(`${c0[0]}-${c0[1]}`);
-      winningCells.add(`${c1[0]}-${c1[1]}`);
+      if (targetSymbol.id === 'cherry' || targetSymbol.isWild) {
+        const payout = 2; // 2x Kirsche zahlt x2
+        total += payout;
+        wonLines.push({
+          lineIdx: line.id,
+          name: line.name,
+          type: '2-match',
+          symbol: targetSymbol,
+          payout,
+          coords: [c0, c1],
+        });
+        winningCells.add(`${c0[0]}-${c0[1]}`);
+        winningCells.add(`${c1[0]}-${c1[1]}`);
+      }
     }
   });
 
@@ -208,37 +215,34 @@ function Reel({ reelIndex, symbols, spinning, spinDelay, finalSymbols, isAnticip
   );
 }
 
-// 🏆 Big Win & Jackpot Celebration Overlay
+// 🏆 Big Win & Jackpot Celebration Overlay (Portal auf document.body, perfekt zentriert ohne Teleportation)
 function BigWinModal({ type, won, currency, onClose }) {
   const curr = CURRENCIES[currency] || CURRENCIES.cookies;
   const isJackpot = type === 'jackpot';
   const isMega = type === 'mega' || isJackpot;
+  const cardVariantClass = isJackpot ? 'is-jackpot' : isMega ? 'is-mega' : 'is-big';
 
-  return (
-    <div className="overlay-backdrop" style={{ zIndex: 9999, background: 'rgba(0,0,0,0.85)' }} role="dialog" aria-modal="true" onClick={onClose}>
+  const modalNode = (
+    <div
+      className="big-win-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
       <div
-        className="overlay-panel"
-        style={{
-          maxWidth: '460px',
-          textAlign: 'center',
-          border: `3px solid ${isJackpot ? '#ffd700' : isMega ? '#ff007f' : '#00e5ff'}`,
-          boxShadow: `0 0 50px ${isJackpot ? 'rgba(255,215,0,0.8)' : isMega ? 'rgba(255,0,127,0.8)' : 'rgba(0,229,255,0.8)'}`,
-          background: 'linear-gradient(180deg, #1f1000 0%, #0a0800 100%)',
-          animation: 'jackpotPulse 0.5s ease-in-out infinite alternate',
-          padding: '30px 20px',
-        }}
+        className={`big-win-card ${cardVariantClass}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ fontSize: '3.5rem', marginBottom: '8px' }}>
+        <div style={{ fontSize: '3.2rem', marginBottom: '8px', lineHeight: 1.2 }}>
           {isJackpot ? '🚨 🍪 🚨' : isMega ? '💥 🏆 💥' : '✨ 🌟 ✨'}
         </div>
         <h2 style={{
           fontFamily: 'var(--font-pixel)',
-          fontSize: '1.1rem',
+          fontSize: '1.05rem',
           color: isJackpot ? '#ffd700' : isMega ? '#ff3b81' : '#00f2fe',
           textShadow: '0 0 20px currentColor',
           marginBottom: '10px',
-          letterSpacing: '2px',
+          letterSpacing: '1.5px',
         }}>
           {isJackpot ? 'MEGA PROGRESSIVER JACKPOT!' : isMega ? 'ULTRA MEGA GEWINN!' : 'GROSSER GEWINN!'}
         </h2>
@@ -247,23 +251,24 @@ function BigWinModal({ type, won, currency, onClose }) {
           fontSize: '1.4rem',
           color: '#39ff14',
           textShadow: '0 0 24px rgba(57,255,20,0.8)',
-          margin: '20px 0',
+          margin: '18px 0',
           fontWeight: 'bold',
         }}>
           +{curr.format(won)} {curr.icon}
         </div>
-        <p style={{ fontSize: '0.72rem', color: '#ccc', marginBottom: '24px' }}>
-          Wahnsinn! Die Keks-Walzen haben geglüht!
+        <p style={{ fontSize: '0.72rem', color: '#ccc', marginBottom: '22px' }}>
+          {isJackpot ? 'UNGLAUBLICH! Du hast den gesamten Jackpot geknackt!' : 'Wahnsinn! Die Keks-Walzen haben geglüht!'}
         </p>
         <button
           className="btn btn-primary"
           style={{
             fontSize: '0.65rem',
-            padding: '12px 24px',
+            padding: '12px 26px',
             background: 'linear-gradient(135deg, #ffd700, #ff8c00)',
             color: '#000',
             fontWeight: 'bold',
             boxShadow: '0 0 25px rgba(255,215,0,0.8)',
+            cursor: 'pointer',
           }}
           onClick={onClose}
         >
@@ -272,9 +277,11 @@ function BigWinModal({ type, won, currency, onClose }) {
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
 }
 
-// 🃏 Double-or-Nothing Gamble Mini-Game
+// 🃏 Double-or-Nothing Gamble Mini-Game (Portal auf document.body)
 function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
   const [currentAmount, setCurrentAmount] = useState(amount);
   const [card, setCard] = useState(null);
@@ -315,8 +322,8 @@ function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
     }, 600);
   }
 
-  return (
-    <div className="overlay-backdrop" role="dialog" aria-modal="true">
+  const modalNode = (
+    <div className="overlay-backdrop" style={{ zIndex: 99999 }} role="dialog" aria-modal="true">
       <div className="overlay-panel gamble-panel" style={{ textAlign: 'center', maxWidth: '380px' }}>
         <h2 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.8rem', color: 'var(--accent)', marginBottom: '10px' }}>
           🃏 2X RISIKO-SPIEL
@@ -384,6 +391,8 @@ function GambleModal({ amount, currency, onCollect, onWin, onLose }) {
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
 }
 
 export default function SlotsPage({ embedded = false }) {
@@ -757,7 +766,7 @@ export default function SlotsPage({ embedded = false }) {
   const currentJackpot = jackpotPools[activeCurrency] || curr.jackpotDefault;
 
   return (
-    <div className={`page-content slots-page ${screenShake ? 'screen-shake' : ''} ${embedded ? 'embedded-game' : ''}`} style={embedded ? { padding: '8px 0', maxWidth: '100%', minHeight: 'auto' } : {}}>
+    <div className={`page-content slots-page ${embedded ? 'embedded-game' : ''}`} style={embedded ? { padding: '8px 0', maxWidth: '100%', minHeight: 'auto' } : {}}>
       {/* Progressive Jackpot Ticker */}
       <div className="slot-jackpot-banner">
         <span className="jackpot-flame">🔥</span>
@@ -819,7 +828,7 @@ export default function SlotsPage({ embedded = false }) {
         </div>
       </div>
 
-      <div className={`slot-machine ${freeSpins > 0 ? 'slot-freespin-active' : ''}`}>
+      <div className={`slot-machine ${freeSpins > 0 ? 'slot-freespin-active' : ''} ${screenShake ? 'screen-shake' : ''}`}>
         <div className="slot-machine-top">✦ MORITZFREUND HIGH ROLLER &bull; {curr.name} ✦</div>
 
         <div className="slot-reels-wrap">
@@ -1020,7 +1029,7 @@ export default function SlotsPage({ embedded = false }) {
       {/* Auszahlungstabelle */}
       <div className="slots-paytable">
         <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.5rem', color: 'var(--accent)', marginBottom: 12 }}>
-          AUSZAHLUNGSTABELLE &bull; 7 GEWINNLINIEN + 2ER-TREFFER &bull; WILD JOKER &bull; FREISPIELE (3X)
+          AUSZAHLUNGSTABELLE &bull; 7 GEWINNLINIEN &bull; 2X KIRSCHE ZAHLT &bull; WILD JOKER &bull; FREISPIELE (3X)
         </div>
         <div className="slots-paytable-grid">
           {SYMBOLS.map(s => (
@@ -1028,13 +1037,13 @@ export default function SlotsPage({ embedded = false }) {
               <span className="paytable-sym">{s.emoji}{s.emoji}{s.emoji}</span>
               <span className="paytable-name">{s.name}</span>
               <span className="paytable-mult" style={{ color: s.payout >= 80 ? '#ffd700' : s.payout >= 25 ? '#90be6d' : 'var(--text)' }}>
-                3x: x{s.payout} | 2x: x{Math.max(1.5, Math.round(s.payout * 0.3))}
+                3x: x{s.payout} {s.id === 'cherry' ? '| 2x: x2' : ''}
               </span>
             </div>
           ))}
         </div>
         <div style={{ fontSize: '0.48rem', color: 'var(--muted)', marginTop: 10 }}>
-          🃏 WILD JOKER ersetzt alle Symbole &bull; 2+ ⭐ = 5–25 FREISPIELE (3X BOOST) &bull; 3x 🍪 = PROGRESSIVER JACKPOT!
+          🃏 WILD JOKER ersetzt alle Symbole &bull; 🍒 2x Kirsche zahlt x2 &bull; 2+ ⭐ = 5–25 FREISPIELE (3X BOOST) &bull; 3x 🍪 = PROGRESSIVER JACKPOT!
         </div>
       </div>
 

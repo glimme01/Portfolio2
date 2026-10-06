@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { fmtCookies } from '../games/clicker/clickerLogic.js';
 
 export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchange }) {
@@ -62,8 +63,8 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
     setTimeout(() => setStatusMsg(''), 2500);
   }
 
-  return (
-    <div className="overlay-backdrop" role="dialog" aria-modal="true" onClick={(e) => {
+  const modalNode = (
+    <div className="overlay-backdrop" style={{ zIndex: 99999 }} role="dialog" aria-modal="true" onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
       <div className="overlay-panel" style={{ maxWidth: '440px', textAlign: 'left' }}>
@@ -213,4 +214,6 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
 }
