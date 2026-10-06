@@ -3,10 +3,45 @@ import { createPortal } from 'react-dom';
 
 const PATCH_LOGS = [
   {
+    version: 'v3.3',
+    date: '6. Oktober 2026',
+    title: '📈 Wallstreet-Revolution & Börsen-Downfall',
+    tag: 'Aktuell',
+    tagColor: '#00e5ff',
+    summary: 'Dynamische Keks-Börsenskalierung im Verhältnis zum Kontostand, neues dramatisches Börsen-Downfall-Event, unterbrechungsfreier 6s-Ticker während Events und Fix für den MAX-Kaufbutton.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Dynamische Börsenkurse & Balance-Skalierung',
+        desc: 'Die Börsenkurse passen sich ab sofort dynamisch an den aktuellen Kontostand (bzw. das Gesamtweltvermögen) des Spielers an. Egal ob 10.000 oder 50 Milliarden Cookies: Aktienhandel bleibt in jeder Spielphase wirtschaftlich hochgradig bedeutsam mit skalierenden Renditen und Dividenden.',
+      },
+      {
+        type: 'feature',
+        title: '🚨 Neues Event: Börsen-Downfall (Market Crash)',
+        desc: 'Panik an den Märkten! Beim neuen Börsen-Downfall-Event stürzen alle Aktienkurse blitzartig um 70 % ab. Wer jetzt den Mut hat und den Dip kauft („Buy the Dip“), kann nach der Markterholung gigantische 3x–4x Gewinne realisieren.',
+      },
+      {
+        type: 'bugfix',
+        title: 'Ununterbrochener Börsen-Ticker bei Events',
+        desc: 'Ein kritischer Spielfluss-Bug wurde behoben: Aktive Keks-Events (wie Kometen, Zuckerfeste oder Oma-Partys) unterbrechen und blockieren den Börsenticker nicht mehr. Die Kurse fluktuieren nun auf einem autarken Ticker verlässlich alle 6 Sekunden weiter.',
+      },
+      {
+        type: 'bugfix',
+        title: 'Aktien MAX-Kaufbutton repariert',
+        desc: 'Der MAX-Button bei Aktien funktioniert nun einwandfrei. Er berechnet exakt die Anzahl aller mit dem aktuellen Kontostand leistbaren Anteile (z. B. „KAUFEN (MAX: 142x)“) und führt den Sofortkauf ohne Fehler aus.',
+      },
+      {
+        type: 'feature',
+        title: 'Live Marktstatus-Banner & Dev-Tools',
+        desc: 'Im Börsen-Terminal warnen neue Neon-Banner mit Live-Countdown vor aktiven Börsen-Downfalls (-70 %) und Börsen-Rallyes (+100 %). Im Admin-Dashboard können Devs und Admins das Downfall-Event direkt auf Knopfdruck testen.',
+      },
+    ],
+  },
+  {
     version: 'v3.2',
     date: '6. Oktober 2026',
     title: '🎰 Kasino-Balancing & Polish Update',
-    tag: 'Aktuell',
+    tag: 'Vorheriges',
     tagColor: '#39ff14',
     summary: 'Spannendes Slot-Balancing mit realistischer Verlustquote, Fix für die Mega-Gewinn-Karte und Reparatur der Spielerliste im Admin-Dashboard.',
     changes: [
@@ -174,7 +209,7 @@ const TYPE_BADGES = {
 export default function PatchLogModal({ isOpen, onClose }) {
   const [filterType, setFilterType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedVersions, setExpandedVersions] = useState({ 'v3.2': true, 'v3.1': true, 'v3.0': true });
+  const [expandedVersions, setExpandedVersions] = useState({ 'v3.3': true, 'v3.2': true, 'v3.1': true, 'v3.0': true });
 
   useEffect(() => {
     function handleKeyDown(e) {
@@ -426,7 +461,7 @@ export default function PatchLogModal({ isOpen, onClose }) {
         {/* Footer */}
         <div style={{ marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #241c08', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <span style={{ fontSize: '0.52rem', color: 'var(--muted)', fontFamily: 'var(--font-pixel)' }}>
-            ✦ MORITZFREUND ARCADE v3.2 &bull; REGELMÄSSIGE UPDATES ✦
+            ✦ MORITZFREUND ARCADE v3.3 &bull; REGELMÄSSIGE UPDATES ✦
           </span>
           <button
             className="btn btn-primary"

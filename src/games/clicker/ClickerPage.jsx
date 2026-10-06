@@ -222,6 +222,10 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   const autosaveRef = useRef(null);
   const konamiRef = useRef([]);
   const lastSubmittedScoreRef = useRef(0);
+  const activeEventRef = useRef(activeEvent);
+  activeEventRef.current = activeEvent;
+  const goldenBoostRef = useRef(goldenBoost);
+  goldenBoostRef.current = goldenBoost;
 
   // Audio Synth
   const audioCtxRef = useRef(null);
@@ -271,13 +275,16 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   useEffect(() => {
     async function init() {
       let state = createClickerState();
-      state.stockPrices = updateStockPrices({});
+      state.stockPrices = updateStockPrices({}, null, 50000);
       const { data } = await loadGameState(playerName, 'clicker');
 
       if (data?.state) {
         state = { ...createClickerState(), ...data.state };
+        const savedWealth = Math.max(state.cookies || 0, (state.totalCookies || 0) * 0.15, 50000);
         if (!state.stockPrices || Object.keys(state.stockPrices).length === 0) {
-          state.stockPrices = updateStockPrices({});
+          state.stockPrices = updateStockPrices({}, null, savedWealth);
+        } else {
+          state.stockPrices = updateStockPrices(state.stockPrices, null, savedWealth);
         }
 
         // Offline Fortschritt berechnen (data.state.lastSaved oder data.updated_at)
@@ -340,11 +347,12 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       if (!state) { rafRef.current = requestAnimationFrame(loop); return; }
 
       const activeUpgrades = getActiveUpgrades(state);
-      const isSugarFestival = activeEvent?.id === 'sugar_festival';
-      const isGrandmaParty = activeEvent?.id === 'grandma_party';
-      const isGoldFrenzy = activeEvent?.id === 'gold_frenzy';
+      const curActiveEvent = activeEventRef.current;
+      const isSugarFestival = curActiveEvent?.id === 'sugar_festival';
+      const isGrandmaParty = curActiveEvent?.id === 'grandma_party';
+      const isGoldFrenzy = curActiveEvent?.id === 'gold_frenzy';
 
-      const buffMulti = (goldenBoost ? 2 : 1) * (isSugarFestival ? 2 : 1) * (isGoldFrenzy ? 3 : 1);
+      const buffMulti = (goldenBoostRef.current ? 2 : 1) * (isSugarFestival ? 2 : 1) * (isGoldFrenzy ? 3 : 1);
       const grandmaBoost = isGrandmaParty ? 5 : 1;
 
       const cps = calcCps(
@@ -384,23 +392,6 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         });
       }
 
-      // Börsenkurse alle 6 Sekunden fluktuieren
-      if (tickCount % 360 === 0) {
-        state.stockPrices = updateStockPrices(state.stockPrices);
-      }
-
-      // Dividenden alle 60 Sekunden ausschütten
-      if (tickCount % 3600 === 0 && state.stockShares && Object.keys(state.stockShares).length > 0) {
-        const { totalDividend, newPrices } = collectDividends(state.stockPrices, state.stockShares);
-        if (totalDividend > 0) {
-          state.cookies += totalDividend;
-          state.totalCookies += totalDividend;
-          state.stockPrices = newPrices;
-          state.totalDividendsEarned = (state.totalDividendsEarned || 0) + totalDividend;
-          setToasts(t => [...t, { icon: '💰', name: 'DIVIDENDEN!', desc: `+${fmtCookies(totalDividend)} Cookies Dividendenausschüttung!` }]);
-        }
-      }
-
       // UI alle 100ms aktualisieren
       if (tickCount % 6 === 0) {
         setGs({ ...state });
@@ -421,7 +412,56 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [loaded, goldenBoost, activeEvent]);
+  }, [loaded]);
+
+  // Autarker Börsen- & Dividenden-Ticker (läuft ununterbrochen alle 6 Sekunden – auch während aktiven Events!)
+  useEffect(() => {
+    if (!loaded) return;
+
+    const stockInterval = setInterval(() => {
+      const state = gsRef.current;
+      if (!state) return;
+
+      const portfolioVal = calcPortfolioValue(state.stockPrices, state.stockShares, state.stockBuyPrices).totalValue || 0;
+      const playerWealth = Math.max(
+        state.cookies || 0,
+        (state.totalCookies || 0) * 0.15,
+        portfolioVal,
+        50000
+      );
+
+      const curEvent = activeEventRef.current;
+      let marketEv = null;
+      if (curEvent?.id === 'stock_downfall') {
+        marketEv = { sector: null, multiplier: 0.70 }; // Baisse-Druck während des Crashs
+      } else if (curEvent?.id === 'stock_rally') {
+        marketEv = { sector: null, multiplier: 1.30 }; // Hausse-Druck während der Rallye
+      }
+
+      state.stockPrices = updateStockPrices(state.stockPrices, marketEv, playerWealth);
+      setGs({ ...state });
+    }, 6000);
+
+    const divInterval = setInterval(() => {
+      const state = gsRef.current;
+      if (!state || !state.stockShares || Object.keys(state.stockShares).length === 0) return;
+
+      const { totalDividend, newPrices } = collectDividends(state.stockPrices, state.stockShares);
+      if (totalDividend > 0) {
+        state.cookies += totalDividend;
+        state.totalCookies += totalDividend;
+        state.stockPrices = newPrices;
+        state.totalDividendsEarned = (state.totalDividendsEarned || 0) + totalDividend;
+        setToasts(t => [...t, { icon: '💰', name: 'DIVIDENDEN!', desc: `+${fmtCookies(totalDividend)} Cookies Dividendenausschüttung!` }]);
+        setGs({ ...state });
+      }
+    }, 60000);
+
+    return () => {
+      clearInterval(stockInterval);
+      clearInterval(divInterval);
+    };
+  }, [loaded]);
 
   // Rotierender News-Ticker
   useEffect(() => {
@@ -539,7 +579,23 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       const updated = {};
       Object.entries(state.stockPrices || {}).forEach(([k, v]) => {
         const doublePrice = v.price * 2;
-        updated[k] = { price: doublePrice, history: [...(v.history || []), doublePrice].slice(-16) };
+        updated[k] = { ...v, price: doublePrice, ratio: (v.ratio || 1) * 2, history: [...(v.history || []), doublePrice].slice(-32) };
+      });
+      state.stockPrices = updated;
+    }
+
+    if (ev.id === 'stock_downfall' && state) {
+      const updated = {};
+      Object.entries(state.stockPrices || {}).forEach(([k, v]) => {
+        const crashPrice = Math.max(1, Math.floor(v.price * 0.3));
+        const newRatio = Math.max(0.15, (v.ratio || 1) * 0.3);
+        updated[k] = {
+          ...v,
+          price: crashPrice,
+          ratio: newRatio,
+          trend: -1,
+          history: [...(v.history || []), crashPrice].slice(-32),
+        };
       });
       state.stockPrices = updated;
     }
@@ -553,7 +609,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       duration: dur,
       remaining: dur,
     });
-    setToasts(t => [...t, { icon: '★', name: ev.name, desc: ev.desc }]);
+    setToasts(t => [...t, { icon: ev.id === 'stock_downfall' ? '🚨' : '★', name: ev.name, desc: ev.desc }]);
   }, []);
 
   // Automatischer Event-Loop
@@ -569,7 +625,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         : (45 + Math.random() * 25) * 1000;
 
       eventTimerRef.current = setTimeout(() => {
-        const pool = ['cookie_comet', 'gold_rush', 'sugar_festival', 'grandma_party', 'stock_rally'];
+        const pool = ['cookie_comet', 'gold_rush', 'sugar_festival', 'grandma_party', 'stock_rally', 'stock_downfall'];
         const chosen = pool[Math.floor(Math.random() * pool.length)];
         triggerSpecificEvent(chosen);
         scheduleNextEvent();
@@ -794,7 +850,11 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     const state = gsRef.current;
     if (!state) return;
     const price = state.stockPrices?.[stockId]?.price || 10;
-    const totalCost = price * amount;
+    const numToBuy = amount === 'max'
+      ? Math.floor(state.cookies / price)
+      : Math.floor(Number(amount) || 1);
+    if (!numToBuy || numToBuy <= 0) return;
+    const totalCost = price * numToBuy;
     if (state.cookies < totalCost) return;
 
     state.cookies -= totalCost;
@@ -803,11 +863,11 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     const prevShares = state.stockShares[stockId] || 0;
     // Durchschnitts-Kaufpreis berechnen
     const prevAvg = state.stockBuyPrices[stockId] || price;
-    state.stockBuyPrices[stockId] = (prevAvg * prevShares + price * amount) / (prevShares + amount);
-    state.stockShares[stockId] = prevShares + amount;
+    state.stockBuyPrices[stockId] = (prevAvg * prevShares + price * numToBuy) / (prevShares + numToBuy);
+    state.stockShares[stockId] = prevShares + numToBuy;
     state.tradesDone = (state.tradesDone || 0) + 1;
     playClickPip();
-    setToasts(t => [...t, { icon: '📈', name: 'KAUF ERFOLGT!', desc: `${amount}x ${stockId.toUpperCase()} für ${fmtCookies(totalCost)} Cookies` }]);
+    setToasts(t => [...t, { icon: '📈', name: 'KAUF ERFOLGT!', desc: `${numToBuy}x ${stockId.toUpperCase()} für ${fmtCookies(totalCost)} Cookies` }]);
     setGs({ ...state });
   }
 
@@ -815,15 +875,18 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     const state = gsRef.current;
     if (!state) return;
     const shares = state.stockShares?.[stockId] || 0;
-    if (shares < amount) return;
+    const numToSell = amount === 'max'
+      ? shares
+      : Math.floor(Number(amount) || 1);
+    if (!numToSell || numToSell <= 0 || shares < numToSell) return;
 
     const price = state.stockPrices?.[stockId]?.price || 10;
-    const proceeds = price * amount;
+    const proceeds = price * numToSell;
     const buyPrice = state.stockBuyPrices?.[stockId] || price;
-    const profit = (price - buyPrice) * amount;
+    const profit = (price - buyPrice) * numToSell;
     state.cookies += proceeds;
     state.totalCookies += proceeds;
-    state.stockShares[stockId] = shares - amount;
+    state.stockShares[stockId] = shares - numToSell;
     state.tradesDone = (state.tradesDone || 0) + 1;
     state.stockProfitRealized = (state.stockProfitRealized || 0) + profit;
     playClickPip();
@@ -1288,8 +1351,67 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
                 </div>
 
                 <div style={{ fontSize: '0.48rem', color: 'var(--muted)', padding: '4px 12px 8px', borderBottom: '1px solid #2a2a2a' }}>
-                  KURSE FLUKTUIEREN ALLE 6 SEKUNDEN ∙ DIVIDENDEN ALLE 60 SEKUNDEN ∙ MENGE: {buyAmount}x
+                  KURSE FLUKTUIEREN ALLE 6 SEKUNDEN ∙ DIVIDENDEN ALLE 60 SEKUNDEN ∙ MENGE: {buyAmount === 'max' ? 'MAX' : `${buyAmount}x`}
                 </div>
+
+                {/* Event-Banner: Börsen-Downfall oder Börsen-Rallye */}
+                {activeEvent?.id === 'stock_downfall' && (
+                  <div style={{
+                    background: 'linear-gradient(90deg, rgba(249, 65, 68, 0.25), rgba(180, 0, 0, 0.45), rgba(249, 65, 68, 0.25))',
+                    border: '1px solid #f94144',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    margin: '8px 12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 0 20px rgba(249, 65, 68, 0.4)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '1.4rem' }}>🚨</span>
+                      <div>
+                        <div style={{ color: '#f94144', fontFamily: 'var(--font-pixel)', fontSize: '0.62rem', fontWeight: 'bold', letterSpacing: '1px' }}>
+                          BÖRSEN-DOWNFALL AKTIV! (-70% FLASH-CRASH)
+                        </div>
+                        <div style={{ color: '#fff', fontSize: '0.48rem', opacity: 0.9, marginTop: '2px' }}>
+                          Massiver Panikverkauf an der Keks-Wallstreet! Kurse am Boden — Nutze den Rabatt und KAUF DEN DIP!
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ color: '#ffd700', fontFamily: 'var(--font-pixel)', fontSize: '0.75rem', padding: '4px 8px', background: '#2a0505', borderRadius: '4px', border: '1px solid #f94144' }}>
+                      {activeEvent.remaining}s
+                    </div>
+                  </div>
+                )}
+
+                {activeEvent?.id === 'stock_rally' && (
+                  <div style={{
+                    background: 'linear-gradient(90deg, rgba(57, 255, 20, 0.18), rgba(0, 160, 50, 0.35), rgba(57, 255, 20, 0.18))',
+                    border: '1px solid #39ff14',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    margin: '8px 12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 0 20px rgba(57, 255, 20, 0.3)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '1.4rem' }}>📈</span>
+                      <div>
+                        <div style={{ color: '#39ff14', fontFamily: 'var(--font-pixel)', fontSize: '0.62rem', fontWeight: 'bold', letterSpacing: '1px' }}>
+                          BÖRSEN-RALLYE AKTIV! (+100% KURSE)
+                        </div>
+                        <div style={{ color: '#fff', fontSize: '0.48rem', opacity: 0.9, marginTop: '2px' }}>
+                          Keks-Märkte explodieren! Allzeithochs überall — Perfekter Zeitpunkt für massive Gewinnmitnahmen!
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ color: '#ffd700', fontFamily: 'var(--font-pixel)', fontSize: '0.75rem', padding: '4px 8px', background: '#052a0a', borderRadius: '4px', border: '1px solid #39ff14' }}>
+                      {activeEvent.remaining}s
+                    </div>
+                  </div>
+                )}
 
                 {/* Sektoren */}
                 {sectors.map(sector => (
@@ -1303,7 +1425,9 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
                       const pct = ((sd.price - sd.history?.[0]) / (sd.history?.[0] || 1) * 100).toFixed(1);
                       const positionPnl = shares > 0 ? (sd.price - buyPrice) * shares : 0;
                       const positionPct = shares > 0 ? ((sd.price - buyPrice) / buyPrice * 100).toFixed(1) : null;
-                      const canBuy = gs.cookies >= sd.price * buyAmount;
+                      const maxAffordable = sd.price > 0 ? Math.floor(gs.cookies / sd.price) : 0;
+                      const canBuy = buyAmount === 'max' ? maxAffordable > 0 : gs.cookies >= sd.price * buyAmount;
+                      const canSell = buyAmount === 'max' ? shares > 0 : shares >= buyAmount;
                       const accrued = sd.dividendAccrued || 0;
                       const nextDiv = accrued > 0.1 ? fmtCookies(Math.floor(accrued * shares)) : null;
                       return (
@@ -1346,17 +1470,17 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
                               onClick={() => buyStock(st.id, buyAmount)}
                               style={{ fontSize: '0.42rem', minHeight: '30px', padding: '4px 10px' }}
                             >
-                              KAUFEN {buyAmount > 1 ? `(${buyAmount}x)` : ''}
+                              KAUFEN {buyAmount === 'max' ? `(MAX: ${maxAffordable}x)` : (buyAmount > 1 ? `(${buyAmount}x)` : '')}
                             </button>
                             <button
                               className="btn btn-outline"
-                              disabled={shares < buyAmount}
+                              disabled={!canSell}
                               onClick={() => sellStock(st.id, buyAmount)}
                               style={{ fontSize: '0.42rem', minHeight: '30px', padding: '4px 10px' }}
                             >
-                              VERKAUFEN
+                              VERKAUFEN {buyAmount === 'max' ? `(ALLE: ${shares}x)` : (buyAmount > 1 ? `(${buyAmount}x)` : '')}
                             </button>
-                            {shares > 0 && (
+                            {shares > 0 && buyAmount !== 'max' && (
                               <button
                                 className="btn"
                                 onClick={() => sellStock(st.id, shares)}

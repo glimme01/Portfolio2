@@ -170,8 +170,8 @@ export default function Lobby() {
             }}
           >
             <span>📜</span>
-            <span>RIESIGER PATCH-LOG (v3.2) &bull; ALLE UPDATES ANSEHEN</span>
-            <span style={{ background: '#39ff14', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.42rem', fontWeight: 'bold' }}>NEU</span>
+            <span>RIESIGER PATCH-LOG (v3.3) &bull; ALLE UPDATES ANSEHEN</span>
+            <span style={{ background: '#00e5ff', color: '#000', padding: '1px 5px', borderRadius: '4px', fontSize: '0.42rem', fontWeight: 'bold' }}>NEU</span>
           </button>
         </div>
       </div>

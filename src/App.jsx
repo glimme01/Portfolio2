@@ -91,10 +91,10 @@ function Header({ onOpenFeedback }) {
             className="btn btn-outline"
             style={{ padding: '6px 9px', fontSize: '0.48rem', minHeight: '36px', borderColor: '#ffd700', color: '#ffd700' }}
             onClick={() => setPatchLogOpen(true)}
-            title="Riesigen Patch-Log v3.2 ansehen"
+            title="Riesigen Patch-Log v3.3 ansehen"
             aria-label="Patch-Log"
           >
-            📜 v3.2
+            📜 v3.3
           </button>
 
           <button
@@ -196,7 +196,7 @@ function Footer({ onOpenFeedback }) {
           onClick={() => window.dispatchEvent(new CustomEvent('arcade-open-patchlog'))}
           title="Changelog & Patch-Historie ansehen"
         >
-          📜 PATCH-LOG (v3.2)
+          📜 PATCH-LOG (v3.3)
         </button>
         <button
           className="footer-feedback-link"

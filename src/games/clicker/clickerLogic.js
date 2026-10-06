@@ -114,6 +114,14 @@ export const RANDOM_EVENTS = [
     duration: 30,
     color: '#00e5ff',
     desc: 'Die Keks-Märkte explodieren! Alle Aktienkurse verdoppeln ihren Wert!'
+  },
+  {
+    id: 'stock_downfall',
+    name: 'BÖRSEN-DOWNFALL',
+    badge: '💥 -70% CRASH',
+    duration: 35,
+    color: '#f94144',
+    desc: 'PANIK AN DER BÖRSE! Alle Kurse stürzen ins Bodenlose — Nutze die Chance und kauf den Dip!'
   }
 ];
 
@@ -292,6 +300,7 @@ export const INITIAL_STOCKS = [
 
 // Markt-News-Events die Kurse beeinflussen
 export const MARKET_NEWS = [
+  { id: 'downfall',  text: '🚨 BÖRSEN-DOWNFALL: Panik an den Märkten! Alle Kurse stürzen drastisch ab — Dip-Käufer greifen zu!', sector: null, multiplier: 0.30, prob: 0.05 },
   { id: 'bullrun',   text: 'ANALYSTEN: "Keks-Bullenmarkt erreicht neues Allzeithoch!"', sector: null,        multiplier: 1.15, prob: 0.05 },
   { id: 'crash',     text: 'CRASH: Massiver Keks-Markteinbruch erschüttert Anleger!',   sector: null,        multiplier: 0.75, prob: 0.04 },
   { id: 'rohstoff',  text: 'ROHSTOFF-BOOM: Mehl- und Zuckerpreise explodieren!',        sector: 'ROHSTOFFE', multiplier: 1.30, prob: 0.07 },
@@ -302,24 +311,36 @@ export const MARKET_NEWS = [
   { id: 'dividende', text: 'GOLDKEKS ETF kündigt Sonderdividende an!',                  sector: null,        multiplier: 1.08, prob: 0.08 },
 ];
 
-// Interne Marktstate-Struktur
-function initStockState(stock) {
+// Interne Marktstate-Struktur mit dynamischer Skalierung
+function initStockState(stock, scale = 1) {
+  const base = Math.max(stock.basePrice, Math.round(stock.basePrice * scale));
   return {
-    price: stock.basePrice,
-    history: [stock.basePrice],
+    price: base,
+    ratio: 1.0,       // normalisiertes Verhältnis (1.0 = Basiswert)
+    effectiveBase: base,
+    history: [base],
     trend: 0,         // -1 bärisch, 0 neutral, +1 bullisch
     trendStrength: 0, // 0–1
     dividendAccrued: 0,
-    allTimeHigh: stock.basePrice,
-    allTimeLow: stock.basePrice,
+    allTimeHigh: base,
+    allTimeLow: base,
   };
 }
 
-export function updateStockPrices(currentStocks = {}, marketEvent = null) {
+export function updateStockPrices(currentStocks = {}, marketEvent = null, playerWealth = 50000) {
   const updated = {};
+  // Skalierung: Bei 50.000 Cookies Basis-Scale = 1. Skaliert stetig mit dem Kontostand mit!
+  const scale = Math.max(1, (playerWealth || 50000) / 50000);
 
   INITIAL_STOCKS.forEach(stock => {
-    const cur = currentStocks[stock.id] || initStockState(stock);
+    const cur = currentStocks[stock.id] || initStockState(stock, scale);
+
+    // Bisheriges Verhältnis ermitteln (auch abwärtskompatibel zu älteren Spielständen)
+    let currentRatio = cur.ratio;
+    if (typeof currentRatio !== 'number' || isNaN(currentRatio) || currentRatio <= 0) {
+      const prevEffective = cur.effectiveBase || stock.basePrice;
+      currentRatio = cur.price > 0 && prevEffective > 0 ? (cur.price / prevEffective) : 1.0;
+    }
 
     // Momentum: träges Trend-Update
     let trend = cur.trend ?? 0;
@@ -331,7 +352,7 @@ export function updateStockPrices(currentStocks = {}, marketEvent = null) {
     const noise = (Math.random() - 0.5) * stock.volatility * 2;
     let changePercent = drift + noise;
 
-    // News-Event anwenden
+    // News-Event oder Börsen-Event anwenden
     if (marketEvent) {
       const affectsSector = marketEvent.sector === null || marketEvent.sector === stock.sector;
       if (affectsSector) {
@@ -347,21 +368,28 @@ export function updateStockPrices(currentStocks = {}, marketEvent = null) {
       }
     });
 
-    // Preis-Berechnung mit Mean-Reversion bei starken Abweichungen
-    const deviation = (cur.price - stock.basePrice) / stock.basePrice;
+    // Mean-Reversion um Verhältnis 1.0
+    const deviation = currentRatio - 1.0;
     const meanReversion = -deviation * 0.05;
     changePercent += meanReversion;
 
-    let newPrice = Math.max(Math.floor(stock.basePrice * 0.1), Math.round(cur.price * (1 + changePercent)));
-    newPrice = Math.min(newPrice, stock.basePrice * 20); // bis zu 20x möglich!
+    // Neues Verhältnis berechnen (mindestens 0.15, maximal 10.0)
+    let newRatio = Math.max(0.15, currentRatio * (1 + changePercent));
+    newRatio = Math.min(newRatio, 10.0);
 
-    const history = [...(cur.history || [cur.price]), newPrice].slice(-32);
+    // Dynamischer Preis im direkten Verhältnis zur aktuellen Balance
+    const effectiveBase = Math.max(stock.basePrice, Math.round(stock.basePrice * scale));
+    let newPrice = Math.max(1, Math.round(effectiveBase * newRatio));
+
+    const history = [...(cur.history || [newPrice]), newPrice].slice(-32);
 
     // Dividenden akkumulieren (pro Tick: annualisierte Rate / 8760 Ticks)
     const newDividend = (cur.dividendAccrued || 0) + newPrice * (stock.dividendRate / 8760);
 
     updated[stock.id] = {
       price: newPrice,
+      ratio: newRatio,
+      effectiveBase,
       history,
       trend,
       dividendAccrued: newDividend,

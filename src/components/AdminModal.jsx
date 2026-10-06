@@ -316,7 +316,7 @@ export default function AdminModal({ isOpen, onClose }) {
               onClick={() => window.dispatchEvent(new CustomEvent('arcade-open-patchlog'))}
               title="Vollständigen Patch-Log ansehen"
             >
-              📜 PATCH-LOG v3.2
+              📜 PATCH-LOG v3.3
             </button>
             <button className="btn btn-outline" style={{ minHeight: '34px', padding: '4px 10px', fontSize: '0.5rem' }} onClick={onClose}>
               SCHLIESSEN
@@ -1127,6 +1127,14 @@ export default function AdminModal({ isOpen, onClose }) {
                         onClick={() => triggerDevTool('START_EVENT', { eventId: 'stock_rally' })}
                       >
                         📈 BÖRSEN-RALLYE (+100%)
+                      </button>
+
+                      <button
+                        className="btn btn-outline"
+                        style={{ padding: '10px 8px', fontSize: '0.48rem', borderColor: '#f94144', color: '#f94144' }}
+                        onClick={() => triggerDevTool('START_EVENT', { eventId: 'stock_downfall' })}
+                      >
+                        🚨 BÖRSEN-DOWNFALL (-70%)
                       </button>
 
                       <button
