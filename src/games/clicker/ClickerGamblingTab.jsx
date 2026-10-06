@@ -19,7 +19,6 @@ import {
 export default function ClickerGamblingTab({
   cookies = 0,
   gems = 0,
-  heavenlyChips = 0,
   diamondOvens = 0,
   vipLuckyCharm = false,
   casinoInsuranceCharges = 0,
@@ -523,7 +522,7 @@ export default function ClickerGamblingTab({
       <CurrencyExchangeModal
         isOpen={exchangeOpen}
         onClose={() => setExchangeOpen(false)}
-        state={{ cookies, gems, heavenlyChips }}
+        state={{ cookies, gems }}
         onExchange={(newState) => onUpdateState?.(newState)}
       />
     </div>

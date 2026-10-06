@@ -84,15 +84,6 @@ const CURRENCIES = {
     presets: [25, 50, 100, 250, 500, 1000, 2500, 5000, 25000],
     format: (v) => fmtCookies(v),
   },
-  heavenlyChips: {
-    id: 'heavenlyChips',
-    name: 'HIMMELS-CHIPS',
-    icon: '✨',
-    minBet: 1,
-    defaultBet: 2,
-    presets: [1, 2, 5, 10, 25, 50, 100],
-    format: (v) => Number(v || 0).toLocaleString('de-DE'),
-  },
   gems: {
     id: 'gems',
     name: 'DIAMANTEN (VIP)',
@@ -247,7 +238,7 @@ export default function BlackjackPage({ embedded = false }) {
     const { data } = await loadGameState(playerName, 'clicker');
     let state = data?.state;
     if (!state) {
-      state = { cookies: 250, totalCookies: 250, heavenlyChips: 0, gems: 10, buildings: {}, upgrades: [] };
+      state = { cookies: 250, totalCookies: 250, gems: 10, buildings: {}, upgrades: [] };
       await saveGameState(playerName, 'clicker', state);
     }
     if (state.gems === undefined) state.gems = 10;
@@ -285,7 +276,6 @@ export default function BlackjackPage({ embedded = false }) {
           if (!prev) return prev;
           const next = { ...prev };
           if (e.detail.cookies !== undefined) next.cookies = Math.floor(e.detail.cookies);
-          if (e.detail.heavenlyChips !== undefined) next.heavenlyChips = Math.floor(e.detail.heavenlyChips);
           if (e.detail.gems !== undefined) next.gems = Math.floor(e.detail.gems);
           clickerRef.current = next;
           return next;
@@ -853,7 +843,7 @@ export default function BlackjackPage({ embedded = false }) {
           <span style={{ color: 'var(--muted)', fontSize: '0.45rem', fontFamily: 'var(--font-pixel)' }}>
             GUTHABEN ({curr.name})
           </span>
-          <span className="slots-balance-num" style={{ color: activeCurrency === 'gems' ? '#00e5ff' : activeCurrency === 'heavenlyChips' ? '#ffd700' : 'var(--accent)' }}>
+          <span className="slots-balance-num" style={{ color: activeCurrency === 'gems' ? '#00e5ff' : 'var(--accent)' }}>
             {curr.icon} {curr.format(currentBalance)}
           </span>
         </div>

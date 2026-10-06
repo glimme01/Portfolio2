@@ -117,51 +117,132 @@ export const RANDOM_EVENTS = [
   }
 ];
 
-// === HIMMELRICHE PRESTIGE-UPGRADES (CELESTIAL TREE) ===
-export const HEAVENLY_UPGRADES = [
+// === EXPONENTIELLES AUFSTIEGS-SYSTEM (ASCENSION TIERS & PASSIVES) ===
+// Jede Stufe erfordert exponentiell mehr Lebenszeit-Cookies (1 Mio, 25 Mio, 1 Mrd, etc.)
+// Verleiht exponentielle Verdopplung des Multiplikators (2^level) plus exklusive Skins & Fähigkeiten!
+export const ASCENSION_TIERS = [
   {
-    id: 'heavenly_oven',
-    name: 'GÖTTLICHER OFEN',
-    cost: 1,
-    icon: '♨',
-    desc: 'Startet jeden neuen Durchlauf sofort mit 500 Start-Cookies und verleiht dauerhaft +25% CPS.',
+    level: 1,
+    title: 'ASTRAL-NOVIZE',
+    reqCookies: 1_000_000, // 1 Million
+    multiplier: 2,
+    multiplierText: '2x',
+    skinId: 'astral',
+    skinName: '✨ Astral-Moritz',
+    skillId: 'comet_magnet',
+    skillName: 'Kometen-Magnet',
+    skillIcon: '☄',
+    skillDesc: 'Zufalls-Events & Kometen erscheinen doppelt so häufig! Kometen geben 3x Keks-Ertrag.',
   },
   {
-    id: 'comet_magnet',
-    name: 'KOMETEN-MAGNET',
-    cost: 2,
-    icon: '☄',
-    desc: 'Random Events und Kometen erscheinen doppelt so häufig!',
+    level: 2,
+    title: 'ZEIT-BÄCKER',
+    reqCookies: 25_000_000, // 25 Millionen
+    multiplier: 4,
+    multiplierText: '4x',
+    skinId: 'cyber',
+    skinName: '⚡ Cyber-Moritz',
+    skillId: 'warp_oven',
+    skillName: 'Warp-Ofen',
+    skillIcon: '⌛',
+    skillDesc: 'Offline-Produktion arbeitet mit vollen 100% Effizienz (statt 50%) und Basis-Klickkraft verdoppelt.',
   },
   {
-    id: 'celestial_clicks',
-    name: 'HIMMLISCHE FINGER',
-    cost: 4,
-    icon: '✦',
-    desc: 'Jeder Klick generiert zusätzlich dauerhaft +2% deiner gesamten CPS!',
+    level: 3,
+    title: 'GALAKTISCHER LORD',
+    reqCookies: 1_000_000_000, // 1 Milliarde (1 Mrd!)
+    multiplier: 8,
+    multiplierText: '8x',
+    skinId: 'galaxy',
+    skinName: '🌌 Galaxie-Moritz',
+    skillId: 'eternal_grandmas',
+    skillName: 'Ewige Großmütter',
+    skillIcon: '★',
+    skillDesc: 'Omas backen 5x schneller und beschwören alle 60s einen goldenen Keksregen!',
   },
   {
-    id: 'eternal_grandmas',
-    name: 'EWIGE GROSSMÜTTER',
-    cost: 8,
-    icon: '★',
-    desc: 'Omas sind 40% günstiger im Einkauf und backen dauerhaft 100% schneller!',
+    level: 4,
+    title: 'DIMENSIONS-HERRSCHER',
+    reqCookies: 50_000_000_000, // 50 Milliarden
+    multiplier: 16,
+    multiplierText: '16x',
+    skinId: 'quantum',
+    skinName: '⚛️ Quanten-Moritz',
+    skillId: 'critical_cosmos',
+    skillName: 'Kritischer Kosmos',
+    skillIcon: '✦',
+    skillDesc: '+15% Chance auf Mega-Krit-Treffer (25-fache Klickkraft statt 10x) bei jedem Tastendruck!',
   },
   {
-    id: 'warp_drive',
-    name: 'ZEIT-KRÜMMUNG',
-    cost: 15,
-    icon: '⌛',
-    desc: 'Offline-Produktion wird von 50% auf volle 100% Effizienz verdoppelt!',
+    level: 5,
+    title: 'ZEITRAUM-SCHÖPFER',
+    reqCookies: 2_000_000_000_000, // 2 Billionen
+    multiplier: 32,
+    multiplierText: '32x',
+    skinId: 'golden_god',
+    skinName: '👑 Göttlicher Moritz',
+    skillId: 'divine_oven',
+    skillName: 'Göttlicher Ofen',
+    skillIcon: '♨',
+    skillDesc: 'Startet jeden neuen Durchlauf sofort mit 10.000 Cookies. Alle goldenen Buffs halten doppelt so lange!',
   },
   {
-    id: 'cosmic_multiplier',
-    name: 'KOSMISCHE HARMONIE',
-    cost: 25,
-    icon: '🌌',
-    desc: 'Verleiht einen gewaltigen permanenten +50% Bonus auf ALLE Gebäude und Klicks!',
+    level: 6,
+    title: 'UNENDLICHKEITS-MEISTER',
+    reqCookies: 100_000_000_000_000, // 100 Billionen
+    multiplier: 64,
+    multiplierText: '64x',
+    skinId: 'infinity',
+    skinName: '♾️ Unendlichkeits-Moritz',
+    skillId: 'singularity',
+    skillName: 'Kosmische Singularität',
+    skillIcon: '🌀',
+    skillDesc: 'Jedes gekaufte Gebäude gewährt allen anderen Gebäuden dauerhaft +1% zusätzliche Produktion!',
   },
 ];
+
+export function getAscensionTier(level) {
+  if (level <= 0) return null;
+  if (level <= ASCENSION_TIERS.length) {
+    return ASCENSION_TIERS[level - 1];
+  }
+  const extraLevels = level - ASCENSION_TIERS.length;
+  const baseReq = 100_000_000_000_000;
+  const reqCookies = baseReq * Math.pow(25, extraLevels);
+  const multiplier = Math.pow(2, level);
+  return {
+    level,
+    title: `KOSMISCHER TITAN ${level}`,
+    reqCookies,
+    multiplier,
+    multiplierText: `${multiplier}x`,
+    skinId: 'infinity',
+    skinName: '♾️ Unendlichkeits-Moritz',
+    skillId: `singularity_${level}`,
+    skillName: `Singularitäts-Resonanz Level ${level}`,
+    skillIcon: '🪐',
+    skillDesc: `Gigantischer exponentieller Multiplikator von ${multiplier}x auf alle Gebäude und Klicks!`,
+  };
+}
+
+export function getNextAscensionTier(currentLevel = 0) {
+  return getAscensionTier((currentLevel || 0) + 1);
+}
+
+export function getEligibleAscensionLevel(totalCookies) {
+  if (!totalCookies || totalCookies < 1_000_000) return 0;
+  let lvl = 0;
+  while (true) {
+    const tier = getAscensionTier(lvl + 1);
+    if (totalCookies >= tier.reqCookies) {
+      lvl++;
+    } else {
+      break;
+    }
+  }
+  return lvl;
+}
+
 
 // === 25 ACHIEVEMENTS MIT EASTER EGGS ===
 export const ACHIEVEMENTS = [
@@ -325,18 +406,15 @@ export function calcPortfolioValue(stockPrices, stockShares, stockBuyPrices) {
   return { totalValue, totalCost, profit: totalValue - totalCost };
 }
 
-// === PRESTIGE / ASCENSION BERECHNUNG ===
-// Berechnet Himmels-Chips für den Aufstieg:
-// Bereits ab 5.000 gebackenen Cookies möglich, gewährt mindestens 1 Chip & Aufstiegs-Stufe
-export function calcPrestigeReward(totalCookies, alreadyClaimed = 0) {
-  if (!totalCookies || totalCookies < 5000) return 0;
-  const lifetimeChips = Math.floor(Math.sqrt(totalCookies / 2000));
-  return Math.max(1, lifetimeChips - (alreadyClaimed || 0));
-}
-
-// Gesamte Cookies-pro-Sekunde berechnen
-export function calcCps(buildings, upgrades, prestigeChips = 0, buffMultiplier = 1, heavenlyUpgrades = [], grandmaBoost = 1, diamondOvens = 0, ascensionCount = 0) {
+// Gesamte Cookies-pro-Sekunde berechnen mit exponentiellem Aufstiegs-Multiplikator (2^ascensionCount)
+export function calcCps(buildings, upgrades, buffMultiplier = 1, grandmaBoost = 1, diamondOvens = 0, ascensionCount = 0) {
   let total = 0;
+  const hasSingularity = (ascensionCount >= 6);
+  let totalBuildingCount = 0;
+  if (hasSingularity) {
+    totalBuildingCount = Object.values(buildings || {}).reduce((a, b) => a + (b || 0), 0);
+  }
+
   for (const b of BUILDINGS) {
     const count = buildings[b.id] ?? 0;
     if (count === 0) continue;
@@ -350,14 +428,19 @@ export function calcCps(buildings, upgrades, prestigeChips = 0, buffMultiplier =
 
     let buildingCps = rate * multi;
 
-    // Himmlisches Upgrade: Ewige Großmütter (+100% Oma-CPS)
-    if (b.id === 'oma' && heavenlyUpgrades.includes('eternal_grandmas')) {
-      buildingCps *= 2.0;
+    // Aufstiegs-Fähigkeit Stufe 3: Ewige Großmütter (5x Oma-CPS)
+    if (b.id === 'oma' && ascensionCount >= 3) {
+      buildingCps *= 5.0;
     }
 
     // Random Event: Omas Geburtstag (x5 Oma-CPS)
     if (b.id === 'oma' && grandmaBoost > 1) {
       buildingCps *= grandmaBoost;
+    }
+
+    // Aufstiegs-Fähigkeit Stufe 6: Kosmische Singularität (+1% pro Gebäude weltweit)
+    if (hasSingularity && totalBuildingCount > 0) {
+      buildingCps *= (1 + totalBuildingCount * 0.01);
     }
 
     total += buildingCps;
@@ -369,38 +452,27 @@ export function calcCps(buildings, upgrades, prestigeChips = 0, buffMultiplier =
     total = (total + cappedOvens * 20) * (1 + cappedOvens * 0.05);
   }
 
-  // Himmlisches Upgrade: Göttlicher Ofen (+25% CPS)
-  if (heavenlyUpgrades.includes('heavenly_oven')) {
-    total *= 1.25;
-  }
+  // Exponentieller Aufstiegs-Multiplikator: 2^ascensionCount (1: 2x, 2: 4x, 3: 8x, 4: 16x, 5: 32x, 6: 64x...)
+  const ascensionMultiplier = Math.pow(2, Math.max(0, ascensionCount || 0));
 
-  // Himmlisches Upgrade: Kosmische Harmonie (+50% CPS)
-  if (heavenlyUpgrades.includes('cosmic_multiplier')) {
-    total *= 1.5;
-  }
-
-  // Dauerhafter Aufstiegs- & Himmels-Bonus:
-  // Jeder Aufstieg bringt dauerhaft +10% und jeder Himmels-Chip +2%
-  const prestigeBonus = 1 + ((ascensionCount || 0) * 0.10) + ((prestigeChips || 0) * 0.02);
-
-  return total * prestigeBonus * buffMultiplier;
+  return total * ascensionMultiplier * buffMultiplier;
 }
 
-// Cookies pro Klick berechnen
-export function calcClickValue(upgrades, critActive = false, buffMultiplier = 1, currentCps = 0, heavenlyUpgrades = [], currentSkin = 'moritz', ascensionCount = 0, prestigeChips = 0) {
+// Cookies pro Klick berechnen mit exponentiellem Aufstiegs-Multiplikator & Fähigkeiten
+export function calcClickValue(upgrades, critActive = false, buffMultiplier = 1, currentCps = 0, currentSkin = 'moritz', ascensionCount = 0) {
   let base = 1;
   for (const u of upgrades) {
     if (u.effect === 'clickMulti') base *= u.value;
   }
 
-  // Himmlisches Upgrade: Himmlische Finger (+2% der CPS als Klickkraft)
-  if (heavenlyUpgrades.includes('celestial_clicks') && currentCps > 0) {
-    base += currentCps * 0.02;
+  // Aufstiegs-Fähigkeit Stufe 2 (Warp-Ofen): Basis-Klickkraft verdoppelt
+  if (ascensionCount >= 2) {
+    base *= 2;
   }
 
-  // Himmlisches Upgrade: Kosmische Harmonie (+50%)
-  if (heavenlyUpgrades.includes('cosmic_multiplier')) {
-    base *= 1.5;
+  // Klick-Anteil an der CPS: +2% der aktuellen CPS fließen in Klicks ein ab Stufe 1!
+  if (ascensionCount >= 1 && currentCps > 0) {
+    base += currentCps * 0.02;
   }
 
   // VIP Kristall-Moritz Skin (+5% Klick-Stärke)
@@ -408,17 +480,22 @@ export function calcClickValue(upgrades, critActive = false, buffMultiplier = 1,
     base *= 1.05;
   }
 
-  // Dauerhafter Aufstiegs- & Himmels-Bonus auch auf Klicks:
-  const prestigeBonus = 1 + ((ascensionCount || 0) * 0.10) + ((prestigeChips || 0) * 0.02);
-  base *= prestigeBonus;
+  // Exponentieller Aufstiegs-Multiplikator: 2^ascensionCount
+  const ascensionMultiplier = Math.pow(2, Math.max(0, ascensionCount || 0));
+  base *= ascensionMultiplier;
 
-  if (critActive) base *= 10;
+  if (critActive) {
+    // Falls Aufstiegs-Fähigkeit Stufe 4 (Kritischer Kosmos) freigeschaltet ist: 25x Mega-Krit statt 10x!
+    base *= (ascensionCount >= 4 ? 25 : 10);
+  }
+
   return base * buffMultiplier;
 }
 
-// Formatierung: 0,1, 15, 1.5k, 2.3 Mio., etc.
+// Formatierung: 0,1, 15, 1.5k, 2.3 Mio., 1.5 Mrd., 2.3 Bio. etc.
 export function fmtCookies(n) {
   if (typeof n !== 'number' || isNaN(n)) return '0';
+  if (n >= 1e15) return (n / 1e15).toFixed(2) + ' Brd.';
   if (n >= 1e12) return (n / 1e12).toFixed(2) + ' Bio.';
   if (n >= 1e9)  return (n / 1e9).toFixed(2) + ' Mrd.';
   if (n >= 1e6)  return (n / 1e6).toFixed(2) + ' Mio.';
@@ -427,7 +504,7 @@ export function fmtCookies(n) {
   return Math.floor(n).toLocaleString('de-DE');
 }
 
-// Initialer Spielstand
+// Initialer Spielstand (Frei von Himmels-Chips!)
 export function createClickerState() {
   return {
     bakeryName: "Keks Imperium",
@@ -444,10 +521,6 @@ export function createClickerState() {
     stockShares: {},
     stockPrices: {},
     tradesDone: 0,
-    heavenlyChips: 0,
-    heavenlyChipsClaimed: 0,
-    spentHeavenlyChips: 0,
-    heavenlyUpgrades: [],
     gems: 5,
     ascensionCount: 0,
     wrinklers: [],

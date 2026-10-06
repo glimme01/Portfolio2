@@ -48,8 +48,6 @@ export default function AdminModal({ isOpen, onClose }) {
     isBanned: false,
     cookies: 0,
     totalCookies: 0,
-    heavenlyChips: 0,
-    heavenlyChipsClaimed: 0,
     gems: 10,
     totalClicks: 0,
     ascensionCount: 0,
@@ -136,8 +134,6 @@ export default function AdminModal({ isOpen, onClose }) {
       isBanned: Boolean(acc.isBanned),
       cookies: acc.cookies || 0,
       totalCookies: acc.totalCookies || acc.cookies || 0,
-      heavenlyChips: acc.heavenlyChips || 0,
-      heavenlyChipsClaimed: acc.heavenlyChipsClaimed || 0,
       gems: acc.gems ?? 10,
       totalClicks: acc.totalClicks || 0,
       ascensionCount: acc.ascensionCount || 0,
@@ -156,8 +152,6 @@ export default function AdminModal({ isOpen, onClose }) {
           ...f,
           cookies: st.cookies !== undefined ? st.cookies : f.cookies,
           totalCookies: st.totalCookies !== undefined ? st.totalCookies : f.totalCookies,
-          heavenlyChips: st.heavenlyChips !== undefined ? st.heavenlyChips : f.heavenlyChips,
-          heavenlyChipsClaimed: st.heavenlyChipsClaimed !== undefined ? st.heavenlyChipsClaimed : f.heavenlyChipsClaimed,
           gems: st.gems !== undefined ? st.gems : f.gems,
           totalClicks: st.totalClicks !== undefined ? st.totalClicks : f.totalClicks,
           ascensionCount: st.ascensionCount !== undefined ? st.ascensionCount : f.ascensionCount,
@@ -488,28 +482,7 @@ export default function AdminModal({ isOpen, onClose }) {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.45rem', color: '#ffd700', fontFamily: 'var(--font-pixel)' }}>✨ HIMMELSCHIPS:</label>
-                      <input
-                        type="number"
-                        className="custom-bet-input"
-                        style={{ width: '100%', marginTop: '3px', padding: '6px' }}
-                        value={editForm.heavenlyChips}
-                        onChange={(e) => setEditForm(f => ({ ...f, heavenlyChips: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.45rem', color: '#ffd700', fontFamily: 'var(--font-pixel)' }}>✨ EINGELÖSTE CHIPS:</label>
-                      <input
-                        type="number"
-                        className="custom-bet-input"
-                        style={{ width: '100%', marginTop: '3px', padding: '6px' }}
-                        value={editForm.heavenlyChipsClaimed}
-                        onChange={(e) => setEditForm(f => ({ ...f, heavenlyChipsClaimed: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
-                      />
-                    </div>
-                  </div>
+
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                     <div>
@@ -885,8 +858,8 @@ export default function AdminModal({ isOpen, onClose }) {
                                 <td>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.58rem' }}>
                                     <span>🍪 <strong>{fmtCookies(acc.cookies || 0)}</strong> Cookies</span>
-                                    <span style={{ color: '#ffd700' }}>✨ <strong>{acc.heavenlyChips || 0}</strong> Chips</span>
                                     <span style={{ color: '#00e5ff' }}>💎 <strong>{acc.gems || 0}</strong> Gems</span>
+                                    <span style={{ color: '#bf5af2' }}>🌌 <strong>Lvl {acc.ascensionCount || 0}</strong> Aufstieg</span>
                                   </div>
                                 </td>
                                 <td>

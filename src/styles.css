@@ -1296,29 +1296,34 @@ h1, h2, h3 {
 }
 .heavenly-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
   margin-top: 20px;
   text-align: left;
 }
 .heavenly-card {
   background: #111522;
   border: 1px solid #233157;
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   transition: all var(--transition-fast);
+  position: relative;
 }
-.heavenly-card:hover:not(.locked):not(.owned) {
-  border-color: #70b4ff;
-  box-shadow: 0 0 14px rgba(112, 180, 255, 0.3);
+.heavenly-card:hover:not(.locked) {
+  transform: translateY(-2px);
 }
 .heavenly-card.owned {
-  border-color: #ffd700;
-  background: rgba(255, 215, 0, 0.05);
+  border-color: #39ff14;
+  background: linear-gradient(180deg, rgba(57, 255, 20, 0.08) 0%, rgba(17, 21, 34, 0.95) 100%);
+  box-shadow: 0 0 18px rgba(57, 255, 20, 0.18);
+}
+.heavenly-card.locked {
+  opacity: 0.65;
+  filter: grayscale(0.4);
 }
 .heavenly-card-header {
   display: flex;
@@ -1326,8 +1331,9 @@ h1, h2, h3 {
   gap: 10px;
 }
 .heavenly-icon {
-  font-size: 24px;
+  font-size: 26px;
   color: #70b4ff;
+  line-height: 1;
 }
 .heavenly-title {
   font-family: var(--font-pixel);
@@ -1338,11 +1344,12 @@ h1, h2, h3 {
   font-family: var(--font-pixel);
   font-size: 0.52rem;
   color: #70b4ff;
+  margin-top: 2px;
 }
 .heavenly-desc {
-  font-size: 0.74rem;
-  color: #aaa;
-  line-height: 1.35;
+  font-size: 0.72rem;
+  color: #bbb;
+  line-height: 1.4;
 }
 
 /* Admin Dashboard Modal */

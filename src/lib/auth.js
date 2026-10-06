@@ -303,7 +303,6 @@ export async function login(username, password) {
       window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
         detail: {
           cookies: cloudSave.state.cookies,
-          heavenlyChips: cloudSave.state.heavenlyChips,
           gems: cloudSave.state.gems,
           state: cloudSave.state,
           playerName: normalizePlayerName(user.username),
@@ -380,8 +379,6 @@ export async function getAllAccounts() {
           ...acc,
           cookies: Math.floor(st?.cookies ?? 0),
           totalCookies: Math.floor(st?.totalCookies ?? 0),
-          heavenlyChips: Math.floor(st?.heavenlyChips ?? 0),
-          heavenlyChipsClaimed: Math.floor(st?.heavenlyChipsClaimed ?? 0),
           gems: Math.floor(st?.gems ?? 10),
           buildings: st?.buildings || {},
           totalClicks: st?.totalClicks || 0,
@@ -393,8 +390,6 @@ export async function getAllAccounts() {
           ...acc,
           cookies: 0,
           totalCookies: 0,
-          heavenlyChips: 0,
-          heavenlyChipsClaimed: 0,
           gems: 10,
           buildings: {},
           totalClicks: 0,
@@ -504,10 +499,6 @@ export async function adminCreateAccount({
     stockShares: {},
     stockPrices: {},
     tradesDone: 0,
-    heavenlyChips: Number(initialChips) || 0,
-    heavenlyChipsClaimed: 0,
-    spentHeavenlyChips: 0,
-    heavenlyUpgrades: [],
     gems: Number(initialGems) >= 0 ? Number(initialGems) : 10,
     ascensionCount: 0,
     wrinklers: [],
@@ -640,7 +631,6 @@ export async function adminUpdateAccount(username, updates = {}) {
     buildings: {},
     upgrades: [],
     gems: 10,
-    heavenlyChips: 0,
   };
 
   if (updates.cookies !== undefined) {
@@ -649,12 +639,6 @@ export async function adminUpdateAccount(username, updates = {}) {
   }
   if (updates.totalCookies !== undefined) {
     st.totalCookies = Math.max(0, Number(updates.totalCookies));
-  }
-  if (updates.heavenlyChips !== undefined) {
-    st.heavenlyChips = Math.max(0, Number(updates.heavenlyChips));
-  }
-  if (updates.heavenlyChipsClaimed !== undefined) {
-    st.heavenlyChipsClaimed = Math.max(0, Number(updates.heavenlyChipsClaimed));
   }
   if (updates.gems !== undefined) {
     st.gems = Math.max(0, Number(updates.gems));
@@ -690,7 +674,6 @@ export async function adminUpdateAccount(username, updates = {}) {
     window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
       detail: {
         cookies: st.cookies,
-        heavenlyChips: st.heavenlyChips,
         gems: st.gems,
         state: st,
         playerName: currentTargetNorm,
@@ -703,7 +686,7 @@ export async function adminUpdateAccount(username, updates = {}) {
 }
 
 // Admin Tools: Schneller Guthaben-Zuschuss (+ / -)
-export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, chipsDelta = 0, gemsDelta = 0 }) {
+export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, gemsDelta = 0 }) {
   if (!isCurrentUserAdmin()) return { error: 'Zugriff verweigert: Nur Administratoren erlaubt.' };
   const { data } = await loadGameState(username, 'clicker');
   let st = data?.state || {
@@ -713,12 +696,10 @@ export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, chip
     buildings: {},
     upgrades: [],
     gems: 10,
-    heavenlyChips: 0,
   };
 
   st.cookies = Math.max(0, Math.floor((st.cookies || 0) + (cookiesDelta || 0)));
   st.totalCookies = Math.max(st.totalCookies || 0, st.cookies);
-  st.heavenlyChips = Math.max(0, Math.floor((st.heavenlyChips || 0) + (chipsDelta || 0)));
   st.gems = Math.max(0, Math.floor((st.gems || 0) + (gemsDelta || 0)));
   st.lastSaved = Date.now();
 
@@ -730,7 +711,6 @@ export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, chip
     window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
       detail: {
         cookies: st.cookies,
-        heavenlyChips: st.heavenlyChips,
         gems: st.gems,
         state: st,
         playerName: normalizePlayerName(username),
@@ -739,7 +719,7 @@ export async function adminQuickAdjustBalance(username, { cookiesDelta = 0, chip
     }));
   }
 
-  return { success: true, cookies: st.cookies, chips: st.heavenlyChips, gems: st.gems };
+  return { success: true, cookies: st.cookies, gems: st.gems };
 }
 
 // Admin Tools: Fortschritt eines Spielers zurücksetzen
@@ -768,7 +748,7 @@ export async function adminResetPlayerProgress(username) {
   const cur = getCurrentUser();
   if (cur && normalizePlayerName(cur.username) === norm) {
     window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
-      detail: { cookies: 250, heavenlyChips: 0, gems: 10, state: fresh, playerName: norm, lastSaved: Date.now() }
+      detail: { cookies: 250, gems: 10, state: fresh, playerName: norm, lastSaved: Date.now() }
     }));
   }
 

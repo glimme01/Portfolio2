@@ -9,7 +9,6 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
   if (!isOpen || !state) return null;
 
   const cookies = Math.floor(state.cookies || 0);
-  const heavenlyChips = Math.floor(state.heavenlyChips || 0);
   const gems = Math.floor(state.gems || 0);
 
   const OPTIONS = [
@@ -27,24 +26,13 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
     {
       id: 'cookies_to_gems',
       name: '🍪 Cookies ➔ 💎 Diamanten (VIP)',
-      rateText: '1.000.000 Cookies = 1 Diamant (Max 3)',
+      rateText: '1.000.000 Cookies = 1 Diamant (Max 5)',
       costUnit: 'Cookies',
       costAmount: 1000000,
       gainUnit: 'Diamanten',
       gainAmount: 1,
-      maxAfford: Math.min(3, Math.floor(cookies / 1000000)),
+      maxAfford: Math.min(5, Math.floor(cookies / 1000000)),
       currentBal: cookies,
-    },
-    {
-      id: 'chips_to_gems',
-      name: '✨ Himmels-Chips ➔ 💎 Diamanten',
-      rateText: '1 Himmels-Chip = 2 Diamanten',
-      costUnit: 'Himmels-Chips',
-      costAmount: 1,
-      gainUnit: 'Diamanten',
-      gainAmount: 2,
-      maxAfford: heavenlyChips,
-      currentBal: heavenlyChips,
     },
   ];
 
@@ -67,9 +55,6 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
       nextState.gems -= totalCost;
       nextState.cookies += totalGain;
       nextState.totalCookies = Math.max(nextState.totalCookies || 0, nextState.cookies);
-    } else if (exchangeType === 'chips_to_gems') {
-      nextState.heavenlyChips -= totalCost;
-      nextState.gems = (nextState.gems || 0) + totalGain;
     }
 
     onExchange(nextState);
@@ -78,35 +63,31 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
   }
 
   return (
-    <div className="overlay-backdrop" role="dialog" aria-modal="true">
+    <div className="overlay-backdrop" role="dialog" aria-modal="true" onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
       <div className="overlay-panel" style={{ maxWidth: '440px', textAlign: 'left' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <h2 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.8rem', color: 'var(--accent)', margin: 0 }}>
             💱 WÄHRUNGS-WECHSELSTUBE
           </h2>
           <button className="btn btn-outline" style={{ minHeight: '30px', padding: '3px 8px', fontSize: '0.45rem' }} onClick={onClose}>
-            SCHLIESSEN
+            ✕
           </button>
         </div>
 
-        {/* Guthaben Übersicht */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '16px' }}>
-          <div style={{ background: '#121212', border: '1px solid #2a2a2a', borderRadius: '6px', padding: '8px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.42rem', color: 'var(--muted)', fontFamily: 'var(--font-pixel)' }}>COOKIES</div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--accent)', marginTop: '4px' }}>
+        {/* Guthaben Übersicht (2 Währungen: Cookies & Diamanten) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ background: '#121212', border: '1px solid #2a2a2a', borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.45rem', color: 'var(--muted)', fontFamily: 'var(--font-pixel)' }}>COOKIES</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent)', marginTop: '4px' }}>
               🍪 {fmtCookies(cookies)}
             </div>
           </div>
-          <div style={{ background: '#121212', border: '1px solid #2a2a2a', borderRadius: '6px', padding: '8px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.42rem', color: 'var(--muted)', fontFamily: 'var(--font-pixel)' }}>DIAMANTEN</div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#00e5ff', marginTop: '4px' }}>
+          <div style={{ background: '#121212', border: '1px solid #2a2a2a', borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.45rem', color: 'var(--muted)', fontFamily: 'var(--font-pixel)' }}>DIAMANTEN (VIP)</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#00e5ff', marginTop: '4px' }}>
               💎 {gems.toLocaleString('de-DE')}
-            </div>
-          </div>
-          <div style={{ background: '#121212', border: '1px solid #2a2a2a', borderRadius: '6px', padding: '8px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.42rem', color: 'var(--muted)', fontFamily: 'var(--font-pixel)' }}>HIMMELSCHIPS</div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#ffd700', marginTop: '4px' }}>
-              ✨ {heavenlyChips.toLocaleString('de-DE')}
             </div>
           </div>
         </div>
@@ -144,7 +125,7 @@ export default function CurrencyExchangeModal({ isOpen, onClose, state, onExchan
               WIE OFT TAUSCHEN:
             </span>
             <div style={{ display: 'flex', gap: '4px' }}>
-              {[1, 5, 10, 50].map(m => (
+              {[1, 2, 5, 10].map(m => (
                 <button
                   key={m}
                   className="btn btn-outline"

@@ -4,9 +4,10 @@ import React, {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BUILDINGS, UPGRADES, ACHIEVEMENTS, INITIAL_STOCKS, MARKET_NEWS,
-  RANDOM_EVENTS, HEAVENLY_UPGRADES,
+  RANDOM_EVENTS, ASCENSION_TIERS,
   buildingCost, maxAffordable, calcCps, calcClickValue, fmtCookies,
-  createClickerState, updateStockPrices, calcPrestigeReward,
+  createClickerState, updateStockPrices,
+  getAscensionTier, getNextAscensionTier, getEligibleAscensionLevel,
   collectDividends, calcPortfolioValue,
 } from './clickerLogic.js';
 import {
@@ -281,8 +282,8 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
 
         // Offline Fortschritt berechnen (data.state.lastSaved oder data.updated_at)
         const lastSavedTs = data.state.lastSaved || (data.updated_at ? new Date(data.updated_at).getTime() : null);
-        const offlineEfficiency = state.heavenlyUpgrades?.includes('warp_drive') ? 1.0 : 0.5;
-        const cps = calcCps(state.buildings, getActiveUpgrades(state), state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, state.diamondOvens || 0, state.ascensionCount || 0);
+        const offlineEfficiency = (state.ascensionCount || 0) >= 2 ? 1.0 : 0.5;
+        const cps = calcCps(state.buildings, getActiveUpgrades(state), 1, 1, state.diamondOvens || 0, state.ascensionCount || 0);
 
         if (cps > 0 && lastSavedTs) {
           const elapsed = Math.min((Date.now() - lastSavedTs) / 1000, MAX_OFFLINE_S);
@@ -349,9 +350,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       const cps = calcCps(
         state.buildings,
         activeUpgrades,
-        state.heavenlyChips,
         buffMulti,
-        state.heavenlyUpgrades || [],
         grandmaBoost,
         state.diamondOvens || 0,
         state.ascensionCount || 0
@@ -485,13 +484,6 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
             changed = true;
           }
         }
-        if (e.detail.heavenlyChips !== undefined) {
-          const nextChips = Math.floor(e.detail.heavenlyChips);
-          if (gsRef.current.heavenlyChips !== nextChips) {
-            gsRef.current.heavenlyChips = nextChips;
-            changed = true;
-          }
-        }
         if (e.detail.gems !== undefined) {
           const nextGems = Math.floor(e.detail.gems);
           if (gsRef.current.gems !== nextGems) {
@@ -503,7 +495,6 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
           setGs(prev => prev ? {
             ...prev,
             cookies: gsRef.current.cookies,
-            heavenlyChips: gsRef.current.heavenlyChips,
             gems: gsRef.current.gems,
           } : prev);
         }
@@ -553,11 +544,14 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       state.stockPrices = updated;
     }
 
+    const baseDur = ev.duration;
+    const dur = (state?.ascensionCount || 0) >= 5 ? baseDur * 2 : baseDur; // Stufe 5: Göttlicher Ofen
+
     playFanfare();
     setActiveEvent({
       ...ev,
-      duration: ev.duration,
-      remaining: ev.duration,
+      duration: dur,
+      remaining: dur,
     });
     setToasts(t => [...t, { icon: '★', name: ev.name, desc: ev.desc }]);
   }, []);
@@ -568,7 +562,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
 
     function scheduleNextEvent() {
       const state = gsRef.current;
-      const hasMagnet = state?.heavenlyUpgrades?.includes('comet_magnet');
+      const hasMagnet = (state?.ascensionCount || 0) >= 1; // Stufe 1: Kometen-Magnet
       // Wenn Kometen-Magnet aktiv: 20-38s, sonst 45-70s
       const delay = hasMagnet
         ? (20 + Math.random() * 18) * 1000
@@ -617,8 +611,8 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
         state.totalCookies += amount || 1000000;
         playFanfare();
         setGs({ ...state });
-      } else if (type === 'ADD_CHIPS') {
-        state.heavenlyChips = (state.heavenlyChips || 0) + (amount || 10);
+      } else if (type === 'ADD_ASCENSION') {
+        state.ascensionCount = (state.ascensionCount || 0) + (amount || 1);
         playFanfare();
         setGs({ ...state });
       } else if (type === 'ADD_GEMS') {
@@ -639,9 +633,12 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     setActiveComet(false);
 
     const activeUpgrades = getActiveUpgrades(state);
-    const cps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, state.diamondOvens || 0, state.ascensionCount || 0);
+    const cps = calcCps(state.buildings, activeUpgrades, 1, 1, state.diamondOvens || 0, state.ascensionCount || 0);
     // Belohnung: 15 Minuten CPS oder mindestens 7.777 Cookies
-    const reward = Math.max(7777, Math.floor(cps * 900));
+    let reward = Math.max(7777, Math.floor(cps * 900));
+    if ((state.ascensionCount || 0) >= 1) {
+      reward *= 3; // Stufe 1: Kometen-Magnet 3x Ertrag!
+    }
 
     state.cookies += reward;
     state.totalCookies += reward;
@@ -659,13 +656,14 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
 
     const activeUpgrades = getActiveUpgrades(state);
     const hasCrit = activeUpgrades.some(u => u.effect === 'critChance');
-    const isCrit = hasCrit && Math.random() < 0.08;
+    const critChance = (hasCrit ? 0.08 : 0) + ((state.ascensionCount || 0) >= 4 ? 0.15 : 0);
+    const isCrit = Math.random() < critChance;
 
     const isGoldRush = activeEvent?.id === 'gold_rush';
     const clickMultiplier = (isGoldRush ? 7 : 1) * (goldenBoost ? 2 : 1);
 
-    const currentCps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, state.diamondOvens || 0, state.ascensionCount || 0);
-    const val = calcClickValue(activeUpgrades, isCrit, clickMultiplier, currentCps, state.heavenlyUpgrades || [], state.skin, state.ascensionCount || 0, state.heavenlyChips || 0);
+    const currentCps = calcCps(state.buildings, activeUpgrades, 1, grandmaBoost, state.diamondOvens || 0, state.ascensionCount || 0);
+    const val = calcClickValue(activeUpgrades, isCrit, clickMultiplier, currentCps, state.skin, state.ascensionCount || 0);
 
     state.cookies += val;
     state.totalCookies += val;
@@ -752,40 +750,24 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     setGs({ ...state });
   }
 
-  // Himmlisches Upgrade kaufen
-  async function buyHeavenlyUpgrade(u) {
-    const state = gsRef.current;
-    if (!state) return;
-    const owned = state.heavenlyUpgrades || [];
-    if (owned.includes(u.id)) return;
-
-    const available = (state.heavenlyChips || 0) - (state.spentHeavenlyChips || 0);
-    if (available < u.cost) return;
-
-    state.spentHeavenlyChips = (state.spentHeavenlyChips || 0) + u.cost;
-    state.heavenlyUpgrades = [...owned, u.id];
-    state.lastSaved = Date.now();
-    await saveGameState(playerName, 'clicker', state);
-
-    playFanfare();
-    setToasts(t => [...t, { icon: u.icon, name: 'HIMMELSKRAFT ENTFESSELT!', desc: u.name }]);
-    setGs({ ...state });
-  }
-
-  // Prestige / Himmels-Aufstieg durchführen (Belohnt mit dauerhaftem Multiplikator)
+  // Exponentiellen Aufstieg durchführen
   async function executeAscension() {
     const state = gsRef.current;
     if (!state) return;
-    const reward = calcPrestigeReward(state.totalCookies, state.heavenlyChipsClaimed || 0);
-    const canAscend = (state.totalCookies || 0) >= 5000 || reward > 0;
+
+    const currentCount = state.ascensionCount || 0;
+    const nextTier = getNextAscensionTier(currentCount);
+    if (!nextTier) return;
+
+    const eligibleLevel = getEligibleAscensionLevel(state.totalCookies);
+    const canAscend = eligibleLevel > currentCount || (state.totalCookies || 0) >= nextTier.reqCookies;
     if (!canAscend) return;
 
-    const actualReward = Math.max(1, reward);
-    const startingCookies = state.heavenlyUpgrades?.includes('heavenly_oven') ? 500 : 0;
+    const targetLevel = Math.max(currentCount + 1, eligibleLevel);
+    state.ascensionCount = targetLevel;
 
-    state.heavenlyChips = (state.heavenlyChips || 0) + actualReward;
-    state.heavenlyChipsClaimed = (state.heavenlyChipsClaimed || 0) + actualReward;
-    state.ascensionCount = (state.ascensionCount || 0) + 1;
+    // Stufe 5 (Göttlicher Ofen): Startet sofort mit 10.000 Start-Cookies
+    const startingCookies = state.ascensionCount >= 5 ? 10000 : 0;
     state.cookies = startingCookies;
     state.buildings = {};
     state.upgrades = [];
@@ -797,12 +779,12 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     await saveGameState(playerName, 'clicker', state);
     await insertScore(playerName, 'clicker', startingCookies, { forceUpdate: true });
 
-    const totalBonusPct = (state.ascensionCount * 10) + (state.heavenlyChips * 2);
+    const currentTier = getAscensionTier(state.ascensionCount);
     playFanfare();
     setToasts(t => [...t, {
       icon: '🌌',
-      name: 'AUFSTIEG VOLLBRACHT!',
-      desc: `Stufe ${state.ascensionCount} freigeschaltet (+${totalBonusPct}% Dauerbonus auf CPS & Klicks)!`,
+      name: `AUFSTIEG AUF STUFE ${state.ascensionCount}!`,
+      desc: `${currentTier ? currentTier.title : 'Aufstieg'}: ${Math.pow(2, state.ascensionCount)}x Multiplikator aktiv!`,
     }]);
     setGs({ ...state });
   }
@@ -908,7 +890,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
       state.gems = (state.gems || 0) - cost;
       state.lastTimeWarpUsed = now;
       const activeUpgrades = getActiveUpgrades(state);
-      const activeCps = calcCps(state.buildings, activeUpgrades, state.heavenlyChips, 1, state.heavenlyUpgrades || [], 1, currentOvens, state.ascensionCount || 0);
+      const activeCps = calcCps(state.buildings, activeUpgrades, 1, 1, currentOvens, state.ascensionCount || 0);
       const reward = Math.max(10000, Math.floor(activeCps * 900)); // 15 Min. Basis-CPS
       state.cookies += reward;
       state.totalCookies += reward;
@@ -996,9 +978,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
   const currentCps = calcCps(
     gs.buildings,
     activeUpgrades,
-    gs.heavenlyChips,
     buffMulti,
-    gs.heavenlyUpgrades || [],
     grandmaBoost,
     gs.diamondOvens || 0,
     gs.ascensionCount || 0
@@ -1010,15 +990,11 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
     false,
     (isGoldRush ? 7 : 1) * (goldenBoost ? 2 : 1),
     currentCps,
-    gs.heavenlyUpgrades || [],
     gs.skin,
-    gs.ascensionCount || 0,
-    gs.heavenlyChips || 0
+    gs.ascensionCount || 0
   );
 
   const currentSkin = getSkin(gs.skin);
-  const availableChips = (gs.heavenlyChips || 0) - (gs.spentHeavenlyChips || 0);
-  const nextAscendReward = gs ? calcPrestigeReward(gs.totalCookies, gs.heavenlyChipsClaimed || 0) : 0;
 
   return (
     <div className="page-content" style={{ padding: '8px 16px 48px' }}>
@@ -1043,15 +1019,21 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
             <span className="cookie-count-big">{fmtCookies(gs.cookies)}</span>
             <span className="cookie-cps-display">
               {fmtCookies(currentCps)} PRO SEKUNDE
-              {gs.heavenlyChips > 0 && <span style={{ color: 'var(--accent)', marginLeft: '6px' }}>(+{gs.heavenlyChips}%)</span>}
+              {gs.ascensionCount > 0 && (
+                <span style={{ color: '#00e5ff', marginLeft: '6px' }}>
+                  (x{Math.pow(2, gs.ascensionCount)} Multi)
+                </span>
+              )}
             </span>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.48rem', fontFamily: 'var(--font-pixel)', color: '#00e5ff', background: 'rgba(0, 229, 255, 0.12)', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(0, 229, 255, 0.35)' }}>
                 💎 {Number(gs.gems || 0).toLocaleString('de-DE')} DIAMANTEN
               </span>
-              <span style={{ fontSize: '0.48rem', fontFamily: 'var(--font-pixel)', color: '#ffd700', background: 'rgba(255, 215, 0, 0.12)', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255, 215, 0, 0.35)' }}>
-                ✨ {Number(gs.heavenlyChips || 0).toLocaleString('de-DE')} HIMMELS-CHIPS
-              </span>
+              {gs.ascensionCount > 0 && (
+                <span style={{ fontSize: '0.48rem', fontFamily: 'var(--font-pixel)', color: '#ffd700', background: 'rgba(255, 215, 0, 0.12)', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255, 215, 0, 0.35)' }}>
+                  🌌 STUFE {gs.ascensionCount} ({Math.pow(2, gs.ascensionCount)}x BOOST)
+                </span>
+              )}
             </div>
           </div>
 
@@ -1142,7 +1124,7 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
               { id: 'upgrades', label: `UPGRADES (${UPGRADES.filter(u => !gs.upgrades?.includes(u.id) && gs.cookies >= u.cost * 0.5).length})` },
               { id: 'casino', label: '🎰 CASINO' },
               { id: 'stocks', label: 'BÖRSE' },
-              { id: 'prestige', label: `AUFSTIEG (${availableChips})` },
+              { id: 'prestige', label: `AUFSTIEG (LVL ${gs.ascensionCount || 0})` },
               { id: 'skins', label: 'SKINS' },
               { id: 'achievements', label: 'ERFOLGE' },
             ].map(t => (
@@ -1242,7 +1224,6 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
             <ClickerGamblingTab
               cookies={gs.cookies}
               gems={gs.gems || 0}
-              heavenlyChips={gs.heavenlyChips || 0}
               diamondOvens={gs.diamondOvens || 0}
               vipLuckyCharm={Boolean(gs.vipLuckyCharm)}
               casinoInsuranceCharges={gs.casinoInsuranceCharges || 0}
@@ -1394,88 +1375,180 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
             );
           })()}
 
-          {/* TAB 4: HIMMELS-AUFSTIEG (ASTRAL PRESTIGE SHRINE) */}
+          {/* TAB 4: EXPONENTIELLER AUFSTIEGS-HUB */}
           {tab === 'prestige' && (() => {
-            const currentBonusPct = ((gs.ascensionCount || 0) * 10) + ((gs.heavenlyChips || 0) * 2);
-            const actualNextReward = Math.max(1, nextAscendReward);
-            const canAscend = (gs.totalCookies || 0) >= 5000 || nextAscendReward > 0;
+            const currentCount = gs.ascensionCount || 0;
+            const currentTier = getAscensionTier(currentCount);
+            const nextTier = getNextAscensionTier(currentCount);
+            const eligibleLevel = getEligibleAscensionLevel(gs.totalCookies || 0);
+            const canAscend = eligibleLevel > currentCount || (nextTier && (gs.totalCookies || 0) >= nextTier.reqCookies);
+            const currentMultiplier = Math.pow(2, currentCount);
+            const nextMultiplier = nextTier ? Math.pow(2, Math.max(currentCount + 1, eligibleLevel)) : currentMultiplier * 2;
+
+            const prevReq = currentTier ? currentTier.reqCookies : 0;
+            const nextReq = nextTier ? nextTier.reqCookies : 1;
+            const progressPercent = nextTier
+              ? Math.min(100, Math.max(0, (((gs.totalCookies || 0) - prevReq) / (nextReq - prevReq)) * 100))
+              : 100;
 
             return (
               <div className="heavenly-shrine">
+                {/* Hero Header Box */}
                 <div className="heavenly-header-box">
-                  <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.75rem', color: '#70b4ff', letterSpacing: '1px' }}>
-                    🌌 ASTRAL-PRESTIGE & WIEDERGEBURT
+                  <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.65rem', color: '#bf5af2', letterSpacing: '1px' }}>
+                    🌌 EXPONENTIELLER AUFSTIEGS-KOSMOS
                   </div>
-                  <div className="heavenly-chips-available" style={{ color: '#39ff14', textShadow: '0 0 14px rgba(57,255,20,0.6)' }}>
-                    +{currentBonusPct}% DAUERHAFTER PRODUKTIONS-BONUS
+
+                  <div className="heavenly-chips-available" style={{ color: '#00e5ff', textShadow: '0 0 16px rgba(0, 229, 255, 0.6)' }}>
+                    ⚡ {currentMultiplier}x PERMANENTER MULTIPLIKATOR
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: '#bbb', marginBottom: '16px', lineHeight: 1.6 }}>
-                    Aufstiegs-Stufe: <strong style={{ color: '#00e5ff' }}>Level {gs.ascensionCount || 0}</strong> (+{ (gs.ascensionCount || 0) * 10 }% CPS & Klickstärke)<br />
-                    Himmlische Chips: <strong style={{ color: '#ffd700' }}>{gs.heavenlyChips || 0} Chips</strong> (+{ (gs.heavenlyChips || 0) * 2 }% Bonus & {availableChips} verfügbar für Skills)<br />
-                    Nächster Aufstieg bringt: <strong style={{ color: '#39ff14' }}>+1 Stufe & +{actualNextReward} Chips (+{10 + actualNextReward * 2}% MEHR POWER!)</strong>
+
+                  <div style={{ fontSize: '0.74rem', color: '#ccc', marginBottom: '16px', lineHeight: 1.6 }}>
+                    Aktuelle Stufe: <strong style={{ color: '#ffd700' }}>Level {currentCount} {currentTier ? `(${currentTier.title})` : '(Novize)'}</strong><br />
+                    Lebenszeit-Cookies: <strong style={{ color: 'var(--accent)' }}>{fmtCookies(gs.totalCookies || 0)}</strong><br />
+                    {nextTier ? (
+                      <span>
+                        Nächstes Ziel: <strong style={{ color: '#39ff14' }}>Level {nextTier.level} ({nextTier.title})</strong> &bull; Benötigt <strong style={{ color: '#fff' }}>{fmtCookies(nextTier.reqCookies)}</strong> ({Math.floor(progressPercent)}%)
+                      </span>
+                    ) : (
+                      <span style={{ color: '#39ff14' }}>Höchste bekannte Stufe erreicht! Weiterer exponentieller Aufstieg möglich.</span>
+                    )}
                   </div>
+
+                  {/* Fortschrittsbalken */}
+                  {nextTier && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.52rem', color: '#aaa', marginBottom: '4px', fontFamily: 'var(--font-pixel)' }}>
+                        <span>{fmtCookies(gs.totalCookies || 0)} COOKIES</span>
+                        <span>ZIEL: {fmtCookies(nextTier.reqCookies)}</span>
+                      </div>
+                      <div style={{ width: '100%', height: '12px', background: '#111', borderRadius: '6px', overflow: 'hidden', border: '1px solid #333' }}>
+                        <div
+                          style={{
+                            width: `${progressPercent}%`,
+                            height: '100%',
+                            background: canAscend ? 'linear-gradient(90deg, #39ff14, #00e5ff)' : 'linear-gradient(90deg, #7928ca, #ff0080)',
+                            transition: 'width 0.3s ease',
+                            boxShadow: canAscend ? '0 0 10px #00e5ff' : 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <button
                     className="btn btn-primary"
                     onClick={() => {
                       if (!canAscend) {
-                        alert('Du benötigst mindestens 5.000 gebackene Cookies insgesamt für deinen ersten Himmels-Aufstieg!');
+                        alert(`Du benötigst mindestens ${fmtCookies(nextTier ? nextTier.reqCookies : 1000000)} gebackene Cookies für den nächsten Aufstieg!`);
                       } else {
                         setAscendModalOpen(true);
                       }
                     }}
                     style={{
-                      background: canAscend ? 'linear-gradient(135deg, #0077b6, #70b4ff)' : '#222',
-                      borderColor: canAscend ? '#70b4ff' : '#444',
+                      background: canAscend ? 'linear-gradient(135deg, #7928ca, #ff0080)' : '#222',
+                      borderColor: canAscend ? '#ff0080' : '#444',
                       color: canAscend ? '#fff' : '#666',
                       fontSize: '0.62rem',
                       padding: '12px 24px',
-                      boxShadow: canAscend ? '0 0 20px rgba(112, 180, 255, 0.4)' : 'none',
+                      boxShadow: canAscend ? '0 0 24px rgba(255, 0, 128, 0.5)' : 'none',
+                      cursor: canAscend ? 'pointer' : 'not-allowed',
                     }}
                   >
                     {canAscend
-                      ? `JETZT AUFSTEIGEN (+1 STUFE & +${actualNextReward} CHIPS)`
-                      : 'BENÖTIGT 5.000 COOKIES FÜR ERSTEN AUFSTIEG'}
+                      ? `🌌 JETZT AUFSTEIGEN (VERDOPPELT MULTIPLIKATOR AUF ${nextMultiplier}x!)`
+                      : nextTier
+                        ? `🔒 BENÖTIGT ${fmtCookies(nextTier.reqCookies)} COOKIES (NOCH ${fmtCookies(Math.max(0, nextTier.reqCookies - (gs.totalCookies || 0)))})`
+                        : 'AUFSTIEG BEREIT'}
                   </button>
                 </div>
 
-                <h3 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.72rem', color: '#fff', textAlign: 'left', marginTop: '24px' }}>
-                  HIMMLISCHE UPGRADES (DAUERHAFTE SKILLS)
+                <h3 style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.72rem', color: '#fff', textAlign: 'left', marginTop: '28px', marginBottom: '14px' }}>
+                  STUFEN-ROADMAP & FREISCHALTBARE FÄHIGKEITEN & SKINS
                 </h3>
 
+                {/* Tier Roadmap Grid */}
                 <div className="heavenly-grid">
-                  {HEAVENLY_UPGRADES.map(u => {
-                    const owned = gs.heavenlyUpgrades?.includes(u.id);
-                    const canAfford = availableChips >= u.cost;
+                  {ASCENSION_TIERS.map(tier => {
+                    const isUnlocked = currentCount >= tier.level;
+                    const isNext = !isUnlocked && nextTier && nextTier.level === tier.level;
+                    const isSkinEquipped = gs.skin === tier.skinId;
+
                     return (
-                      <div key={u.id} className={`heavenly-card ${owned ? 'owned' : ''} ${!canAfford && !owned ? 'locked' : ''}`}>
+                      <div
+                        key={tier.level}
+                        className={`heavenly-card ${isUnlocked ? 'owned' : ''} ${!isUnlocked && !isNext ? 'locked' : ''}`}
+                        style={{
+                          borderColor: isUnlocked ? '#39ff14' : isNext ? '#00e5ff' : '#233157',
+                          background: isUnlocked ? 'rgba(57, 255, 20, 0.05)' : isNext ? 'rgba(0, 229, 255, 0.05)' : '#111522',
+                        }}
+                      >
                         <div className="heavenly-card-header">
-                          <span className="heavenly-icon">{u.icon}</span>
-                          <div>
-                            <div className="heavenly-title">{u.name}</div>
-                            <div className="heavenly-cost">{owned ? 'ERWORBEN' : `${u.cost} CHIPS`}</div>
+                          <span className="heavenly-icon" style={{ color: isUnlocked ? '#39ff14' : isNext ? '#00e5ff' : '#70b4ff' }}>
+                            {tier.skillIcon}
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div className="heavenly-title">STUFE {tier.level}: {tier.title}</div>
+                              <span style={{ fontSize: '0.45rem', fontFamily: 'var(--font-pixel)', color: isUnlocked ? '#39ff14' : isNext ? '#00e5ff' : '#888' }}>
+                                {tier.multiplierText} MULTI
+                              </span>
+                            </div>
+                            <div className="heavenly-cost" style={{ color: isUnlocked ? '#39ff14' : '#ffd700' }}>
+                              {isUnlocked ? '✓ FREIGESCHALTET' : `${fmtCookies(tier.reqCookies)} COOKIES`}
+                            </div>
                           </div>
                         </div>
-                        <div className="heavenly-desc">{u.desc}</div>
-                        <div>
-                          {owned ? (
-                            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.45rem', color: '#ffd700' }}>
-                              ✓ FREIGESCHALTET
-                            </span>
-                          ) : (
+
+                        {/* Passive Skill */}
+                        <div style={{ background: '#161616', padding: '8px 10px', borderRadius: '6px', border: '1px solid #282828' }}>
+                          <div style={{ fontSize: '0.55rem', fontFamily: 'var(--font-pixel)', color: '#00e5ff', marginBottom: '2px' }}>
+                            ⚡ FÄHIGKEIT: {tier.skillName}
+                          </div>
+                          <div className="heavenly-desc" style={{ margin: 0, fontSize: '0.62rem' }}>
+                            {tier.skillDesc}
+                          </div>
+                        </div>
+
+                        {/* Skin Reward */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#161616', padding: '8px 10px', borderRadius: '6px', border: '1px solid #282828' }}>
+                          <div>
+                            <div style={{ fontSize: '0.45rem', color: 'var(--muted)', fontFamily: 'var(--font-pixel)' }}>EXKLUSIVER SKIN:</div>
+                            <div style={{ fontSize: '0.65rem', color: '#fff', fontWeight: 'bold' }}>{tier.skinName}</div>
+                          </div>
+                          {isUnlocked ? (
                             <button
-                              className="btn btn-primary"
-                              disabled={!canAfford}
-                              onClick={() => buyHeavenlyUpgrade(u)}
-                              style={{
-                                fontSize: '0.48rem',
-                                padding: '6px 12px',
-                                minHeight: '32px',
-                                background: canAfford ? 'linear-gradient(135deg, #0077b6, #70b4ff)' : '#222',
+                              className={`btn ${isSkinEquipped ? 'btn-primary' : 'btn-outline'}`}
+                              style={{ fontSize: '0.42rem', padding: '4px 8px', minHeight: '26px' }}
+                              onClick={() => {
+                                gsRef.current.skin = tier.skinId;
+                                setGs({ ...gsRef.current });
+                                setToasts(t => [...t, { icon: '✨', name: 'SKIN AUSGERÜSTET', desc: tier.skinName }]);
                               }}
                             >
-                              KAUFEN ({u.cost} CHIPS)
+                              {isSkinEquipped ? 'AUSGERÜSTET' : 'AUSRÜSTEN'}
                             </button>
+                          ) : (
+                            <span style={{ fontSize: '0.42rem', color: '#666', fontFamily: 'var(--font-pixel)' }}>
+                              🔒 GESPERRT
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Status Footer */}
+                        <div>
+                          {isUnlocked ? (
+                            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.48rem', color: '#39ff14' }}>
+                              ✓ AKTIV & EXPONENTIELLER BOOST WIRKT
+                            </span>
+                          ) : isNext ? (
+                            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.48rem', color: '#00e5ff' }}>
+                              ⏳ NÄCHSTE STUFE &bull; {Math.floor(progressPercent)}%
+                            </span>
+                          ) : (
+                            <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.48rem', color: '#666' }}>
+                              🔒 GESPERRT (BENÖTIGT STUFE {tier.level - 1})
+                            </span>
                           )}
                         </div>
                       </div>
@@ -1592,37 +1665,47 @@ export default function ClickerPage({ defaultTab = 'buildings' }) {
 
       {/* Aufstiegs-Bestätigungs-Modal */}
       {ascendModalOpen && (() => {
-        const actualReward = Math.max(1, nextAscendReward);
-        const nextBonusPct = (((gs.ascensionCount || 0) + 1) * 10) + (((gs.heavenlyChips || 0) + actualReward) * 2);
+        const currentCount = gs.ascensionCount || 0;
+        const eligibleLevel = getEligibleAscensionLevel(gs.totalCookies || 0);
+        const targetLevel = Math.max(currentCount + 1, eligibleLevel);
+        const targetTier = getAscensionTier(targetLevel);
+        const currentMultiplier = Math.pow(2, currentCount);
+        const newMultiplier = Math.pow(2, targetLevel);
 
         return (
-          <div className="overlay-backdrop" role="dialog" aria-modal="true">
-            <div className="overlay-panel" style={{ maxWidth: '520px', borderColor: '#70b4ff', textAlign: 'center' }}>
+          <div className="overlay-backdrop" role="dialog" aria-modal="true" onClick={(e) => {
+            if (e.target === e.currentTarget) setAscendModalOpen(false);
+          }}>
+            <div className="overlay-panel" style={{ maxWidth: '520px', borderColor: '#bf5af2', textAlign: 'center' }}>
               <div style={{ fontSize: '48px', marginBottom: '12px' }}>🌌</div>
-              <h2 className="overlay-title" style={{ color: '#70b4ff', fontSize: '0.9rem', marginBottom: '14px' }}>
-                BEREIT FÜR DIE WIEDERGEBURT?
+              <h2 className="overlay-title" style={{ color: '#00e5ff', fontSize: '0.9rem', marginBottom: '14px' }}>
+                BEREIT FÜR DEN AUFSTIEG AUF STUFE {targetLevel}?
               </h2>
-              <p style={{ color: '#ddd', fontSize: '0.8rem', lineHeight: 1.6, marginBottom: '20px' }}>
+              <p style={{ color: '#ddd', fontSize: '0.78rem', lineHeight: 1.6, marginBottom: '20px' }}>
                 Deine irdischen Cookies, Gebäude und normalen Upgrades werden zurückgesetzt.<br />
                 <strong style={{ color: '#39ff14', fontSize: '0.88rem' }}>
-                  ABER DU ERHÄLTST EINEN RIESIGEN DAUERHAFTEN BOOST:
+                  DU ERHÄLTST EINEN GEWALTIGEN EXPONENTIELLEN BOOST:
                 </strong><br />
-                🏆 <strong>+1 Aufstiegs-Stufe</strong> (+10% permanenter Bonus!)<br />
-                ✨ <strong style={{ color: '#ffd700' }}>+{actualReward} Himmlische Chips</strong> (+{actualReward * 2}% permanenter Bonus!)<br />
-                <span style={{ color: '#00e5ff', fontWeight: 'bold' }}>
-                  Neuer dauerhafter Gesamtbonus: +{nextBonusPct}% auf ALLE Klicks & Gebäude!
-                </span><br /><br />
+                🏆 <strong>Aufstieg auf Stufe {targetLevel}: {targetTier?.title}</strong><br />
+                ⚡ <strong style={{ color: '#ffd700' }}>Multiplikator verdoppelt sich von {currentMultiplier}x auf {newMultiplier}x!</strong><br />
+                {targetTier && (
+                  <span>
+                    ✨ Neuer Skin: <strong style={{ color: '#00e5ff' }}>{targetTier.skinName}</strong><br />
+                    ✦ Neue Fähigkeit: <strong style={{ color: '#39ff14' }}>{targetTier.skillName}</strong> ({targetTier.skillDesc})<br />
+                  </span>
+                )}
+                <br />
                 <span style={{ color: '#90be6d', fontSize: '0.72rem' }}>
-                  💎 Diamanten, Skins, Achievements und Himmlische Upgrades bleiben dauerhaft erhalten!
+                  💎 Diamanten, erreichte Achievements und freigeschaltete Skins bleiben dauerhaft erhalten!
                 </span>
               </p>
               <div className="overlay-btn-row">
                 <button
                   className="btn btn-primary"
                   onClick={executeAscension}
-                  style={{ flex: 1, background: 'linear-gradient(135deg, #0077b6, #70b4ff)', borderColor: '#70b4ff' }}
+                  style={{ flex: 1, background: 'linear-gradient(135deg, #7928ca, #ff0080)', borderColor: '#ff0080' }}
                 >
-                  JETZT AUFSTEIGEN (+{10 + actualReward * 2}%)
+                  JETZT AUFSTEIGEN ({newMultiplier}x BOOST!)
                 </button>
                 <button
                   className="btn btn-outline"

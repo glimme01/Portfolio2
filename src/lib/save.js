@@ -99,7 +99,6 @@ export async function saveGameState(name, game, state, options = {}) {
     window.dispatchEvent(new CustomEvent('arcade-cookies-synced', {
       detail: {
         cookies: state?.cookies,
-        heavenlyChips: state?.heavenlyChips,
         gems: state?.gems,
         state,
         playerName: norm,

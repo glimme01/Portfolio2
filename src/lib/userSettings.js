@@ -8,7 +8,7 @@ export const DEFAULT_SETTINGS = {
   retroCrt: true,
   reducedMotion: false,
   numberFormat: 'short', // 'short' (1.2M), 'full' (1.200.000), 'scientific' (1.2e6)
-  casinoDefaultCurrency: 'cookies', // 'cookies' | 'heavenlyChips' | 'gems'
+  casinoDefaultCurrency: 'cookies', // 'cookies' | 'gems'
   clickerParticles: true,
   clickerNumbers: true,
   controls: 'swipe', // 'swipe' | 'keys' | 'wasd'
@@ -21,7 +21,11 @@ export function getCachedSettings(username = 'gast') {
   try {
     const raw = localStorage.getItem(`${SETTINGS_KEY_PREFIX}${norm}`);
     if (raw) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      if (parsed.casinoDefaultCurrency === 'heavenlyChips') {
+        parsed.casinoDefaultCurrency = 'cookies';
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed };
     }
   } catch {}
   return { ...DEFAULT_SETTINGS };
