@@ -181,7 +181,7 @@ body {
 
 @media (max-width: 600px) {
   .main-content {
-    padding: 20px 12px 48px 12px;
+    padding: 14px 12px 40px 12px;
   }
 }
 
@@ -955,133 +955,40 @@ input[type="checkbox"]:checked::before {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 20px;
 }
 
-/* AUFGERÄUMTER HEADER: MOOLS TITEL + FORMEL LINKS, SUCHE OBEN RECHTS */
+@media (max-width: 600px) {
+  .mools-dashboard {
+    gap: 14px;
+  }
+}
+
+/* AUFGERÄUMTER HEADER: NUR "Tools ohne Bullshit" LINKS, SUCHE RECHTS */
 .mools-clean-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 20px;
-  padding-bottom: 20px;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
   border-bottom: 2px solid var(--border-color);
   flex-wrap: wrap;
 }
 
-.mools-title-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1 1 340px;
-  min-width: 0;
-}
-
-/* DAS GEMOSH-STYLE PLAKAT-POSTER LOGO (OHNE HOVER-JUMP) */
-.mools-poster-title {
-  font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: clamp(3.8rem, 13vw, 8.5rem);
-  line-height: 0.86;
-  letter-spacing: 0.03em;
-  color: #c85636;
-  text-transform: uppercase;
-  margin: 0;
-  -webkit-text-stroke: 3px #17181c;
-  paint-order: stroke fill;
-  text-shadow: 
-    1.5px 1.5px 0 #17181c,
-    3px 3px 0 #17181c,
-    4.5px 4.5px 0 #17181c,
-    6px 6px 0 #17181c;
-  display: inline-block;
-  user-select: none;
-}
-
-[data-theme="dark"] .mools-poster-title {
-  color: #e26a48;
-  -webkit-text-stroke: 3.5px #0e0f12;
-  text-shadow:
-    1.5px 1.5px 0 #0e0f12,
-    3px 3px 0 #0e0f12,
-    4.5px 4.5px 0 #0e0f12,
-    6px 6px 0 #0e0f12,
-    7.5px 7.5px 0 #0e0f12,
-    9px 9px 0 rgba(255, 255, 255, 0.15);
-}
-
-/* DIE COOLE FORMEL: MORITZ + TOOLS = MOOLS (OHNE HOVER-JUMP) */
-.mools-formula-lockup {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 2px;
-}
-
-.mools-formula-chunk {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background-color: var(--card-bg);
-  border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: 1.5px 1.5px 0 var(--shadow-color);
-  padding: 3px 10px;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  font-weight: 700;
-  user-select: none;
-}
-
-.formula-hl {
-  font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: 1.25rem;
-  color: #c85636;
-  letter-spacing: 0.05em;
-  line-height: 1;
-}
-
-.formula-tail {
-  font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: 1.25rem;
-  color: var(--text-main);
-  letter-spacing: 0.05em;
-  line-height: 1;
-}
-
-.mools-formula-chunk-result {
-  background-color: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-}
-
-.formula-res-text {
-  font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: 1.35rem;
-  color: var(--btn-primary-text);
-  letter-spacing: 0.06em;
-  line-height: 1;
-}
-
-.mools-formula-symbol {
-  font-family: var(--font-mono);
-  font-size: 1rem;
+.mools-main-title {
+  font-family: 'Space Grotesk', 'Anton', sans-serif;
+  font-size: clamp(1.75rem, 5vw, 3rem);
   font-weight: 800;
-  color: var(--text-muted);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  margin: 0;
   user-select: none;
-}
-
-.mools-cheeky-sub {
-  font-family: var(--font-mono);
-  font-size: clamp(0.82rem, 1.8vw, 0.95rem);
-  font-weight: 700;
-  color: var(--text-muted);
-  letter-spacing: -0.01em;
 }
 
 /* SUCHE HOCH IN DIE ECKE */
 .mools-corner-search {
   flex: 0 0 auto;
-  align-self: flex-start;
-  margin-top: 4px;
 }
 
 .mools-search-wrapper {
@@ -1095,7 +1002,13 @@ input[type="checkbox"]:checked::before {
 @media (max-width: 680px) {
   .mools-clean-header {
     flex-direction: column;
-    gap: 16px;
+    align-items: stretch;
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+  .mools-main-title {
+    font-size: clamp(1.65rem, 7.5vw, 2.2rem);
+    line-height: 1.1;
   }
   .mools-corner-search {
     width: 100%;
@@ -1247,6 +1160,37 @@ input[type="checkbox"]:checked::before {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .tools-grid {
+    gap: 12px;
+  }
+
+  .tool-card {
+    padding: 13px;
+    min-height: auto;
+  }
+
+  .tool-card-header {
+    margin-bottom: 8px;
+  }
+
+  .tool-icon-wrapper {
+    width: 36px;
+    height: 36px;
+  }
+
+  .tool-card-title {
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+  }
+
+  .tool-card-desc {
+    font-size: 0.84rem;
+    line-height: 1.35;
+    margin-bottom: 10px;
+  }
 }
 
 /* ==========================================================================

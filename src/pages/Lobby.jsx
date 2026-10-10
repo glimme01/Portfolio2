@@ -62,37 +62,12 @@ export default function Lobby() {
   return (
     <div className="mools-dashboard">
       {/* ====================================================================
-          AUFGERÄUMTER HEADER: MOOLS TITEL + FORMEL + SUCHE OBEN IN DER ECKE
+          AUFGERÄUMTER HEADER: NUR "Tools ohne Bullshit" + ECK-SUCHE
           ==================================================================== */}
       <header className="mools-clean-header">
-        <div className="mools-title-block">
-          {/* GEMOSH PLAKAT-POSTER TITEL */}
-          <h1 className="mools-poster-title">MOOLS</h1>
+        <h1 className="mools-main-title">Tools ohne Bullshit</h1>
 
-          {/* DIE SMARTE FORMEL: MORITZ + TOOLS = MOOLS */}
-          <div className="mools-formula-lockup" aria-label="Erklärung: Moritz plus Tools ergibt Mools">
-            <div className="mools-formula-chunk">
-              <strong className="formula-hl">MO</strong>
-              <span className="formula-tail">RITZ</span>
-            </div>
-            <span className="mools-formula-symbol">+</span>
-            <div className="mools-formula-chunk">
-              <span className="formula-tail">TO</span>
-              <strong className="formula-hl">OLS</strong>
-            </div>
-            <span className="mools-formula-symbol">=</span>
-            <div className="mools-formula-chunk mools-formula-chunk-result">
-              <strong className="formula-res-text">MOOLS</strong>
-            </div>
-          </div>
-
-          {/* Der geforderte Spruch */}
-          <div className="mools-cheeky-sub">
-
-          </div>
-        </div>
-
-        {/* SUCHE OBEN IN DIE ECKE GESETZT */}
+        {/* SUCHE */}
         <div className="mools-corner-search">
           <div className="mools-search-wrapper">
             <input
