@@ -92,7 +92,7 @@ export default function Navbar() {
           <Link to="/" className="nav-brand" title="Mools — Startseite">
             <span className="nav-logo-box" aria-hidden="true">
               <img
-                src="/logo.png"
+                src="/logo.png?v=3"
                 alt="Mools Logo"
                 className="nav-logo-img"
               />
@@ -179,12 +179,12 @@ export default function Navbar() {
             {theme === 'dark' ? (
               <>
                 <IconSun width={18} height={18} />
-                <span>HELL</span>
+                <span className="theme-toggle-text">HELL</span>
               </>
             ) : (
               <>
                 <IconMoon width={18} height={18} />
-                <span>DUNKEL</span>
+                <span className="theme-toggle-text">DUNKEL</span>
               </>
             )}
           </button>
