@@ -13,7 +13,6 @@ export default function Footer() {
             MOOLS
           </span>
           <span className="text-muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-            (Moritz und Tools checkst du? :/)
           </span>
           <span className="text-muted">·</span>
           <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
@@ -22,7 +21,7 @@ export default function Footer() {
         </div>
 
         <p className="footer-note">
-          Chillen
+          hmmmm
         </p>
 
         <div style={{ display: 'flex', gap: '16px', fontSize: '0.85rem', flexWrap: 'wrap', justifyContent: 'center' }}>

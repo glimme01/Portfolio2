@@ -48,10 +48,10 @@
 
   /* Hand-drawn Schatten */
   --shadow-color: #17181c;
-  --shadow-offset: 4px 4px 0 var(--shadow-color);
+  --shadow-offset: 3px 3px 0 var(--shadow-color);
   --shadow-offset-sm: 2px 2px 0 var(--shadow-color);
-  --shadow-offset-lg: 6px 6px 0 var(--shadow-color);
-  --shadow-hover: 6px 6px 0 var(--shadow-color);
+  --shadow-offset-lg: 5px 5px 0 var(--shadow-color);
+  --shadow-hover: 3px 3px 0 var(--shadow-color);
   --shadow-active: 1px 1px 0 var(--shadow-color);
 
   /* Neo-Brutalismus: Harte, scharfe Kanten */
@@ -114,10 +114,10 @@
   --danger-red-light: #3f1414;
 
   --shadow-color: rgba(0, 0, 0, 0.75);
-  --shadow-offset: 4px 4px 0 var(--shadow-color);
+  --shadow-offset: 3px 3px 0 var(--shadow-color);
   --shadow-offset-sm: 2px 2px 0 var(--shadow-color);
-  --shadow-offset-lg: 6px 6px 0 var(--shadow-color);
-  --shadow-hover: 6px 6px 0 var(--shadow-color);
+  --shadow-offset-lg: 5px 5px 0 var(--shadow-color);
+  --shadow-hover: 3px 3px 0 var(--shadow-color);
   --shadow-active: 1px 1px 0 var(--shadow-color);
 }
 
@@ -281,7 +281,7 @@ button,
 
 button:active:not(:disabled),
 .btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
+  transform: translate(1px, 1px);
   box-shadow: var(--shadow-active);
 }
 
@@ -956,96 +956,43 @@ input[type="checkbox"]:checked::before {
   gap: 28px;
 }
 
-/* HERO BRANDING (GEMOSH STYLE) */
-.mools-hero {
+/* AUFGERÄUMTER HEADER: MOOLS TITEL + FORMEL LINKS, SUCHE OBEN RECHTS */
+.mools-clean-header {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-bottom: 28px;
-  border-bottom: 3px solid var(--border-color);
-}
-
-.mools-kicker-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
   flex-wrap: wrap;
 }
 
-.mools-kicker-tag {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 3px 8px;
-  background-color: var(--card-bg);
-  border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  color: var(--text-main);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.mools-kicker-accent {
-  background-color: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-}
-
-/* DAS GEMOSH-STYLE PLAKAT-POSTER LOGO */
-.mools-poster-container {
+.mools-title-block {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 6px 0;
+  flex: 1 1 340px;
+  min-width: 0;
 }
 
-.mools-poster-eyebrow {
-  font-family: var(--font-mono);
-  font-size: clamp(0.72rem, 1.5vw, 0.85rem);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
-}
-
-.mools-poster-row {
-  display: flex;
-  align-items: center;
-  max-width: 100%;
-  overflow: visible;
-}
-
+/* DAS GEMOSH-STYLE PLAKAT-POSTER LOGO (OHNE HOVER-JUMP) */
 .mools-poster-title {
   font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: clamp(4rem, 15vw, 9.8rem);
+  font-size: clamp(3.8rem, 13vw, 8.5rem);
   line-height: 0.86;
   letter-spacing: 0.03em;
   color: #c85636;
-  /* Warmes Terrakotta / Rostrot aus GEMOSH Referenzbild */
   text-transform: uppercase;
   margin: 0;
-  -webkit-text-stroke: 3.5px #17181c;
+  -webkit-text-stroke: 3px #17181c;
   paint-order: stroke fill;
-  text-shadow:
+  text-shadow: 
     1.5px 1.5px 0 #17181c,
     3px 3px 0 #17181c,
     4.5px 4.5px 0 #17181c,
-    6px 6px 0 #17181c,
-    7.5px 7.5px 0 #17181c;
+    6px 6px 0 #17181c;
   display: inline-block;
   user-select: none;
-  transition: transform 0.15s ease, text-shadow 0.15s ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .mools-poster-title:hover {
-    transform: translate(-2px, -2px);
-    text-shadow:
-      2px 2px 0 #17181c,
-      4px 4px 0 #17181c,
-      6px 6px 0 #17181c,
-      8px 8px 0 #17181c,
-      10px 10px 0 #17181c;
-  }
 }
 
 [data-theme="dark"] .mools-poster-title {
@@ -1060,45 +1007,32 @@ input[type="checkbox"]:checked::before {
     9px 9px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* DIE COOLE FORMEL: MORITZ + TOOLS = MOOLS */
+/* DIE COOLE FORMEL: MORITZ + TOOLS = MOOLS (OHNE HOVER-JUMP) */
 .mools-formula-lockup {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 .mools-formula-chunk {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   background-color: var(--card-bg);
   border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  padding: 5px 12px;
+  box-shadow: 1.5px 1.5px 0 var(--shadow-color);
+  padding: 3px 10px;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   user-select: none;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-
-.mools-formula-chunk:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--shadow-color);
-}
-
-.formula-label {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-  font-weight: 700;
 }
 
 .formula-hl {
   font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   color: #c85636;
   letter-spacing: 0.05em;
   line-height: 1;
@@ -1106,7 +1040,7 @@ input[type="checkbox"]:checked::before {
 
 .formula-tail {
   font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   color: var(--text-main);
   letter-spacing: 0.05em;
   line-height: 1;
@@ -1119,25 +1053,15 @@ input[type="checkbox"]:checked::before {
 
 .formula-res-text {
   font-family: 'Bebas Neue', 'Anton', sans-serif;
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   color: var(--btn-primary-text);
   letter-spacing: 0.06em;
   line-height: 1;
 }
 
-.formula-badge {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 800;
-  background-color: var(--border-color);
-  color: var(--card-bg);
-  padding: 2px 5px;
-  letter-spacing: 0.06em;
-}
-
 .mools-formula-symbol {
   font-family: var(--font-mono);
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--text-muted);
   user-select: none;
@@ -1145,309 +1069,179 @@ input[type="checkbox"]:checked::before {
 
 .mools-cheeky-sub {
   font-family: var(--font-mono);
-  font-size: clamp(0.85rem, 2vw, 1.05rem);
+  font-size: clamp(0.82rem, 1.8vw, 0.95rem);
   font-weight: 700;
   color: var(--text-muted);
-  margin-top: 6px;
   letter-spacing: -0.01em;
 }
 
-.mools-lead {
-  font-family: var(--font-body);
-  font-size: 1.05rem;
-  color: var(--text-main);
-  line-height: 1.5;
-  max-width: 680px;
+/* SUCHE HOCH IN DIE ECKE */
+.mools-corner-search {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 4px;
 }
 
-/* TOOLBAR & FILTER CONTROLS */
-.mools-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background-color: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  box-shadow: var(--shadow-offset);
-  padding: 18px;
-}
-
-.mools-search-row {
+.mools-search-wrapper {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  position: relative;
-  width: 100%;
+  width: 260px;
+  max-width: 100%;
+}
+
+@media (max-width: 680px) {
+  .mools-clean-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .mools-corner-search {
+    width: 100%;
+    margin-top: 0;
+  }
+  .mools-search-wrapper {
+    width: 100%;
+  }
 }
 
 .mools-search-input {
   width: 100%;
   font-family: var(--font-mono);
-  font-size: 1rem;
-  padding: 12px 42px 12px 16px;
+  font-size: 0.92rem;
+  padding: 9px 36px 9px 12px;
   background-color: var(--bg-input);
   border: var(--border-width) solid var(--border-color);
   color: var(--text-main);
   box-shadow: 2px 2px 0 var(--shadow-color);
+  outline: none;
+  transition: box-shadow 0.1s ease, border-color 0.1s ease;
 }
 
 .mools-search-input:focus {
-  outline: none;
-  box-shadow: 4px 4px 0 var(--shadow-color);
+  box-shadow: 2.5px 2.5px 0 var(--shadow-color);
   border-color: var(--btn-primary-bg);
 }
 
-.mools-filter-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.mools-filter-btn {
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  font-weight: 700;
-  padding: 6px 14px;
-  background-color: var(--bg-subtle);
-  border: var(--border-width-sm) solid var(--border-color);
-  color: var(--text-main);
+.mools-search-clear-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
   cursor: pointer;
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  transition: all 0.1s ease;
-  min-height: 36px;
-}
-
-.mools-filter-btn:hover {
-  background-color: var(--card-bg);
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--shadow-color);
-}
-
-.mools-filter-btn.active {
-  background-color: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-}
-
-.mools-toolbar-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding-top: 12px;
-  border-top: 2px dashed var(--border-color);
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-}
-
-/* ==========================================================================
-   INTERAKTIVES PLAY-DECK (AUSKLAPPBARE MINI-TOOLS ZUM SPIELEN)
-   ========================================================================== */
-.mools-playdeck {
-  background-color: var(--card-bg-elevated);
-  border: var(--border-width) solid var(--border-color);
-  box-shadow: var(--shadow-offset);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  animation: playdeckSlide 0.18s ease-out;
-}
-
-@keyframes playdeckSlide {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.mools-playdeck-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 2px dashed var(--border-color);
-  padding-bottom: 10px;
-}
-
-.mools-playdeck-title {
-  font-family: var(--font-mono);
-  font-size: 0.88rem;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mools-playdeck-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-
-@media (min-width: 600px) {
-  .mools-playdeck-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .mools-playdeck-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-.mools-play-card {
-  background-color: var(--card-bg);
-  border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.mools-play-card-title {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-weight: 800;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mools-play-screen {
-  background-color: var(--bg-input);
-  border: var(--border-width-sm) solid var(--border-color);
-  padding: 10px;
-  font-family: var(--font-mono);
-  text-align: center;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
-  font-weight: 800;
-  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--text-muted);
+  box-shadow: none !important;
 }
 
-.mools-dice-screen {
-  font-size: 1.8rem;
-  letter-spacing: -0.02em;
-}
-
-.mools-pwd-screen {
-  font-size: 0.78rem;
-  letter-spacing: 0.05em;
-  padding: 8px 6px;
-}
-
-.mools-color-screen {
-  font-size: 0.95rem;
-  letter-spacing: 0.04em;
-  font-weight: 800;
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
-}
-
-.mools-cps-screen {
-  font-size: 1.6rem;
-  letter-spacing: -0.02em;
-}
-
-.mools-play-actions {
-  display: flex;
-  gap: 6px;
+.mools-search-clear-btn:hover {
+  color: var(--text-main);
+  transform: translateY(-50%) !important;
 }
 
 /* ==========================================================================
-   GRID & TOOL-KARTEN
+   RESPONSIVER WERKZEUG-RASTER
    ========================================================================== */
+.mools-tools-container {
+  width: 100%;
+}
+
 .tools-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 20px;
-  margin-top: 16px;
+  gap: 16px;
 }
 
-@media (min-width: 480px) {
+@media (min-width: 580px) {
   .tools-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
   }
 }
 
-@media (min-width: 820px) {
+@media (min-width: 900px) {
   .tools-grid {
     grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 1180px) {
   .tools-grid {
     grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
   }
 }
 
+/* WERKZEUG-KARTE (SUBTILER HOVER-EFFEKT: MINIMAL & FEIN) */
 .tool-card {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   background-color: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-offset);
-  padding: 20px;
+  box-shadow: 2px 2px 0 var(--shadow-color);
+  padding: 18px;
   text-decoration: none;
   color: var(--text-main);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
   position: relative;
-  min-height: 220px;
+  min-height: 200px;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .tool-card:hover {
-    transform: translate(-2px, -2px);
-    box-shadow: var(--shadow-hover);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 var(--shadow-color);
   }
 }
 
 .tool-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 12px;
 }
 
 .tool-icon-wrapper {
-  width: 46px;
-  height: 46px;
-  border-radius: 0px;
+  width: 42px;
+  height: 42px;
   background-color: var(--bg-subtle);
   border: var(--border-width-sm) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 2px 2px 0 var(--shadow-color);
+  box-shadow: 1.5px 1.5px 0 var(--shadow-color);
   color: var(--text-main);
+  flex-shrink: 0;
+}
+
+.tool-category-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  background-color: var(--bg-subtle);
+  border: var(--border-width-sm) solid var(--border-color);
+  color: var(--text-muted);
 }
 
 .tool-card-title {
   font-family: var(--font-heading);
-  font-size: 1.2rem;
+  font-size: 1.15rem;
+  font-weight: 700;
   margin-bottom: 8px;
+  line-height: 1.25;
 }
 
 .tool-card-desc {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: var(--text-muted);
   line-height: 1.45;
   margin-bottom: 16px;
@@ -1458,76 +1252,12 @@ input[type="checkbox"]:checked::before {
   margin-top: auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
 }
 
-/* ==========================================================================
-   KOMPAKTE LISTEN-ANSICHT
-   ========================================================================== */
-.mools-tools-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.mools-list-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background-color: var(--card-bg);
-  border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  padding: 12px 16px;
-  text-decoration: none;
-  color: var(--text-main);
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
-}
-
-.mools-list-item:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--shadow-color);
-  background-color: var(--card-bg-elevated);
-}
-
-/* Einklappbare Kategorien */
-.category-section {
-  margin-bottom: 36px;
-}
-
-.category-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  user-select: none;
-  padding: 8px 0;
-}
-
-.category-title-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.category-pill {
-  background-color: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  padding: 4px 12px;
-  border-radius: 0px;
-  border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: var(--shadow-offset-sm);
+.tool-card-btn {
   font-family: var(--font-mono);
+  font-size: 0.78rem;
   font-weight: 700;
-  font-size: 0.8rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.category-count {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-weight: 600;
 }
 
 /* ==========================================================================
