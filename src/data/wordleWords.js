@@ -1,26 +1,31 @@
 // src/data/wordleWords.js
-// 550+ gängige deutsche 5-Buchstaben-Wörter ohne Umlaute (streng 5 Buchstaben, A-Z)
+// Umfassende deutsche Wortliste für Wordle Deutsch:
+// - Über 7.300 gültige Ratewörter (aus words.json)
+// - Kuratierte Liste bekannter Zielwörter für das Tagesrätsel und den Übungsmodus
 
-export const RAW_WORDS = [
+import ALL_VALID_WORDS from './words.json';
+
+// Kuratierte Auswahl geläufiger, alltagsbekannter deutscher 5-Buchstaben-Wörter als Rätsel-Ziele
+export const TARGET_WORDS = [
   'ABEND', 'ACHSE', 'ACKER', 'ADLER', 'ALARM', 'AMPEL', 'AMSEL', 'ANGST', 'ANKER', 'APFEL',
-  'ARENA', 'ARMEE', 'AROMA', 'ARTEN', 'ASCHE', 'ATLAS', 'AUGEN', 'AUTOR', 'BACHE', 'BADEN',
-  'BANDE', 'BARON', 'BASIS', 'BAUER', 'BAUTE', 'BEBEN', 'BEERE', 'BEINE', 'BESEN', 'BETON',
-  'BEUTE', 'BIBER', 'BIENE', 'BIRNE', 'BLATT', 'BLECH', 'BLICK', 'BLITZ', 'BLOCK', 'BLUME',
-  'BLUTE', 'BODEN', 'BOGEN', 'BOHNE', 'BOMBE', 'BOOTS', 'BORTE', 'BRAND', 'BRAUN', 'BRAUT',
-  'BREIT', 'BRIEF', 'BRISE', 'BRUCH', 'BRUST', 'BUCHE', 'BUCHT', 'BULLE', 'BUNTE', 'BUSCH',
-  'CHAOS', 'CHIPS', 'CLOWN', 'COACH', 'CREME', 'CURRY', 'DAMEN', 'DAMPF', 'DANKE', 'DATEN',
-  'DATUM', 'DAUER', 'DAUMEN', 'DECKE', 'DEICH', 'DOLCH', 'DOSEN', 'DRAHT', 'DRAMA', 'DRUCK',
-  'DUELL', 'DURST', 'EBENE', 'EICHE', 'EIFER', 'EIMER', 'EISEN', 'ELEND', 'ELITE', 'ENGEL',
-  'ENKEL', 'ERNTE', 'ESCHE', 'ESSEN', 'ETAGE', 'ETHIK', 'FABEL', 'FADEN', 'FAHNE', 'FAHRT',
-  'FALKE', 'FALLE', 'FALTE', 'FARBE', 'FASAN', 'FASER', 'FATAL', 'FAUST', 'FEDER', 'FEIER',
-  'FEIGE', 'FEIND', 'FELDE', 'FELGE', 'FELSE', 'FERNE', 'FERSE', 'FEUER', 'FIBEL', 'FIGUR',
-  'FILME', 'FINAL', 'FINDE', 'FINNE', 'FINTE', 'FISCH', 'FLACH', 'FLECK', 'FLINK', 'FLIRT',
-  'FLORA', 'FLOSS', 'FLUSS', 'FOLGE', 'FOLIE', 'FORUM', 'FOTOS', 'FRAGE', 'FRANK', 'FRECH',
-  'FREIE', 'FREMD', 'FRONT', 'FROST', 'FUCHS', 'FUNDE', 'GABEL', 'GAMER', 'GARDE', 'GASSE',
-  'GEBET', 'GEBOT', 'GEGEN', 'GEIGE', 'GEIST', 'GELBE', 'GENIE', 'GENUG', 'GERNE', 'GERTE',
-  'GESTE', 'GICHT', 'GLANZ', 'GLATT', 'GLEIS', 'GLIED', 'GNADE', 'GOLFE', 'GOSSE', 'GRABE',
-  'GRAMM', 'GRAUE', 'GREIF', 'GRILL', 'GROSS', 'GRUBE', 'GRUND', 'GURKE', 'GURTE', 'GUTEN',
-  'GUTES', 'HAFEN', 'HAGEL', 'HALLE', 'HALTE', 'HANDS', 'HARFE', 'HASEL', 'HASEN', 'HAUBE',
+  'ARENA', 'ARMEE', 'AROMA', 'ARTEN', 'ASCHE', 'ATLAS', 'AUGEN', 'AUTOR', 'BADEN', 'BAHNEN',
+  'BANDE', 'BARON', 'BASIS', 'BAUER', 'BEBEN', 'BEERE', 'BEINE', 'BESEN', 'BETON', 'BEUTE',
+  'BIBER', 'BIENE', 'BIRNE', 'BITTE', 'BLATT', 'BLECH', 'BLICK', 'BLITZ', 'BLOCK', 'BLUME',
+  'BLUTE', 'BODEN', 'BOGEN', 'BOHNE', 'BOMBE', 'BOOTS', 'BRAND', 'BRAUN', 'BRAUT', 'BREIT',
+  'BRIEF', 'BRISE', 'BRUCH', 'BRUST', 'BUCHE', 'BUCHT', 'BULLE', 'BUNTE', 'BUSCH', 'CHAOS',
+  'CHIPS', 'CLOWN', 'COACH', 'CREME', 'CURRY', 'DAMEN', 'DAMPF', 'DANKE', 'DATEN', 'DATUM',
+  'DAUER', 'DAUMEN', 'DECKE', 'DEICH', 'DOLCH', 'DOSEN', 'DRAHT', 'DRAMA', 'DRUCK', 'DUELL',
+  'DURST', 'EBENE', 'EICHE', 'EIFER', 'EIMER', 'EISEN', 'ELEND', 'ELITE', 'ENGEL', 'ENKEL',
+  'ERNTE', 'ESCHE', 'ESSEN', 'ETAGE', 'ETHIK', 'FABEL', 'FADEN', 'FAHNE', 'FAHRT', 'FALKE',
+  'FALLE', 'FALTE', 'FARBE', 'FASAN', 'FASER', 'FATAL', 'FAUST', 'FEDER', 'FEIER', 'FEIGE',
+  'FEIND', 'FELDE', 'FELGE', 'FELSE', 'FERNE', 'FERSE', 'FEUER', 'FIBEL', 'FIGUR', 'FILME',
+  'FINAL', 'FINDE', 'FINNE', 'FINTE', 'FISCH', 'FLACH', 'FLECK', 'FLINK', 'FLIRT', 'FLORA',
+  'FLOSS', 'FLUSS', 'FOLGE', 'FOLIE', 'FORUM', 'FOTOS', 'FRAGE', 'FRANK', 'FRECH', 'FREIE',
+  'FREMD', 'FRONT', 'FROST', 'FUCHS', 'FUNDE', 'GABEL', 'GAMER', 'GARDE', 'GASSE', 'GEBET',
+  'GEBOT', 'GEGEN', 'GEIGE', 'GEIST', 'GELBE', 'GENIE', 'GENUG', 'GERNE', 'GERTE', 'GESTE',
+  'GICHT', 'GLANZ', 'GLATT', 'GLEIS', 'GLIED', 'GNADE', 'GOLFE', 'GOSSE', 'GRABE', 'GRAMM',
+  'GRAUE', 'GREIF', 'GRILL', 'GROSS', 'GRUBE', 'GRUND', 'GURKE', 'GURTE', 'GUTEN', 'GUTES',
+  'HAFEN', 'HAGEL', 'HALLE', 'HALLO', 'HALTE', 'HANDS', 'HARFE', 'HASEL', 'HASEN', 'HAUBE',
   'HAUCH', 'HAUFE', 'HAUPT', 'HAUSE', 'HEBEL', 'HECHT', 'HECKE', 'HEERE', 'HEIDE', 'HEISS',
   'HELLE', 'HELME', 'HERDE', 'HERRN', 'HERZE', 'HETZE', 'HEXEN', 'HILFE', 'HITZE', 'HOBEL',
   'HOEHE', 'HOELE', 'HOFEN', 'HONIG', 'HORDE', 'HOSEN', 'HOTEL', 'HUFES', 'HUNDE', 'HURRA',
@@ -83,5 +88,17 @@ export const RAW_WORDS = [
   'ZUBER', 'ZUCHT', 'ZUNGE', 'ZURUF', 'ZWECK', 'ZWEIG', 'ZWERG', 'ZWIRN', 'ZWIST'
 ];
 
-// Sicherstellen, dass nur saubere 5-Buchstaben-Wörter exportiert werden
-export const WORDLE_WORDS = RAW_WORDS.filter((w) => w.length === 5);
+// Schnelles O(1) Set aller über 7.300 erlaubten Ratewörter
+export const VALID_GUESSES_SET = new Set(ALL_VALID_WORDS);
+
+// Für Abwärtskompatibilität: Alle Zielwörter
+export const WORDLE_WORDS = TARGET_WORDS;
+
+// Prüfung, ob ein getipptes Wort im Wörterbuch existiert
+export function isValidWord(word) {
+  if (!word || word.length !== 5) return false;
+  const upper = word.toUpperCase();
+  return VALID_GUESSES_SET.has(upper);
+}
+
+export const ALL_WORDS_COUNT = ALL_VALID_WORDS.length;

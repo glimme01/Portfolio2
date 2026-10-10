@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { IconWordle, IconRefresh, IconShare } from '../components/Icons';
-import { WORDLE_WORDS } from '../data/wordleWords';
+import { TARGET_WORDS, isValidWord, ALL_WORDS_COUNT } from '../data/wordleWords';
 
 // QWERTZ-Tastaturlayout
 const KEYBOARD_ROWS = [
@@ -22,7 +22,7 @@ function getDailyWordIndex() {
     hash = (hash << 5) - hash + dateStr.charCodeAt(i);
     hash |= 0;
   }
-  return Math.abs(hash) % WORDLE_WORDS.length;
+  return Math.abs(hash) % TARGET_WORDS.length;
 }
 
 export default function WordleTool() {
@@ -32,7 +32,7 @@ export default function WordleTool() {
   );
 
   const [mode, setMode] = useState('DAILY'); // 'DAILY' | 'PRACTICE'
-  const [targetWord, setTargetWord] = useState(() => WORDLE_WORDS[getDailyWordIndex()] || 'APFEL');
+  const [targetWord, setTargetWord] = useState(() => TARGET_WORDS[getDailyWordIndex()] || 'APFEL');
   const [guesses, setGuesses] = useState([]); // Array von Strings
   const [currentGuess, setCurrentGuess] = useState('');
   const [gameStatus, setGameStatus] = useState('IN_PROGRESS'); // 'IN_PROGRESS', 'WON', 'LOST'
@@ -66,15 +66,15 @@ export default function WordleTool() {
         console.warn(e);
       }
       // Neuer Tag
-      const dailyWord = WORDLE_WORDS[getDailyWordIndex()] || 'APFEL';
+      const dailyWord = TARGET_WORDS[getDailyWordIndex()] || 'APFEL';
       setTargetWord(dailyWord);
       setGuesses([]);
       setCurrentGuess('');
       setGameStatus('IN_PROGRESS');
     } else {
       // Übungsmodus: zufälliges Wort
-      const randomIdx = Math.floor(Math.random() * WORDLE_WORDS.length);
-      setTargetWord(WORDLE_WORDS[randomIdx]);
+      const randomIdx = Math.floor(Math.random() * TARGET_WORDS.length);
+      setTargetWord(TARGET_WORDS[randomIdx]);
       setGuesses([]);
       setCurrentGuess('');
       setGameStatus('IN_PROGRESS');
@@ -161,7 +161,7 @@ export default function WordleTool() {
         return;
       }
 
-      if (!WORDLE_WORDS.includes(currentGuess)) {
+      if (!isValidWord(currentGuess)) {
         setMessage('Wort nicht in der deutschen Liste');
         return;
       }
@@ -238,8 +238,8 @@ export default function WordleTool() {
 
   // Neues Wort im Übungsmodus starten
   const startNewPracticeGame = () => {
-    const randomIdx = Math.floor(Math.random() * WORDLE_WORDS.length);
-    setTargetWord(WORDLE_WORDS[randomIdx]);
+    const randomIdx = Math.floor(Math.random() * TARGET_WORDS.length);
+    setTargetWord(TARGET_WORDS[randomIdx]);
     setGuesses([]);
     setCurrentGuess('');
     setGameStatus('IN_PROGRESS');
@@ -516,7 +516,7 @@ export default function WordleTool() {
         </div>
 
         <p className="text-muted" style={{ fontSize: '0.8rem', marginTop: '12px', textAlign: 'center' }}>
-          Wortliste lokal gebündelt ({WORDLE_WORDS.length} deutsche Wörter). Kein Serverkontakt nötig.
+          Wortliste lokal gebündelt ({ALL_WORDS_COUNT.toLocaleString('de-DE')} deutsche Wörter). Kein Serverkontakt nötig.
         </p>
       </div>
     </div>
