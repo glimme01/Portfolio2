@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="4" y="4" width="56" height="56" rx="8" fill="#ff5b00" stroke="#111111" stroke-width="4"/>
+  <rect x="10" y="10" width="44" height="44" rx="4" fill="#faf8f5" stroke="#111111" stroke-width="3"/>
+  <text x="32" y="40" font-family="'Space Grotesk', system-ui, sans-serif" font-weight="900" font-size="24" fill="#111111" text-anchor="middle">MF</text>
+</svg>
