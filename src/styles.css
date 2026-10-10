@@ -113,7 +113,7 @@
   --danger-red: #ef4444;
   --danger-red-light: #3f1414;
 
-  --shadow-color: rgba(0, 0, 0, 0.75);
+  --shadow-color: rgba(255, 241, 194, 0.439);
   --shadow-offset: 3px 3px 0 var(--shadow-color);
   --shadow-offset-sm: 2px 2px 0 var(--shadow-color);
   --shadow-offset-lg: 5px 5px 0 var(--shadow-color);
@@ -840,12 +840,14 @@ input[type="checkbox"]:checked::before {
   .theme-toggle-text {
     display: none;
   }
+
   .theme-toggle-btn {
     padding: 0 9px;
     min-height: 36px;
     height: 36px;
     width: 36px;
   }
+
   .mobile-nav-toggle {
     min-height: 36px;
     height: 36px;
@@ -1005,7 +1007,7 @@ input[type="checkbox"]:checked::before {
   margin: 0;
   -webkit-text-stroke: 3px #17181c;
   paint-order: stroke fill;
-  text-shadow: 
+  text-shadow:
     1.5px 1.5px 0 #17181c,
     3px 3px 0 #17181c,
     4.5px 4.5px 0 #17181c,
@@ -1113,24 +1115,29 @@ input[type="checkbox"]:checked::before {
   .mools-dashboard {
     gap: 18px;
   }
+
   .mools-clean-header {
     flex-direction: column;
     gap: 14px;
     padding-bottom: 14px;
   }
+
   .mools-title-block {
     flex: none;
     width: 100%;
     gap: 8px;
   }
+
   .mools-poster-title {
     font-size: clamp(2.6rem, 12vw, 3.8rem);
     line-height: 0.9;
   }
+
   .mools-corner-search {
     width: 100%;
     margin-top: 0;
   }
+
   .mools-search-wrapper {
     width: 100%;
   }
@@ -1140,17 +1147,21 @@ input[type="checkbox"]:checked::before {
   .mools-formula-lockup {
     gap: 4px;
   }
+
   .mools-formula-chunk {
     padding: 2px 7px;
     font-size: 0.74rem;
   }
+
   .formula-hl,
   .formula-tail {
     font-size: 1.05rem;
   }
+
   .formula-res-text {
     font-size: 1.15rem;
   }
+
   .mools-formula-symbol {
     font-size: 0.85rem;
   }
@@ -1257,18 +1268,22 @@ input[type="checkbox"]:checked::before {
     min-height: auto;
     padding: 14px 14px 12px 14px;
   }
+
   .tool-card-header {
     margin-bottom: 8px;
   }
+
   .tool-card-title {
     font-size: 1.1rem;
     margin-bottom: 6px;
   }
+
   .tool-card-desc {
     font-size: 0.84rem;
     line-height: 1.35;
     margin-bottom: 12px;
   }
+
   .tool-card-action {
     padding: 7px 10px;
     font-size: 0.78rem;
