@@ -5,7 +5,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { usePageMeta } from '../hooks/usePageMeta';
-import { CATEGORIES, TOOLS_DATA } from '../data/toolsData';
+import { TOOLS_DATA } from '../data/toolsData';
 import {
   IconQr,
   IconPassword,
@@ -39,15 +39,10 @@ const iconMap = {
   IconCps,
 };
 
-// Map für Kategorie-Namen
-const catTitleMap = CATEGORIES.reduce((acc, cat) => {
-  acc[cat.id] = cat.title;
-  return acc;
-}, {});
-
 export default function Lobby() {
   usePageMeta(
-    'Tools ohne Bullshit',
+    'Mools — 12 Tools ohne Bullshit',
+    'Mools (Moritz + Tools): 12 schnelle Alltags-Tools ohne Tracker, ohne Werbung, 100% lokal im Browser.'
   );
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,8 +56,7 @@ export default function Lobby() {
       const matchTitle = tool.title.toLowerCase().includes(term);
       const matchDesc = tool.description.toLowerCase().includes(term);
       const matchTags = tool.tags.some((tag) => tag.toLowerCase().includes(term));
-      const matchCat = (catTitleMap[tool.category] || '').toLowerCase().includes(term);
-      return matchTitle || matchDesc || matchTags || matchCat;
+      return matchTitle || matchDesc || matchTags;
     });
   }, [searchTerm]);
 
@@ -93,31 +87,36 @@ export default function Lobby() {
             </div>
           </div>
 
+          {/* Der geforderte Spruch */}
+          <div className="mools-cheeky-sub">
 
-          {/* SUCHE OBEN IN DIE ECKE GESETZT */}
-          <div className="mools-corner-search">
-            <div className="mools-search-wrapper">
-              <input
-                type="search"
-                className="mools-search-input"
-                placeholder="Tools durchsuchen..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                aria-label="Tools durchsuchen"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  className="mools-search-clear-btn"
-                  onClick={() => setSearchTerm('')}
-                  title="Suche leeren"
-                  aria-label="Suche leeren"
-                >
-                  <IconClear width={16} height={16} />
-                </button>
-              )}
-            </div>
           </div>
+        </div>
+
+        {/* SUCHE OBEN IN DIE ECKE GESETZT */}
+        <div className="mools-corner-search">
+          <div className="mools-search-wrapper">
+            <input
+              type="search"
+              className="mools-search-input"
+              placeholder="Tools durchsuchen..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Tools durchsuchen"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="mools-search-clear-btn"
+                onClick={() => setSearchTerm('')}
+                title="Suche leeren"
+                aria-label="Suche leeren"
+              >
+                <IconClear width={16} height={16} />
+              </button>
+            )}
+          </div>
+        </div>
       </header>
 
       {/* ====================================================================
@@ -142,7 +141,6 @@ export default function Lobby() {
           <div className="tools-grid">
             {filteredTools.map((tool) => {
               const IconComp = iconMap[tool.icon] || IconQr;
-              const catName = catTitleMap[tool.category] || tool.category;
 
               return (
                 <Link
@@ -156,9 +154,6 @@ export default function Lobby() {
                       <div className="tool-icon-wrapper" aria-hidden="true">
                         <IconComp width={22} height={22} />
                       </div>
-                      <span className="tool-category-tag">
-                        {catName}
-                      </span>
                     </div>
 
                     <h2 className="tool-card-title">{tool.title}</h2>

@@ -1202,9 +1202,8 @@ input[type="checkbox"]:checked::before {
 
 .tool-card-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .tool-icon-wrapper {
@@ -1218,18 +1217,6 @@ input[type="checkbox"]:checked::before {
   box-shadow: 1.5px 1.5px 0 var(--shadow-color);
   color: var(--text-main);
   flex-shrink: 0;
-}
-
-.tool-category-tag {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 7px;
-  background-color: var(--bg-subtle);
-  border: var(--border-width-sm) solid var(--border-color);
-  color: var(--text-muted);
 }
 
 .tool-card-title {
