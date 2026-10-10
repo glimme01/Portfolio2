@@ -118,12 +118,7 @@ export default function Navbar() {
         <div className="nav-actions-group">
           {/* Desktop Links */}
           <nav className="nav-links-desktop" aria-label="Hauptnavigation">
-            <Link
-              to="/"
-              className={`nav-link ${isHome ? 'active' : ''}`}
-            >
-              ÜBERSICHT
-            </Link>
+
 
             {/* Dropdown für alle 12 Tools */}
             <div className="nav-dropdown-wrapper" ref={dropdownRef}>
@@ -171,20 +166,7 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* Zufalls-Tool Schnellzugriff */}
-          <button
-            type="button"
-            className="btn btn-sm btn-primary hide-tablet-mobile"
-            onClick={() => {
-              const randomIndex = Math.floor(Math.random() * TOOLS_DATA.length);
-              navigate(TOOLS_DATA[randomIndex].path);
-            }}
-            title="Ein zufälliges Tool aus allen 12 öffnen"
-            style={{ minHeight: '38px', height: '38px', padding: '0 14px' }}
-          >
-            <IconDice width={16} height={16} />
-            <span>ZUFALL</span>
-          </button>
+
 
           {/* Dark Mode Umschalter */}
           <button

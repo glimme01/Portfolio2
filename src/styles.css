@@ -7,20 +7,22 @@
   /* ========================================================================
      HELL-MODUS (GRIDLINE SUPPLY / PAPIER-STUDIO)
      ======================================================================== */
-  --bg-canvas: #faf9f6;
-  --bg-dots: rgba(0, 0, 0, 0.10);
-  --card-bg: #ffffff;
+  --bg-canvas: #fff6db;
+  --bg-dots: rgba(0, 0, 0, 0.674);
+  --card-bg: #f3f0e1;
   --card-bg-elevated: #f5f3ec;
   --border-color: #17181c;
   --border-width: 2px;
   --border-width-sm: 1.5px;
 
   /* Akzentfarben */
-  --btn-primary-bg: #e59838; /* Warmes Goldbraun / Caramel aus Bild 3 */
+  --btn-primary-bg: #e59838;
+  /* Warmes Goldbraun / Caramel aus Bild 3 */
   --btn-primary-text: #17181c;
   --btn-primary-hover: #d28526;
-  
-  --accent-peach: #f5c6b4; /* Zartes Pfirsich/Blush aus Bild 1 & 2 */
+
+  --accent-peach: #f5c6b4;
+  /* Zartes Pfirsich/Blush aus Bild 1 & 2 */
   --accent-peach-text: #17181c;
   --accent-peach-light: #fdf5f2;
   --accent-peach-border: #e0a894;
@@ -72,16 +74,20 @@
    DUNKEL-MODUS (SKETCHPAD CHALKBOARD DARK AUS BILD 1 & 2)
    ========================================================================== */
 [data-theme="dark"] {
-  --bg-canvas: #16171b; /* Tiefes Tafel-Dunkelgrau */
-  --bg-dots: rgba(255, 255, 255, 0.16); /* Feine weiße Kreidepunkte */
-  --card-bg: #202227; /* Dunkles Card-Panel */
-  --card-bg-elevated: #282a31;
-  --border-color: rgba(255, 255, 255, 0.90); /* Handgezeichnete Kreide-Kontur */
+  --bg-canvas: #000000;
+  /* Tiefes Tafel-Dunkelgrau */
+  --bg-dots: rgba(252, 252, 252, 0.15);
+  /* Feine weiße Kreidepunkte */
+  --card-bg: #000000;
+  /* Dunkles Card-Panel */
+  --card-bg-elevated: #c3bd85;
+  --border-color: rgba(38, 33, 17, 0.9);
+  /* Handgezeichnete Kreide-Kontur */
   --border-width: 2px;
   --border-width-sm: 1.5px;
 
   /* Primär-Button im Darkmode ist das charakteristische Peach aus Bild 1 */
-  --btn-primary-bg: #f5c6b4;
+  --btn-primary-bg: #dbbd50;
   --btn-primary-text: #16171b;
   --btn-primary-hover: #eed0c5;
 
@@ -118,7 +124,9 @@
 /* ==========================================================================
    RESET & BASIS
    ========================================================================== */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -171,6 +179,12 @@ body {
   padding: 32px 16px 64px 16px;
 }
 
+@media (max-width: 600px) {
+  .main-content {
+    padding: 20px 12px 48px 12px;
+  }
+}
+
 .tool-workspace {
   max-width: 760px;
   margin: 0 auto;
@@ -186,7 +200,12 @@ body {
 /* ==========================================================================
    TYPOGRAFIE (FRAUNCES + PLUS JAKARTA SANS + CAVEAT)
    ========================================================================== */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-heading);
   letter-spacing: -0.02em;
   font-weight: 700;
@@ -227,7 +246,8 @@ p {
 /* ==========================================================================
    BUTTONS (TAKTILER SKETCHPAD-STIL)
    ========================================================================== */
-button, .btn {
+button,
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -251,23 +271,28 @@ button, .btn {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  button:hover:not(:disabled), .btn:hover:not(:disabled) {
+
+  button:hover:not(:disabled),
+  .btn:hover:not(:disabled) {
     transform: translate(-1px, -1px);
     box-shadow: var(--shadow-hover);
   }
 }
 
-button:active:not(:disabled), .btn:active:not(:disabled) {
+button:active:not(:disabled),
+.btn:active:not(:disabled) {
   transform: translate(2px, 2px);
   box-shadow: var(--shadow-active);
 }
 
-button:focus-visible, .btn:focus-visible {
+button:focus-visible,
+.btn:focus-visible {
   outline: 3px solid var(--accent-peach-border);
   outline-offset: 2px;
 }
 
-button:disabled, .btn:disabled {
+button:disabled,
+.btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
@@ -326,7 +351,8 @@ button:disabled, .btn:disabled {
 /* ==========================================================================
    CARDS & PANELS (SKETCH-CONTOUR)
    ========================================================================== */
-.card, .panel {
+.card,
+.panel {
   background-color: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--radius-md);
@@ -366,7 +392,8 @@ button:disabled, .btn:disabled {
   margin-bottom: 18px;
 }
 
-label, .form-label {
+label,
+.form-label {
   font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 700;
@@ -659,12 +686,22 @@ input[type="checkbox"]:checked::before {
 }
 
 .brand-title {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 1.35rem;
-  letter-spacing: -0.03em;
-  color: var(--text-main);
+  font-family: 'Bebas Neue', 'Anton', sans-serif;
+  font-weight: 400;
+  font-size: 1.65rem;
+  letter-spacing: 0.04em;
+  color: #c85636;
   line-height: 1;
+  -webkit-text-stroke: 1.5px #17181c;
+  paint-order: stroke fill;
+  text-shadow: 1.5px 1.5px 0 #17181c;
+  display: inline-block;
+}
+
+[data-theme="dark"] .brand-title {
+  color: #e06846;
+  -webkit-text-stroke: 1.5px #0e0f12;
+  text-shadow: 1.5px 1.5px 0 #0e0f12;
 }
 
 .brand-sub {
@@ -674,6 +711,13 @@ input[type="checkbox"]:checked::before {
   color: var(--text-muted);
   line-height: 1;
   margin-top: 3px;
+  white-space: nowrap;
+}
+
+@media (max-width: 440px) {
+  .brand-sub {
+    display: none;
+  }
 }
 
 .nav-actions-group {
@@ -705,7 +749,8 @@ input[type="checkbox"]:checked::before {
   background: none;
 }
 
-.nav-link:hover, .nav-link.active {
+.nav-link:hover,
+.nav-link.active {
   background-color: var(--bg-subtle);
   border-color: var(--border-color);
   box-shadow: var(--shadow-offset-sm);
@@ -839,6 +884,7 @@ input[type="checkbox"]:checked::before {
   .nav-links-desktop {
     display: none;
   }
+
   .mobile-nav-toggle {
     display: inline-flex;
     align-items: center;
@@ -901,68 +947,32 @@ input[type="checkbox"]:checked::before {
 }
 
 /* ==========================================================================
-   MOOLS DASHBOARD LAYOUT (ASYMMETRISCH, RESPONSIVE, BRUTALISTISCH)
+   MOOLS DASHBOARD LAYOUT (VOLLSTÄNDIG RESPONSIV & BRUTALISTISCH)
    ========================================================================== */
 .mools-dashboard {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 32px;
-  align-items: start;
   width: 100%;
-}
-
-@media (min-width: 1024px) {
-  .mools-dashboard {
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 36px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .mools-dashboard {
-    grid-template-columns: minmax(0, 1fr) 380px;
-    gap: 44px;
-  }
-}
-
-.mools-main-col {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  min-width: 0;
 }
 
-.mools-side-col {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-width: 0;
-}
-
-@media (min-width: 1024px) {
-  .mools-side-col {
-    position: sticky;
-    top: 84px;
-  }
-}
-
-/* HERO BRANDING */
+/* HERO BRANDING (GEMOSH STYLE) */
 .mools-hero {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 24px;
+  gap: 14px;
+  padding-bottom: 28px;
   border-bottom: 3px solid var(--border-color);
 }
 
-.mools-tag-row {
+.mools-kicker-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.mools-tag {
+.mools-kicker-tag {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 700;
@@ -972,31 +982,174 @@ input[type="checkbox"]:checked::before {
   box-shadow: 2px 2px 0 var(--shadow-color);
   color: var(--text-main);
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.mools-tag-accent {
+.mools-kicker-accent {
   background-color: var(--btn-primary-bg);
   color: var(--btn-primary-text);
 }
 
-.mools-title {
-  font-family: var(--font-heading);
-  font-size: clamp(3rem, 7.5vw, 5.2rem);
-  font-weight: 800;
-  line-height: 0.95;
-  letter-spacing: -0.04em;
-  margin: 6px 0 2px 0;
-  text-transform: uppercase;
-  color: var(--text-main);
+/* DAS GEMOSH-STYLE PLAKAT-POSTER LOGO */
+.mools-poster-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
 }
 
-.mools-sub {
+.mools-poster-eyebrow {
   font-family: var(--font-mono);
-  font-size: clamp(0.92rem, 2vw, 1.15rem);
+  font-size: clamp(0.72rem, 1.5vw, 0.85rem);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.mools-poster-row {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.mools-poster-title {
+  font-family: 'Bebas Neue', 'Anton', sans-serif;
+  font-size: clamp(4rem, 15vw, 9.8rem);
+  line-height: 0.86;
+  letter-spacing: 0.03em;
+  color: #c85636;
+  /* Warmes Terrakotta / Rostrot aus GEMOSH Referenzbild */
+  text-transform: uppercase;
+  margin: 0;
+  -webkit-text-stroke: 3.5px #17181c;
+  paint-order: stroke fill;
+  text-shadow:
+    1.5px 1.5px 0 #17181c,
+    3px 3px 0 #17181c,
+    4.5px 4.5px 0 #17181c,
+    6px 6px 0 #17181c,
+    7.5px 7.5px 0 #17181c;
+  display: inline-block;
+  user-select: none;
+  transition: transform 0.15s ease, text-shadow 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mools-poster-title:hover {
+    transform: translate(-2px, -2px);
+    text-shadow:
+      2px 2px 0 #17181c,
+      4px 4px 0 #17181c,
+      6px 6px 0 #17181c,
+      8px 8px 0 #17181c,
+      10px 10px 0 #17181c;
+  }
+}
+
+[data-theme="dark"] .mools-poster-title {
+  color: #e26a48;
+  -webkit-text-stroke: 3.5px #0e0f12;
+  text-shadow:
+    1.5px 1.5px 0 #0e0f12,
+    3px 3px 0 #0e0f12,
+    4.5px 4.5px 0 #0e0f12,
+    6px 6px 0 #0e0f12,
+    7.5px 7.5px 0 #0e0f12,
+    9px 9px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* DIE COOLE FORMEL: MORITZ + TOOLS = MOOLS */
+.mools-formula-lockup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.mools-formula-chunk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--card-bg);
+  border: var(--border-width-sm) solid var(--border-color);
+  box-shadow: 2px 2px 0 var(--shadow-color);
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  user-select: none;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.mools-formula-chunk:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--shadow-color);
+}
+
+.formula-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.formula-hl {
+  font-family: 'Bebas Neue', 'Anton', sans-serif;
+  font-size: 1.35rem;
+  color: #c85636;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.formula-tail {
+  font-family: 'Bebas Neue', 'Anton', sans-serif;
+  font-size: 1.35rem;
+  color: var(--text-main);
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.mools-formula-chunk-result {
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.formula-res-text {
+  font-family: 'Bebas Neue', 'Anton', sans-serif;
+  font-size: 1.45rem;
+  color: var(--btn-primary-text);
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.formula-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  background-color: var(--border-color);
+  color: var(--card-bg);
+  padding: 2px 5px;
+  letter-spacing: 0.06em;
+}
+
+.mools-formula-symbol {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.mools-cheeky-sub {
+  font-family: var(--font-mono);
+  font-size: clamp(0.85rem, 2vw, 1.05rem);
   font-weight: 700;
   color: var(--text-muted);
+  margin-top: 6px;
   letter-spacing: -0.01em;
-  margin-bottom: 8px;
 }
 
 .mools-lead {
@@ -1004,10 +1157,10 @@ input[type="checkbox"]:checked::before {
   font-size: 1.05rem;
   color: var(--text-main);
   line-height: 1.5;
-  max-width: 640px;
+  max-width: 680px;
 }
 
-/* TOOLBAR & CONTROLS */
+/* TOOLBAR & FILTER CONTROLS */
 .mools-controls {
   display: flex;
   flex-direction: column;
@@ -1023,12 +1176,13 @@ input[type="checkbox"]:checked::before {
   align-items: center;
   gap: 10px;
   position: relative;
+  width: 100%;
 }
 
 .mools-search-input {
   width: 100%;
   font-family: var(--font-mono);
-  font-size: 0.92rem;
+  font-size: 1rem;
   padding: 12px 42px 12px 16px;
   background-color: var(--bg-input);
   border: var(--border-width) solid var(--border-color);
@@ -1038,7 +1192,7 @@ input[type="checkbox"]:checked::before {
 
 .mools-search-input:focus {
   outline: none;
-  box-shadow: 3px 3px 0 var(--shadow-color);
+  box-shadow: 4px 4px 0 var(--shadow-color);
   border-color: var(--btn-primary-bg);
 }
 
@@ -1051,16 +1205,16 @@ input[type="checkbox"]:checked::before {
 
 .mools-filter-btn {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  padding: 6px 12px;
+  padding: 6px 14px;
   background-color: var(--bg-subtle);
   border: var(--border-width-sm) solid var(--border-color);
   color: var(--text-main);
   cursor: pointer;
   box-shadow: 2px 2px 0 var(--shadow-color);
   transition: all 0.1s ease;
-  min-height: 34px;
+  min-height: 36px;
 }
 
 .mools-filter-btn:hover {
@@ -1075,172 +1229,144 @@ input[type="checkbox"]:checked::before {
   box-shadow: 2px 2px 0 var(--shadow-color);
 }
 
-.mools-actions-row {
+.mools-toolbar-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 10px;
+  padding-top: 12px;
   border-top: 2px dashed var(--border-color);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
-.mools-view-toggle {
-  display: inline-flex;
-  gap: 6px;
-}
-
-/* PLAY ZONE (INTERAKTIVE MINI-WIDGETS ZUM SPIELEN) */
-.playzone-card {
-  background-color: var(--card-bg);
+/* ==========================================================================
+   INTERAKTIVES PLAY-DECK (AUSKLAPPBARE MINI-TOOLS ZUM SPIELEN)
+   ========================================================================== */
+.mools-playdeck {
+  background-color: var(--card-bg-elevated);
   border: var(--border-width) solid var(--border-color);
   box-shadow: var(--shadow-offset);
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  animation: playdeckSlide 0.18s ease-out;
 }
 
-.playzone-header {
+@keyframes playdeckSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mools-playdeck-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 2px dashed var(--border-color);
   padding-bottom: 10px;
-  border-bottom: 2px solid var(--border-color);
 }
 
-.playzone-title {
+.mools-playdeck-title {
   font-family: var(--font-mono);
   font-size: 0.88rem;
   font-weight: 800;
-  text-transform: uppercase;
-  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* WIDGET: WÜRFEL */
-.widget-box {
-  background-color: var(--bg-subtle);
+.mools-playdeck-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 600px) {
+  .mools-playdeck-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mools-playdeck-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.mools-play-card {
+  background-color: var(--card-bg);
   border: var(--border-width-sm) solid var(--border-color);
   box-shadow: 2px 2px 0 var(--shadow-color);
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-
-.widget-label {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-}
-
-.widget-dice-display {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 64px;
-  background-color: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  box-shadow: 3px 3px 0 var(--shadow-color);
-  font-family: var(--font-heading);
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: var(--text-main);
-  user-select: none;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.widget-dice-display.rolling {
-  transform: rotate(15deg) scale(1.1);
-}
-
-/* WIDGET: PASSWORT */
-.widget-pwd-display {
-  padding: 10px 12px;
-  background-color: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--text-main);
-  letter-spacing: 0.04em;
-  word-break: break-all;
-  user-select: all;
-  box-shadow: 2px 2px 0 var(--shadow-color);
-}
-
-/* WIDGET: FARBE */
-.widget-color-preview {
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: var(--border-width) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  cursor: pointer;
-}
-
-/* WIDGET: CPS */
-.widget-cps-pad {
-  height: 54px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 12px;
-  background-color: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  cursor: pointer;
-  user-select: none;
-  font-family: var(--font-heading);
-  font-size: 1.2rem;
+}
+
+.mools-play-card-title {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   font-weight: 800;
-  transition: transform 0.05s ease;
-}
-
-.widget-cps-pad:active {
-  transform: translate(2px, 2px);
-  box-shadow: 0 0 0;
-}
-
-/* KOMPAKTE LISTENANSICHT (VIEW TOGGLE) */
-.mools-tools-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mools-list-item {
+  color: var(--text-muted);
+  text-transform: uppercase;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background-color: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  text-decoration: none;
-  color: var(--text-main);
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  gap: 6px;
 }
 
-.mools-list-item:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--shadow-color);
+.mools-play-screen {
+  background-color: var(--bg-input);
+  border: var(--border-width-sm) solid var(--border-color);
+  padding: 10px;
+  font-family: var(--font-mono);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  font-weight: 800;
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mools-dice-screen {
+  font-size: 1.8rem;
+  letter-spacing: -0.02em;
+}
+
+.mools-pwd-screen {
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  padding: 8px 6px;
+}
+
+.mools-color-screen {
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  font-weight: 800;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.mools-cps-screen {
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.mools-play-actions {
+  display: flex;
+  gap: 6px;
 }
 
 /* ==========================================================================
@@ -1333,6 +1459,35 @@ input[type="checkbox"]:checked::before {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* ==========================================================================
+   KOMPAKTE LISTEN-ANSICHT
+   ========================================================================== */
+.mools-tools-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.mools-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--card-bg);
+  border: var(--border-width-sm) solid var(--border-color);
+  box-shadow: 2px 2px 0 var(--shadow-color);
+  padding: 12px 16px;
+  text-decoration: none;
+  color: var(--text-main);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+}
+
+.mools-list-item:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--shadow-color);
+  background-color: var(--card-bg-elevated);
 }
 
 /* Einklappbare Kategorien */
@@ -1452,23 +1607,74 @@ input[type="checkbox"]:checked::before {
   border: 0;
 }
 
-.flex { display: flex; }
-.flex-col { display: flex; flex-direction: column; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.justify-center { justify-content: center; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-.gap-4 { gap: 16px; }
-.gap-6 { gap: 24px; }
-.w-full { width: 100%; }
-.text-center { text-align: center; }
-.mt-2 { margin-top: 8px; }
-.mt-4 { margin-top: 16px; }
-.mt-6 { margin-top: 24px; }
-.mb-2 { margin-bottom: 8px; }
-.mb-4 { margin-bottom: 16px; }
-.mb-6 { margin-bottom: 24px; }
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gap-3 {
+  gap: 12px;
+}
+
+.gap-4 {
+  gap: 16px;
+}
+
+.gap-6 {
+  gap: 24px;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-2 {
+  margin-top: 8px;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
+
+.mt-6 {
+  margin-top: 24px;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
+}
+
+.mb-4 {
+  margin-bottom: 16px;
+}
+
+.mb-6 {
+  margin-bottom: 24px;
+}
 
 @media (max-width: 820px) {
   .hide-tablet-mobile {
