@@ -41,8 +41,7 @@ const iconMap = {
 
 export default function Lobby() {
   usePageMeta(
-    'Mools — 12 Tools ohne Bullshit',
-    'Mools (Moritz + Tools): 12 schnelle Alltags-Tools ohne Tracker, ohne Werbung, 100% lokal im Browser.'
+    'Tools ohne Bullshit'
   );
 
   const [searchTerm, setSearchTerm] = useState('');
