@@ -98,8 +98,30 @@ export default function Lobby() {
     <div>
       {/* Hero-Bereich */}
       <section style={{ textAlign: 'center', marginBottom: '32px' }}>
-        <div style={{ display: 'inline-block', marginBottom: '12px' }}>
-          <span className="badge badge-marker">SCHNELL · PRIVAT · OFFLINE</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <div
+            style={{
+              width: '68px',
+              height: '68px',
+              borderRadius: 'var(--radius-md)',
+              border: 'var(--border-width) solid var(--border-color)',
+              boxShadow: 'var(--shadow-offset)',
+              backgroundColor: '#ffffff',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <img
+              src="/logo.png"
+              alt="Moritzfreund Tools Logo"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated' }}
+            />
+          </div>
+          <div>
+            <span className="badge badge-marker">SCHNELL · PRIVAT · OFFLINE</span>
+          </div>
         </div>
         <h1 style={{ marginBottom: '12px' }}>MORITZFREUND TOOLS</h1>
         <p style={{ maxWidth: '640px', margin: '0 auto', fontSize: '1.1rem', color: 'var(--text-muted)' }}>
