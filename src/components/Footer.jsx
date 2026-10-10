@@ -9,13 +9,16 @@ export default function Footer() {
     <footer className="app-footer">
       <div className="footer-container">
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <span className="badge badge-marker">100% PRIVAT</span>
-          <span style={{ fontWeight: 700, fontFamily: 'var(--font-heading)' }}>
-            MORITZFREUND TOOLS
+          <span className="badge badge-marker">[100% PRIVAT]</span>
+          <span style={{ fontWeight: 800, fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
+            MOOLS
+          </span>
+          <span className="text-muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
+            (Moritz und Tools checkst du? :/)
           </span>
           <span className="text-muted">·</span>
-          <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            12 nützliche Alltags-Werkzeuge ohne Tracking
+          <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+            12 Werkzeuge ohne Tracking
           </span>
         </div>
 

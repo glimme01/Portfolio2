@@ -89,15 +89,18 @@ export default function Navbar() {
       <div className="navbar-container">
         {/* Linke Seite: Logo & Markenname */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link to="/" className="nav-brand" title="Moritzfreund Tools — Startseite">
+          <Link to="/" className="nav-brand" title="Mools — Startseite">
             <span className="nav-logo-box" aria-hidden="true">
               <img
                 src="/logo.png"
-                alt="Moritzfreund Tools Logo"
+                alt="Mools Logo"
                 className="nav-logo-img"
               />
             </span>
-            <span className="brand-title">MORITZFREUND TOOLS</span>
+            <div className="brand-text-col">
+              <span className="brand-title">MOOLS</span>
+              <span className="brand-sub">(Moritz und Tools checkst du? :/)</span>
+            </div>
           </Link>
 
           {/* Breadcrumb auf Tool-Seiten (auf Desktop) */}

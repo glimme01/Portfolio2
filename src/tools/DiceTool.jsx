@@ -155,7 +155,7 @@ export default function DiceTool() {
           height: '74px',
           backgroundColor: '#ffffff',
           border: '3px solid #111111',
-          borderRadius: '12px',
+          borderRadius: '0px',
           boxShadow: '4px 4px 0 #111111',
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
@@ -309,7 +309,7 @@ export default function DiceTool() {
                       alignItems: 'center',
                       padding: '8px 12px',
                       backgroundColor: 'var(--bg-subtle)',
-                      borderRadius: '6px',
+                      borderRadius: '0px',
                       border: '1px solid var(--border-color)',
                       fontSize: '0.9rem',
                     }}
@@ -483,7 +483,7 @@ export default function DiceTool() {
                     alignItems: 'center',
                     padding: '8px 12px',
                     backgroundColor: 'var(--bg-subtle)',
-                    borderRadius: '6px',
+                    borderRadius: '0px',
                     border: '1px solid var(--border-color)',
                   }}
                 >

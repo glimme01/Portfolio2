@@ -204,7 +204,7 @@ export default function CpsTool() {
                 padding: '8px 16px',
                 backgroundColor: 'var(--marker-yellow)',
                 border: '2px solid #111',
-                borderRadius: '6px',
+                borderRadius: '0px',
                 fontWeight: 900,
                 fontSize: '1.2rem',
                 boxShadow: '3px 3px 0 #111',
@@ -258,7 +258,7 @@ export default function CpsTool() {
                 padding: '6px 14px',
                 backgroundColor: 'var(--bg-subtle)',
                 border: '2px solid #111',
-                borderRadius: '6px',
+                borderRadius: '0px',
                 marginBottom: '16px',
               }}
             >
@@ -309,7 +309,7 @@ export default function CpsTool() {
                   alignItems: 'center',
                   padding: '8px 12px',
                   backgroundColor: 'var(--bg-subtle)',
-                  borderRadius: '6px',
+                  borderRadius: '0px',
                   border: '1px solid var(--border-color)',
                   fontSize: '0.85rem',
                 }}

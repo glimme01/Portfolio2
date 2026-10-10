@@ -245,7 +245,7 @@ export default function SpeedTool() {
                 width: '100%',
                 backgroundColor: 'var(--bg-subtle)',
                 border: '2px solid #111111',
-                borderRadius: '8px',
+                borderRadius: '0px',
                 overflow: 'hidden',
                 boxShadow: '2px 2px 0 #111111',
               }}
@@ -300,7 +300,7 @@ export default function SpeedTool() {
                   alignItems: 'center',
                   padding: '8px 12px',
                   backgroundColor: 'var(--bg-subtle)',
-                  borderRadius: '6px',
+                  borderRadius: '0px',
                   border: '1px solid var(--border-color)',
                   fontSize: '0.85rem',
                 }}

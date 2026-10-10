@@ -218,7 +218,7 @@ export default function ColorTool() {
               padding: '8px 16px',
               backgroundColor: '#ffffff',
               border: '2px solid #111',
-              borderRadius: '6px',
+              borderRadius: '0px',
               fontWeight: 900,
               fontSize: '1.2rem',
               color: '#111111',
@@ -290,7 +290,7 @@ export default function ColorTool() {
               alignItems: 'center',
               backgroundColor: 'var(--bg-subtle)',
               padding: '8px 12px',
-              borderRadius: '6px',
+              borderRadius: '0px',
               border: '1.5px solid var(--border-color)',
             }}
           >
@@ -308,7 +308,7 @@ export default function ColorTool() {
               alignItems: 'center',
               backgroundColor: 'var(--bg-subtle)',
               padding: '8px 12px',
-              borderRadius: '6px',
+              borderRadius: '0px',
               border: '1.5px solid var(--border-color)',
             }}
           >
@@ -326,7 +326,7 @@ export default function ColorTool() {
               alignItems: 'center',
               backgroundColor: 'var(--bg-subtle)',
               padding: '8px 12px',
-              borderRadius: '6px',
+              borderRadius: '0px',
               border: '1.5px solid var(--border-color)',
             }}
           >

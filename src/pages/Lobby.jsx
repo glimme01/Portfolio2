@@ -1,7 +1,8 @@
 // src/pages/Lobby.jsx
-// Moritzfreund Tools — Inspiriert von SketchPad (Dark) & Gridline Supply (Light)
+// MOOLS — 12 Tools ohne Bullshit
+// Asymmetrisches, responsives Neo-Brutalismus-Dashboard mit interaktiver Play-Zone
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { CATEGORIES, TOOLS_DATA } from '../data/toolsData';
@@ -23,9 +24,11 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconArrowRight,
+  IconCopy,
+  IconCheck,
 } from '../components/Icons';
 
-// Icon-Map zur dynamischen Zuordnung
+// Icon-Map
 const iconMap = {
   IconQr,
   IconPassword,
@@ -43,23 +46,24 @@ const iconMap = {
 
 export default function Lobby() {
   usePageMeta(
-    '12 nützliche Alltags-Tools',
-    'Moritzfreund Tools: Schnelle, private Werkzeuge für QR-Codes, Passwörter, Noten, Einheiten, Währungen, Bilder, Farben, Würfel, Wordle, Speed & CPS.'
+    'Mools — 12 Tools ohne Bullshit',
+    'Mools (Moritz + Tools): 12 schnelle Alltags-Tools ohne Tracker, ohne Werbung, 100% lokal im Browser.'
   );
 
   const navigate = useNavigate();
-  const toolsSectionRef = useRef(null);
 
+  // Navigation & Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
 
-  // Einklapp-Zustand für Kategorien aus localStorage laden (Default: alle offen)
+  // Einklappbare Kategorien (Default: alle offen)
   const [openCategories, setOpenCategories] = useState(() => {
     try {
-      const saved = localStorage.getItem('mf_tools_open_categories');
+      const saved = localStorage.getItem('mools_open_cats');
       if (saved) return JSON.parse(saved);
     } catch (e) {
-      console.warn('localStorage nicht lesbar', e);
+      console.warn('localStorage Fehler', e);
     }
     return {
       SCHULE: true,
@@ -69,12 +73,11 @@ export default function Lobby() {
     };
   });
 
-  // Zustand bei Änderungen speichern
   useEffect(() => {
     try {
-      localStorage.setItem('mf_tools_open_categories', JSON.stringify(openCategories));
+      localStorage.setItem('mools_open_cats', JSON.stringify(openCategories));
     } catch (e) {
-      console.warn('localStorage Schreibfehler', e);
+      console.warn('localStorage Fehler', e);
     }
   }, [openCategories]);
 
@@ -85,19 +88,84 @@ export default function Lobby() {
     }));
   };
 
-  // Zufälliges Tool auswählen
-  const handleRandomTool = () => {
-    const randomIndex = Math.floor(Math.random() * TOOLS_DATA.length);
-    navigate(TOOLS_DATA[randomIndex].path);
+  const areAllOpen = Object.values(openCategories).every(Boolean);
+
+  const toggleAllCategories = () => {
+    const nextState = !areAllOpen;
+    setOpenCategories({
+      SCHULE: nextState,
+      ALLTAG: nextState,
+      SPIELEREI: nextState,
+      TECHNIK: nextState,
+    });
   };
 
-  const scrollToTools = () => {
-    if (toolsSectionRef.current) {
-      toolsSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+  // =========================================================================
+  // INTERAKTIVE PLAY-ZONE STATES & LOGIK (WÜRFEL, PASSWORT, FARBE, KLICKER)
+  // =========================================================================
+
+  // 1. Quick Würfel
+  const [diceType, setDiceType] = useState('d6'); // 'd6' | 'd20' | 'coin'
+  const [diceValue, setDiceValue] = useState('6');
+  const [isRolling, setIsRolling] = useState(false);
+
+  const rollDice = () => {
+    setIsRolling(true);
+    setTimeout(() => {
+      if (diceType === 'd6') {
+        setDiceValue(String(Math.floor(Math.random() * 6) + 1));
+      } else if (diceType === 'd20') {
+        setDiceValue(String(Math.floor(Math.random() * 20) + 1));
+      } else {
+        setDiceValue(Math.random() < 0.5 ? 'KOPF' : 'ZAHL');
+      }
+      setIsRolling(false);
+    }, 180);
+  };
+
+  // 2. Instant Passwort
+  const [pwdLength, setPwdLength] = useState(16);
+  const [quickPwd, setQuickPwd] = useState('mK8#vL9$pQ2@xR4!');
+  const [pwdCopied, setPwdCopied] = useState(false);
+
+  const generateQuickPassword = (len = pwdLength) => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*?';
+    let res = '';
+    const array = new Uint32Array(len);
+    window.crypto.getRandomValues(array);
+    for (let i = 0; i < len; i++) {
+      res += chars[array[i] % chars.length];
     }
+    setQuickPwd(res);
+    setPwdCopied(false);
   };
 
-  // Gefilterte Tools basierend auf Suchbegriff und aktiver Kategorie
+  const copyPassword = () => {
+    navigator.clipboard.writeText(quickPwd);
+    setPwdCopied(true);
+    setTimeout(() => setPwdCopied(false), 1500);
+  };
+
+  // 3. Farb-Roulette
+  const [quickColor, setQuickColor] = useState('#E59838');
+  const [colorCopied, setColorCopied] = useState(false);
+
+  const generateRandomColor = () => {
+    const hex = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0').toUpperCase();
+    setQuickColor(hex);
+    setColorCopied(false);
+  };
+
+  const copyColor = () => {
+    navigator.clipboard.writeText(quickColor);
+    setColorCopied(true);
+    setTimeout(() => setColorCopied(false), 1500);
+  };
+
+  // 4. Mini CPS Clicker Pad
+  const [cpsClicks, setCpsClicks] = useState(0);
+
+  // Gefilterte Tools
   const filteredTools = useMemo(() => {
     let list = TOOLS_DATA;
 
@@ -116,367 +184,519 @@ export default function Lobby() {
     });
   }, [searchTerm, activeCategoryFilter]);
 
+  // Zufalls-Tool Navigation
+  const handleRandomTool = () => {
+    const randomIndex = Math.floor(Math.random() * TOOLS_DATA.length);
+    navigate(TOOLS_DATA[randomIndex].path);
+  };
+
   return (
-    <div>
+    <div className="mools-dashboard">
       {/* ====================================================================
-          HERO-BEREICH (INSPIRIERT VON SKETCHPAD BILD 1 & GRIDLINE SUPPLY BILD 3)
+          HAUPTSPALTE (LINKS / MITTE): HERO, STEUERUNG, KATEGORIEN & TOOLS
           ==================================================================== */}
-      <section className="hero-layout" aria-label="Einführung">
-        {/* Linke Spalte: Markante Headline & CTAs */}
-        <div className="hero-content">
-          <div className="hero-badge-wrap">
-            <span className="sketch-pill">
-              Collaborative Studio · 12 Alltags-Tools
+      <div className="mools-main-col">
+        {/* Brand Header */}
+        <section className="mools-hero">
+          <div className="mools-tag-row">
+            <span className="mools-tag">[V2.0]</span>
+            <span className="mools-tag mools-tag-accent">[100% LOKAL]</span>
+            <span className="mools-tag">
+              <span className="live-dot" style={{ marginRight: '4px' }} />
+              [0 TRACKER]
             </span>
+            <span className="mools-tag">[OFFLINE-FIRST]</span>
           </div>
 
-          <h1 className="hero-title">
-            Werkzeuge nutzen, <br className="hide-tablet-mobile" />
-            ohne den Flow zu verlieren
-          </h1>
+          <h1 className="mools-title">MOOLS</h1>
+          <div className="mools-sub">(Moritz und Tools checkst du? :/)</div>
 
-          <p className="hero-subtitle">
-            Moritzfreund Tools ist die handgemachte Werkzeug-Sammlung für deinen Alltag:
-            QR-Codes, sichere Passwörter, Noten, Einheiten, Farbwähler, Wordle und mehr — 
-            mit Live-Vorschau, 100% privat und ohne Tracker.
+          <p className="mools-lead">
+            12 schlaue Werkzeuge für den Alltag. Keine Cookies, kein Login, keine Werbebanner.
+            Alles läuft direkt in deinem Browser.
           </p>
+        </section>
 
-          <div className="hero-actions">
-            <button
-              type="button"
-              className="btn btn-hero-primary"
-              onClick={handleRandomTool}
-              title="Ein zufälliges Tool aus allen 12 öffnen"
-            >
-              <IconDice width={20} height={20} />
-              Zufälliges Tool starten
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-hero-secondary"
-              onClick={scrollToTools}
-            >
-              Alle 12 Tools ansehen
-              <IconArrowRight width={16} height={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Rechte Spalte: Whiteboard Workshop-Board Card (Image 1 Preview) */}
-        <div className="workshop-card" aria-label="Schnellzugriff Workshop Board">
-          <div className="workshop-header">
-            <span className="workshop-badge">
-              ✦ Werkstatt-Board
-            </span>
-            <span className="badge badge-marker hide-tablet-mobile">
-              Direktstart
-            </span>
-          </div>
-
-          {/* 2x2 Feature-Grid */}
-          <div className="workshop-grid">
-            <Link to="/qr" className="workshop-tile">
-              <div className="workshop-tile-icon" style={{ color: '#e59838' }}>
-                <IconQr width={22} height={22} />
-              </div>
-              <div className="workshop-tile-text">
-                <span className="workshop-tile-name">QR-Code</span>
-                <span className="workshop-tile-sub">Vektor & PNG</span>
-              </div>
-            </Link>
-
-            <Link to="/passwort" className="workshop-tile">
-              <div className="workshop-tile-icon" style={{ color: '#ef4444' }}>
-                <IconPassword width={22} height={22} />
-              </div>
-              <div className="workshop-tile-text">
-                <span className="workshop-tile-name">Passwort</span>
-                <span className="workshop-tile-sub">Stark & Entropie</span>
-              </div>
-            </Link>
-
-            <Link to="/noten" className="workshop-tile">
-              <div className="workshop-tile-icon" style={{ color: '#3b82f6' }}>
-                <IconGrades width={22} height={22} />
-              </div>
-              <div className="workshop-tile-text">
-                <span className="workshop-tile-name">Notenrechner</span>
-                <span className="workshop-tile-sub">Schnitt & Punkte</span>
-              </div>
-            </Link>
-
-            <Link to="/wordle" className="workshop-tile">
-              <div className="workshop-tile-icon" style={{ color: '#10b981' }}>
-                <IconWordle width={22} height={22} />
-              </div>
-              <div className="workshop-tile-text">
-                <span className="workshop-tile-name">Wordle DE</span>
-                <span className="workshop-tile-sub">7.300+ Wörter</span>
-              </div>
-            </Link>
-          </div>
-
-          {/* Status-Leisten wie in Bild 1 */}
-          <div className="workshop-status-list">
-            <div className="workshop-status-item">
-              <span className="live-dot" />
-              <span>100% Client-Side · Alle Berechnungen laufen lokal im Browser</span>
-            </div>
-            <div className="workshop-status-item">
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b', display: 'inline-block' }} />
-              <span>0 Tracker · Keine Cookies · Keine Cloud-Pflicht</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ====================================================================
-          PROJECT DASHBOARD STATS (INSPIRIERT VON SKETCHPAD BILD 2)
-          ==================================================================== */}
-      <section className="dashboard-stats-grid" aria-label="Studio Statistiken">
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <div className="stat-icon-box">
-              <IconConverter width={20} height={20} />
-            </div>
-            <span className="stat-badge stat-badge-green">+12 aktiv</span>
-          </div>
-          <div className="stat-value">12</div>
-          <div className="stat-label">Tools im Repertoire</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <div className="stat-icon-box">
-              <IconPassword width={20} height={20} />
-            </div>
-            <span className="stat-badge stat-badge-green">100% lokal</span>
-          </div>
-          <div className="stat-value">0</div>
-          <div className="stat-label">Tracker & Cookies</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <div className="stat-icon-box">
-              <IconSpeed width={20} height={20} />
-            </div>
-            <span className="stat-badge">PWA-Ready</span>
-          </div>
-          <div className="stat-value">&lt; 1s</div>
-          <div className="stat-label">Startzeit im Browser</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <div className="stat-icon-box">
-              <IconWordle width={20} height={20} />
-            </div>
-            <span className="stat-badge">Wortschatz</span>
-          </div>
-          <div className="stat-value">7.300+</div>
-          <div className="stat-label">Deutsche Wörter (Wordle)</div>
-        </div>
-      </section>
-
-      {/* ====================================================================
-          FLOATING CATEGORY DOCK (AUS BILD 1 & 2: "MARKETING / APP / E-COMMERCE")
-          ==================================================================== */}
-      <div className="category-dock-container" ref={toolsSectionRef}>
-        <div className="category-dock" role="tablist" aria-label="Kategorie Filter">
-          <button
-            type="button"
-            className={`dock-pill ${activeCategoryFilter === 'ALL' ? 'active' : ''}`}
-            onClick={() => setActiveCategoryFilter('ALL')}
-            role="tab"
-            aria-selected={activeCategoryFilter === 'ALL'}
-          >
-            Alle (12)
-          </button>
-          {CATEGORIES.map((cat) => {
-            const count = TOOLS_DATA.filter((t) => t.category === cat.id).length;
-            const isActive = activeCategoryFilter === cat.id;
-            return (
+        {/* Brutalist Toolbar & Controls */}
+        <section className="mools-controls" aria-label="Toolbox Filter & Suche">
+          {/* Suchfeld */}
+          <div className="mools-search-row">
+            <input
+              type="search"
+              className="mools-search-input"
+              placeholder="> filter_tools(suche, tags, namen)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Tools durchsuchen"
+            />
+            {searchTerm && (
               <button
-                key={cat.id}
                 type="button"
-                className={`dock-pill ${isActive ? 'active' : ''}`}
-                onClick={() => setActiveCategoryFilter(cat.id)}
-                role="tab"
-                aria-selected={isActive}
+                onClick={() => setSearchTerm('')}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  minHeight: '32px',
+                  height: '32px',
+                  width: '32px',
+                  padding: 0,
+                  boxShadow: 'none',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Suche leeren"
               >
-                {cat.title} ({count})
+                <IconClear width={16} height={16} />
               </button>
-            );
-          })}
-        </div>
-      </div>
+            )}
+          </div>
 
-      {/* ====================================================================
-          SLEEK PILL LIVE-SUCHFELD (GRIDLINE SUPPLY BILD 3)
-          ==================================================================== */}
-      <div className="search-pill-wrapper">
-        <span style={{ position: 'absolute', left: '18px', color: 'var(--text-muted)', display: 'flex', pointerEvents: 'none' }}>
-          <IconSearch width={20} height={20} />
-        </span>
-        <input
-          type="search"
-          className="search-pill-input"
-          placeholder="Finde ein Tool (z. B. QR, Passwort, Noten, Einheiten, Speed...)"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          aria-label="Tools durchsuchen"
-        />
-        {searchTerm && (
-          <button
-            type="button"
-            onClick={() => setSearchTerm('')}
-            style={{
-              position: 'absolute',
-              right: '12px',
-              minHeight: '36px',
-              height: '36px',
-              width: '36px',
-              padding: 0,
-              boxShadow: 'none',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-            }}
-            title="Suche zurücksetzen"
-          >
-            <IconClear width={18} height={18} />
-          </button>
+          {/* Filter-Kacheln mit Trefferzahlen */}
+          <div className="mools-filter-row">
+            <button
+              type="button"
+              className={`mools-filter-btn ${activeCategoryFilter === 'ALL' ? 'active' : ''}`}
+              onClick={() => setActiveCategoryFilter('ALL')}
+            >
+              [ALLE: 12]
+            </button>
+            {CATEGORIES.map((cat) => {
+              const count = TOOLS_DATA.filter((t) => t.category === cat.id).length;
+              const isActive = activeCategoryFilter === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`mools-filter-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => setActiveCategoryFilter(cat.id)}
+                >
+                  [{cat.id}: {count}]
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Steuerungsleiste: Ausklappen, Ansicht, Zufalls-Tool */}
+          <div className="mools-actions-row">
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={toggleAllCategories}
+                title="Alle Kategorien auf- oder zuklappen"
+              >
+                {areAllOpen ? '[-] ALLE EINKLAPPEN' : '[+] ALLE AUSKLAPPEN'}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={handleRandomTool}
+                title="Ein zufälliges Tool aus allen 12 öffnen"
+              >
+                <IconDice width={14} height={14} />
+                [ZUFALLS-TOOL]
+              </button>
+            </div>
+
+            {/* Ansichts-Umschalter: Grid vs Liste */}
+            <div className="mools-view-toggle">
+              <button
+                type="button"
+                className={`btn btn-sm ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setViewMode('grid')}
+                title="Kachel-Ansicht"
+              >
+                KACHELN
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setViewMode('list')}
+                title="Kompakte Listenansicht"
+              >
+                LISTE
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Leermeldung bei 0 Treffern */}
+        {filteredTools.length === 0 && (
+          <div className="card" style={{ padding: '32px 20px', textAlign: 'center' }}>
+            <h3 style={{ marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>[0 TREFFER]</h3>
+            <p className="text-muted" style={{ marginBottom: '16px', fontSize: '0.9rem' }}>
+              Kein Tool passend zu „{searchTerm}“ gefunden.
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={() => {
+                setSearchTerm('');
+                setActiveCategoryFilter('ALL');
+              }}
+            >
+              FILTER ZURÜCKSETZEN
+            </button>
+          </div>
         )}
+
+        {/* Kategorien & Tools */}
+        {CATEGORIES.map((category, catIndex) => {
+          if (activeCategoryFilter !== 'ALL' && activeCategoryFilter !== category.id) {
+            return null;
+          }
+
+          const catTools = filteredTools.filter((t) => t.category === category.id);
+          if (catTools.length === 0) return null;
+
+          const isOpen = openCategories[category.id] ?? true;
+
+          return (
+            <section key={category.id} className="category-section" id={`cat-${category.id.toLowerCase()}`}>
+              {/* Einklappbarer Kategorie-Kopf */}
+              <div
+                className="category-header"
+                onClick={() => toggleCategory(category.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleCategory(category.id);
+                  }
+                }}
+                aria-expanded={isOpen}
+              >
+                <div className="category-title-group">
+                  <span className="badge badge-marker">
+                    [#0{catIndex + 1}]
+                  </span>
+                  <h2 style={{ fontSize: 'clamp(1.1rem, 2.5vw, 1.4rem)', letterSpacing: '-0.02em' }}>
+                    {category.title}
+                  </h2>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    ({catTools.length})
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {isOpen ? '[-] ZUKLAPPEN' : '[+] AUSKLAPPEN'}
+                  </span>
+                </div>
+              </div>
+
+              <hr className="dashed-divider" style={{ marginTop: '6px', marginBottom: '14px' }} />
+
+              {/* Inhalt: Kachel-Ansicht oder Listen-Ansicht */}
+              {isOpen && (
+                <>
+                  {viewMode === 'grid' ? (
+                    <div className="tools-grid">
+                      {catTools.map((tool) => {
+                        const IconComp = iconMap[tool.icon] || IconQr;
+
+                        return (
+                          <Link
+                            to={tool.path}
+                            key={tool.id}
+                            className="tool-card"
+                            aria-label={`${tool.title} öffnen`}
+                          >
+                            <div>
+                              <div className="tool-card-header">
+                                <div className="tool-icon-wrapper" aria-hidden="true">
+                                  <IconComp width={22} height={22} />
+                                </div>
+                                <span className={`badge ${tool.badge === 'LIVE' ? 'badge-live' : 'badge-offline'}`}>
+                                  {tool.badge === 'LIVE' ? (
+                                    <>
+                                      <span className="live-dot" /> LIVE
+                                    </>
+                                  ) : (
+                                    'OFFLINE'
+                                  )}
+                                </span>
+                              </div>
+
+                              <h3 className="tool-card-title">{tool.title}</h3>
+                              <p className="tool-card-desc">{tool.description}</p>
+                            </div>
+
+                            <div className="tool-card-footer">
+                              <span
+                                className="btn btn-sm btn-secondary"
+                                style={{ pointerEvents: 'none' }}
+                              >
+                                ÖFFNEN
+                                <IconArrowRight width={14} height={14} />
+                              </span>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Kompakte Listen-Ansicht */
+                    <div className="mools-tools-list">
+                      {catTools.map((tool) => {
+                        const IconComp = iconMap[tool.icon] || IconQr;
+                        return (
+                          <Link
+                            to={tool.path}
+                            key={tool.id}
+                            className="mools-list-item"
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  border: 'var(--border-width-sm) solid var(--border-color)',
+                                  background: 'var(--bg-subtle)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  boxShadow: '1px 1px 0 var(--shadow-color)',
+                                }}
+                              >
+                                <IconComp width={18} height={18} />
+                              </div>
+                              <div>
+                                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{tool.title}</span>
+                                <span className="hide-tablet-mobile" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
+                                  {tool.description}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="badge" style={{ fontSize: '0.68rem' }}>
+                                {tool.badge}
+                              </span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.85rem' }}>
+                                &gt;
+                              </span>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          );
+        })}
       </div>
 
-      {searchTerm && (
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '24px', textAlign: 'center' }}>
-          {filteredTools.length} {filteredTools.length === 1 ? 'Treffer' : 'Treffer'} für „{searchTerm}“
-        </p>
-      )}
-
-      {/* Bei 0 Treffern: Freundliche Leermeldung */}
-      {filteredTools.length === 0 && (
-        <div className="card text-center" style={{ maxWidth: '520px', margin: '40px auto', padding: '40px 24px' }}>
-          <h3 style={{ marginBottom: '12px' }}>KEIN TOOL GEFUNDEN</h3>
-          <p className="text-muted" style={{ marginBottom: '20px' }}>
-            Für „{searchTerm}“ gibt es leider noch kein passendes Werkzeug. Überprüfe die Schreibweise oder setze die Filter zurück.
-          </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setSearchTerm('');
-              setActiveCategoryFilter('ALL');
-            }}
-          >
-            ALLE 12 TOOLS ANZEIGEN
-          </button>
-        </div>
-      )}
-
       {/* ====================================================================
-          KATEGORIEN-LISTE MIT TOOL-KARTEN
+          SEITENSPALTE (RECHTS): PLAY-ZONE (WÜRFE, PASSWORT, FARBE, KLICKER)
           ==================================================================== */}
-      {CATEGORIES.map((category) => {
-        // Wenn ein Kategoriefilter aktiv ist und nicht übereinstimmt, überspringen
-        if (activeCategoryFilter !== 'ALL' && activeCategoryFilter !== category.id) {
-          return null;
-        }
+      <aside className="mools-side-col" aria-label="Interaktive Play Zone">
+        <div className="playzone-card">
+          <div className="playzone-header">
+            <span className="playzone-title">
+              // PLAY_ZONE
+            </span>
+            <span className="badge badge-marker">[INTERAKTIV]</span>
+          </div>
 
-        const catTools = filteredTools.filter((t) => t.category === category.id);
-        if (catTools.length === 0) return null;
+          {/* 1. QUICK WÜRFEL */}
+          <div className="widget-box">
+            <div className="widget-label">
+              <span>🎲 QUICK WÜRFEL</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  style={{ minHeight: '24px', height: '24px', padding: '0 6px', fontSize: '0.7rem' }}
+                  className={`btn btn-sm ${diceType === 'd6' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setDiceType('d6')}
+                >
+                  D6
+                </button>
+                <button
+                  type="button"
+                  style={{ minHeight: '24px', height: '24px', padding: '0 6px', fontSize: '0.7rem' }}
+                  className={`btn btn-sm ${diceType === 'd20' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setDiceType('d20')}
+                >
+                  D20
+                </button>
+                <button
+                  type="button"
+                  style={{ minHeight: '24px', height: '24px', padding: '0 6px', fontSize: '0.7rem' }}
+                  className={`btn btn-sm ${diceType === 'coin' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setDiceType('coin')}
+                >
+                  MÜNZE
+                </button>
+              </div>
+            </div>
 
-        const isOpen = openCategories[category.id] ?? true;
+            <div className={`widget-dice-display ${isRolling ? 'rolling' : ''}`}>
+              {diceValue}
+            </div>
 
-        return (
-          <section key={category.id} className="category-section" id={`cat-${category.id.toLowerCase()}`}>
-            {/* Kategorie-Header */}
+            <button
+              type="button"
+              className="btn btn-sm btn-primary btn-block"
+              onClick={rollDice}
+              disabled={isRolling}
+            >
+              [ WÜRFELN ]
+            </button>
+          </div>
+
+          {/* 2. INSTANT PASSWORT */}
+          <div className="widget-box">
+            <div className="widget-label">
+              <span>🔑 INSTANT PASSWORT</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  style={{ minHeight: '24px', height: '24px', padding: '0 6px', fontSize: '0.7rem' }}
+                  className={`btn btn-sm ${pwdLength === 8 ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => {
+                    setPwdLength(8);
+                    generateQuickPassword(8);
+                  }}
+                >
+                  8
+                </button>
+                <button
+                  type="button"
+                  style={{ minHeight: '24px', height: '24px', padding: '0 6px', fontSize: '0.7rem' }}
+                  className={`btn btn-sm ${pwdLength === 16 ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => {
+                    setPwdLength(16);
+                    generateQuickPassword(16);
+                  }}
+                >
+                  16
+                </button>
+                <button
+                  type="button"
+                  style={{ minHeight: '24px', height: '24px', padding: '0 6px', fontSize: '0.7rem' }}
+                  className={`btn btn-sm ${pwdLength === 24 ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => {
+                    setPwdLength(24);
+                    generateQuickPassword(24);
+                  }}
+                >
+                  24
+                </button>
+              </div>
+            </div>
+
+            <div className="widget-pwd-display">
+              {quickPwd}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => generateQuickPassword(pwdLength)}
+              >
+                [ NEU ]
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={copyPassword}
+              >
+                {pwdCopied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />}
+                {pwdCopied ? 'KOPIERT!' : 'KOPIEREN'}
+              </button>
+            </div>
+          </div>
+
+          {/* 3. FARB-ROULETTE */}
+          <div className="widget-box">
+            <div className="widget-label">
+              <span>🎨 ZUFALLS-FARBE</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>{quickColor}</span>
+            </div>
+
             <div
-              className="category-header"
-              onClick={() => toggleCategory(category.id)}
+              className="widget-color-preview"
+              style={{ backgroundColor: quickColor }}
+              onClick={copyColor}
+              title="Klicken zum Kopieren"
+            >
+              {colorCopied ? 'HEX KOPIERT!' : quickColor}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={generateRandomColor}
+              >
+                [ NEUE FARBE ]
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={copyColor}
+              >
+                {colorCopied ? 'KOPIERT!' : 'KOPIEREN'}
+              </button>
+            </div>
+          </div>
+
+          {/* 4. MINI CPS KLICK-PAD */}
+          <div className="widget-box">
+            <div className="widget-label">
+              <span>⚡ MINI KLICK-PAD</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>KLICKS: {cpsClicks}</span>
+            </div>
+
+            <div
+              className="widget-cps-pad"
+              onClick={() => setCpsClicks((prev) => prev + 1)}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  toggleCategory(category.id);
-                }
-              }}
-              aria-expanded={isOpen}
+              title="Klicke so schnell du kannst!"
             >
-              <div className="category-title-group">
-                <span className="category-pill">{category.id}</span>
-                <h2 style={{ fontSize: 'clamp(1.15rem, 2.5vw, 1.45rem)' }}>{category.title}</h2>
-                <span className="category-count">({catTools.length})</span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="text-muted hide-tablet-mobile" style={{ fontSize: '0.85rem' }}>
-                  {isOpen ? 'Einklappen' : 'Ausklappen'}
-                </span>
-                <span style={{ display: 'flex', color: 'var(--text-main)' }}>
-                  {isOpen ? <IconChevronUp width={20} height={20} /> : <IconChevronDown width={20} height={20} />}
-                </span>
-              </div>
+              <span>KLICK MICH!</span>
+              <span style={{ color: 'var(--btn-primary-bg)' }}>[{cpsClicks}]</span>
             </div>
 
-            <p className="text-muted" style={{ fontSize: '0.9rem', marginBottom: '8px' }}>
-              {category.shortDesc}
-            </p>
-
-            <hr className="dashed-divider" style={{ marginTop: '8px', marginBottom: '16px' }} />
-
-            {/* Einklappbarer Grid-Inhalt */}
-            {isOpen && (
-              <div className="tools-grid">
-                {catTools.map((tool) => {
-                  const IconComp = iconMap[tool.icon] || IconQr;
-
-                  return (
-                    <Link
-                      to={tool.path}
-                      key={tool.id}
-                      className="tool-card card-sketch"
-                      aria-label={`${tool.title} öffnen`}
-                    >
-                      <div>
-                        <div className="tool-card-header">
-                          <div className="tool-icon-wrapper" aria-hidden="true">
-                            <IconComp width={24} height={24} />
-                          </div>
-                          {tool.badge === 'LIVE' ? (
-                            <span className="badge badge-live">
-                              <span className="live-dot" /> LIVE
-                            </span>
-                          ) : (
-                            <span className="badge badge-offline">OFFLINE</span>
-                          )}
-                        </div>
-
-                        <h3 className="tool-card-title">{tool.title}</h3>
-                        <p className="tool-card-desc">{tool.description}</p>
-                      </div>
-
-                      <div className="tool-card-footer">
-                        <span
-                          className="btn btn-sm btn-secondary"
-                          style={{ pointerEvents: 'none' }}
-                        >
-                          ÖFFNEN
-                          <IconArrowRight width={14} height={14} />
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+            {cpsClicks > 0 && (
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary btn-block"
+                onClick={() => setCpsClicks(0)}
+              >
+                [ ZÄHLER ZURÜCKSETZEN ]
+              </button>
             )}
-          </section>
-        );
-      })}
+          </div>
+        </div>
+
+        {/* Quick System Telemetrie */}
+        <div className="card" style={{ padding: '14px 16px', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span className="text-muted">STATUS:</span>
+            <span style={{ color: '#22c55e', fontWeight: 700 }}>● ALL SYSTEMS GO</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span className="text-muted">TOOLS:</span>
+            <span>12 / 12 BEREIT</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span className="text-muted">TRACKING:</span>
+            <span>0 BYTES</span>
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
