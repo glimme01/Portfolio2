@@ -187,7 +187,6 @@ export default function ConverterTool() {
               <p className="tool-page-desc">Rechne physikalische und digitale Einheiten in Echtzeit um.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

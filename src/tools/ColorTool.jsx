@@ -136,8 +136,8 @@ export default function ColorTool() {
 
     const getWcagRating = (ratio) => {
       if (ratio >= 7.0) return { label: 'AAA (Exzellent)', badge: 'badge-marker' };
-      if (ratio >= 4.5) return { label: 'AA (Gut lesbar)', badge: 'badge-offline' };
-      if (ratio >= 3.0) return { label: 'AA Groß (Nur große Schrift)', badge: 'badge-offline' };
+      if (ratio >= 4.5) return { label: 'AA (Gut lesbar)', badge: 'badge-marker' };
+      if (ratio >= 3.0) return { label: 'AA Groß (Nur große Schrift)', badge: 'badge' };
       return { label: 'Nicht empfohlen (Gering)', badge: 'badge' };
     };
 
@@ -184,7 +184,6 @@ export default function ColorTool() {
               <p className="tool-page-desc">Hex, RGB, HSL Farbumrechner mit barrierefreier WCAG-Kontrastprüfung.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

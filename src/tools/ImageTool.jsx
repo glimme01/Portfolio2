@@ -244,7 +244,6 @@ export default function ImageTool() {
               <p className="tool-page-desc">Komprimieren und Konvertieren im Browser — 100% lokal & privat.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

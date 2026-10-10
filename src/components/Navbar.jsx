@@ -250,11 +250,6 @@ export default function Navbar() {
                     >
                       <IconComp width={18} height={18} />
                       <span style={{ flexGrow: 1 }}>{t.title}</span>
-                      {t.badge === 'LIVE' ? (
-                        <span className="badge badge-live" style={{ fontSize: '0.7rem' }}>LIVE</span>
-                      ) : (
-                        <span className="badge badge-offline" style={{ fontSize: '0.7rem' }}>OFFLINE</span>
-                      )}
                     </Link>
                   );
                 })}

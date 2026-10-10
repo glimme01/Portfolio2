@@ -111,7 +111,6 @@ export default function QrTool() {
               <p className="tool-page-desc">Erstelle hochauflösende QR-Codes ohne Tracking — 100% offline.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

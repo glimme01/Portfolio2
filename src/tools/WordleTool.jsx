@@ -280,7 +280,6 @@ export default function WordleTool() {
               <p className="tool-page-desc">Errate das 5-Buchstaben-Wort in 6 Versuchen — 100% offline.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

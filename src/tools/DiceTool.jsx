@@ -207,7 +207,6 @@ export default function DiceTool() {
               <p className="tool-page-desc">Kryptografisch fairer Zufall für Spiele, Wetten und Entscheidungen.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

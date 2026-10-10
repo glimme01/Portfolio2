@@ -159,9 +159,6 @@ export default function SpeedTool() {
               <p className="tool-page-desc">Schneller, neutraler Geschwindigkeitstest ohne Werbung und Downloads.</p>
             </div>
           </div>
-          <span className="badge badge-live">
-            <span className="live-dot" /> LIVE-TEST
-          </span>
         </div>
       </div>
 

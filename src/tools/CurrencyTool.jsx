@@ -186,9 +186,6 @@ export default function CurrencyTool() {
               <p className="tool-page-desc">Tagesaktuelle Umrechnungskurse ohne Registrierung und Gebühren.</p>
             </div>
           </div>
-          <span className="badge badge-live">
-            <span className="live-dot" /> LIVE-KURSE
-          </span>
         </div>
       </div>
 

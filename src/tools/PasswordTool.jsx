@@ -138,7 +138,6 @@ export default function PasswordTool() {
               <p className="tool-page-desc">Kryptografisch zufällige Passwörter — verlässt nie dein Gerät.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

@@ -367,7 +367,6 @@ export default function Lobby() {
           <div className="mools-playdeck-header">
             <div className="mools-playdeck-title">
               <span>⚡ INTERAKTIVES PLAY-DECK</span>
-              <span className="badge badge-live">LIVE TESTING</span>
             </div>
             <button
               type="button"
@@ -629,15 +628,6 @@ export default function Lobby() {
                               <div className="tool-icon-wrapper" aria-hidden="true">
                                 <IconComp width={22} height={22} />
                               </div>
-                              <span className={`badge ${tool.badge === 'LIVE' ? 'badge-live' : 'badge-offline'}`}>
-                                {tool.badge === 'LIVE' ? (
-                                  <>
-                                    <span className="live-dot" /> LIVE
-                                  </>
-                                ) : (
-                                  'OFFLINE'
-                                )}
-                              </span>
                             </div>
 
                             <h3 className="tool-card-title">{tool.title}</h3>
@@ -695,9 +685,6 @@ export default function Lobby() {
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            <span className="badge" style={{ fontSize: '0.68rem' }}>
-                              {tool.badge}
-                            </span>
                             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.85rem' }}>
                               &gt;
                             </span>

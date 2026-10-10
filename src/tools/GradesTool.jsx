@@ -185,7 +185,6 @@ export default function GradesTool() {
               <p className="tool-page-desc">Durchschnitt mit Gewichtung & Zielberechnung für die nächste Arbeit.</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 

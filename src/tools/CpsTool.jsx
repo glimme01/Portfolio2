@@ -153,7 +153,6 @@ export default function CpsTool() {
               <p className="tool-page-desc">5-Sekunden-Schnelltest: Klicke so schnell du kannst!</p>
             </div>
           </div>
-          <span className="badge badge-offline">OFFLINE</span>
         </div>
       </div>
 
