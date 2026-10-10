@@ -1,27 +1,42 @@
 /* ==========================================================================
-   MORITZFREUND TOOLS — DESIGN-SYSTEM: "PAPIER-STUDIO" (NEO-BRUTALISMUS, HELL)
+   MORITZFREUND TOOLS — SKETCHPAD / GRIDLINE STUDIO DESIGN SYSTEM
+   Inspiriert von kollaborativen Hand-drawn Whiteboards & Gridline Supply
    ========================================================================== */
 
 :root {
-  /* Farben - Hell (Papier-Studio) */
-  --bg-canvas: #faf8f5;
+  /* ========================================================================
+     HELL-MODUS (GRIDLINE SUPPLY / PAPIER-STUDIO)
+     ======================================================================== */
+  --bg-canvas: #faf9f6;
+  --bg-dots: rgba(0, 0, 0, 0.10);
   --card-bg: #ffffff;
-  --border-color: #111111;
-  --border-width: 2.5px;
-  --border-width-sm: 2px;
+  --card-bg-elevated: #f5f3ec;
+  --border-color: #17181c;
+  --border-width: 2px;
+  --border-width-sm: 1.5px;
+
+  /* Akzentfarben */
+  --btn-primary-bg: #e59838; /* Warmes Goldbraun / Caramel aus Bild 3 */
+  --btn-primary-text: #17181c;
+  --btn-primary-hover: #d28526;
   
+  --accent-peach: #f5c6b4; /* Zartes Pfirsich/Blush aus Bild 1 & 2 */
+  --accent-peach-text: #17181c;
+  --accent-peach-light: #fdf5f2;
+  --accent-peach-border: #e0a894;
+
   --accent-orange: #ff5b00;
-  --accent-orange-hover: #e04f00;
-  --accent-orange-light: #fff0e6;
-  --marker-yellow: #ffd400;
-  --marker-yellow-light: #fff9d6;
-  
-  --text-main: #111111;
-  --text-muted: #555555;
-  --text-light: #777777;
-  --bg-subtle: #f2eee8;
+  --marker-yellow: #f59e0b;
+  --marker-yellow-light: #fef3c7;
+
+  /* Textfarben */
+  --text-main: #17181c;
+  --text-muted: #575a65;
+  --text-light: #8b8f9e;
+  --bg-subtle: #f3f0e8;
   --bg-input: #ffffff;
-  
+
+  /* Status */
   --success-green: #10b981;
   --success-green-light: #d1fae5;
   --warning-amber: #f59e0b;
@@ -29,47 +44,62 @@
   --danger-red: #ef4444;
   --danger-red-light: #fee2e2;
 
-  /* Schatten (Harter Versatz, kein Blur) */
-  --shadow-offset: 5px 5px 0 #111111;
-  --shadow-offset-sm: 3px 3px 0 #111111;
-  --shadow-offset-lg: 8px 8px 0 #111111;
-  --shadow-hover: 7px 7px 0 #111111;
-  --shadow-active: 1px 1px 0 #111111;
+  /* Hand-drawn Schatten */
+  --shadow-color: #17181c;
+  --shadow-offset: 4px 4px 0 var(--shadow-color);
+  --shadow-offset-sm: 2px 2px 0 var(--shadow-color);
+  --shadow-offset-lg: 6px 6px 0 var(--shadow-color);
+  --shadow-hover: 6px 6px 0 var(--shadow-color);
+  --shadow-active: 1px 1px 0 var(--shadow-color);
 
-  /* Radien */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* Radien mit organischer Skizzen-Note */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --sketch-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  --sketch-pill-radius: 999px;
 
   /* Typografie */
-  --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Fraunces', 'Plus Jakarta Sans', Georgia, serif;
+  --font-ui: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-hand: 'Caveat', cursive, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-  
-  /* Touch-Ziele */
+
   --min-touch-target: 48px;
 }
 
 /* ==========================================================================
-   DARK MODE VARIABLEN (NEO-BRUTALISMUS DUNKEL)
+   DUNKEL-MODUS (SKETCHPAD CHALKBOARD DARK AUS BILD 1 & 2)
    ========================================================================== */
 [data-theme="dark"] {
-  --bg-canvas: #121215;
-  --card-bg: #1c1c22;
-  --border-color: #f4f4f5;
-  --border-color-dim: #3f3f46;
-  
-  --accent-orange: #ff6314;
-  --accent-orange-hover: #ff7830;
-  --accent-orange-light: #381a0e;
-  --marker-yellow: #facc15;
-  --marker-yellow-light: #362e0d;
-  
-  --text-main: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --text-light: #71717a;
-  --bg-subtle: #272730;
-  --bg-input: #17171c;
-  
+  --bg-canvas: #16171b; /* Tiefes Tafel-Dunkelgrau */
+  --bg-dots: rgba(255, 255, 255, 0.16); /* Feine weiße Kreidepunkte */
+  --card-bg: #202227; /* Dunkles Card-Panel */
+  --card-bg-elevated: #282a31;
+  --border-color: rgba(255, 255, 255, 0.90); /* Handgezeichnete Kreide-Kontur */
+  --border-width: 2px;
+  --border-width-sm: 1.5px;
+
+  /* Primär-Button im Darkmode ist das charakteristische Peach aus Bild 1 */
+  --btn-primary-bg: #f5c6b4;
+  --btn-primary-text: #16171b;
+  --btn-primary-hover: #eed0c5;
+
+  --accent-peach: #f5c6b4;
+  --accent-peach-text: #16171b;
+  --accent-peach-light: #2c221f;
+  --accent-peach-border: rgba(245, 198, 180, 0.7);
+
+  --accent-orange: #ff6e26;
+  --marker-yellow: #fbbf24;
+  --marker-yellow-light: #372e11;
+
+  --text-main: #f3f4f6;
+  --text-muted: #9ca3af;
+  --text-light: #6b7280;
+  --bg-subtle: #272a32;
+  --bg-input: #191a1f;
+
   --success-green: #22c55e;
   --success-green-light: #0d3822;
   --warning-amber: #f59e0b;
@@ -77,27 +107,17 @@
   --danger-red: #ef4444;
   --danger-red-light: #3f1414;
 
-  --shadow-offset: 5px 5px 0 #000000;
-  --shadow-offset-sm: 3px 3px 0 #000000;
-  --shadow-offset-lg: 8px 8px 0 #000000;
-  --shadow-hover: 7px 7px 0 #000000;
-  --shadow-active: 1px 1px 0 #000000;
+  --shadow-color: rgba(0, 0, 0, 0.75);
+  --shadow-offset: 4px 4px 0 var(--shadow-color);
+  --shadow-offset-sm: 2px 2px 0 var(--shadow-color);
+  --shadow-offset-lg: 6px 6px 0 var(--shadow-color);
+  --shadow-hover: 6px 6px 0 var(--shadow-color);
+  --shadow-active: 1px 1px 0 var(--shadow-color);
 }
 
-[data-theme="dark"] body {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 0.5px, transparent 0.5px);
-}
-
-[data-theme="dark"] select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f4f4f5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-}
-
-[data-theme="dark"] .badge-offline {
-  background-color: var(--card-bg);
-  color: var(--text-main);
-}
-
-/* Reset & Basis */
+/* ==========================================================================
+   RESET & BASIS
+   ========================================================================== */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -121,13 +141,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
-  /* Subtile Papier-Körnung */
-  background-image: radial-gradient(#111111 0.4px, transparent 0.4px);
-  background-size: 12px 12px;
+
+  /* Whiteboard / Sketchpad Punkt-Raster */
+  background-image: radial-gradient(var(--bg-dots) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
   background-position: 0 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* App-Container */
 #root {
   min-height: 100vh;
   min-height: 100dvh;
@@ -145,47 +166,44 @@ body {
 .main-content {
   flex: 1 0 auto;
   width: 100%;
-  max-width: 1240px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 16px 64px 16px;
+  padding: 32px 16px 64px 16px;
 }
 
-/* Tool-Seiten Layout: Zentrierter Workspace */
 .tool-workspace {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
   width: 100%;
 }
 
 .tool-workspace-wide {
-  max-width: 1000px;
+  max-width: 1020px;
   margin: 0 auto;
   width: 100%;
 }
 
 /* ==========================================================================
-   TYPOGRAFIE
+   TYPOGRAFIE (FRAUNCES + PLUS JAKARTA SANS + CAVEAT)
    ========================================================================== */
-
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-  text-transform: uppercase;
   letter-spacing: -0.02em;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.2;
   color: var(--text-main);
 }
 
 h1 {
-  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-size: clamp(2rem, 5vw, 3.2rem);
 }
 
 h2 {
-  font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+  font-size: clamp(1.4rem, 3.5vw, 2rem);
 }
 
 h3 {
-  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+  font-size: clamp(1.15rem, 2.5vw, 1.4rem);
 }
 
 p {
@@ -200,22 +218,26 @@ p {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* ==========================================================================
-   BUTTONS (PAPIER-STUDIO TAKTIL)
-   ========================================================================== */
+.font-hand {
+  font-family: var(--font-hand);
+  font-size: 1.2rem;
+  line-height: 1;
+}
 
+/* ==========================================================================
+   BUTTONS (TAKTILER SKETCHPAD-STIL)
+   ========================================================================== */
 button, .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-family: var(--font-heading);
+  font-family: var(--font-ui);
   font-size: 0.95rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
   min-height: var(--min-touch-target);
-  padding: 10px 20px;
+  padding: 10px 22px;
   border-radius: var(--radius-md);
   border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
@@ -223,7 +245,7 @@ button, .btn {
   box-shadow: var(--shadow-offset);
   cursor: pointer;
   text-decoration: none;
-  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.12s cubic-bezier(0.2, 0, 0, 1), background-color 0.12s ease;
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.12s cubic-bezier(0.2, 0, 0, 1), background-color 0.15s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -236,113 +258,118 @@ button, .btn {
 }
 
 button:active:not(:disabled), .btn:active:not(:disabled) {
-  transform: translate(3px, 3px);
+  transform: translate(2px, 2px);
   box-shadow: var(--shadow-active);
 }
 
 button:focus-visible, .btn:focus-visible {
-  outline: 3px solid var(--accent-orange);
+  outline: 3px solid var(--accent-peach-border);
   outline-offset: 2px;
 }
 
 button:disabled, .btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
   box-shadow: var(--shadow-offset-sm) !important;
 }
 
-/* Button-Varianten */
+/* Primär-Button */
 .btn-primary {
-  background-color: var(--accent-orange);
-  color: #ffffff;
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--border-color);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .btn-primary:hover:not(:disabled) {
-    background-color: var(--accent-orange-hover);
+    background-color: var(--btn-primary-hover);
   }
 }
 
-.btn-secondary {
-  background-color: #ffffff;
-  color: var(--text-main);
+/* Pfirsich / Blush Button aus Bild 1 ("Create a board") */
+.btn-peach {
+  background-color: var(--accent-peach);
+  color: var(--accent-peach-text);
+  border-color: var(--border-color);
 }
 
-.btn-accent {
-  background-color: var(--marker-yellow);
+.btn-secondary {
+  background-color: var(--card-bg);
   color: var(--text-main);
+  border-color: var(--border-color);
 }
 
 .btn-sm {
   min-height: 38px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   font-size: 0.85rem;
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-offset-sm);
 }
 
 .btn-sm:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 #111111;
-}
-
-.btn-icon {
-  width: var(--min-touch-target);
-  height: var(--min-touch-target);
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow-color);
 }
 
 .btn-block {
   width: 100%;
 }
 
-/* ==========================================================================
-   PANEL & KARTEN
-   ========================================================================== */
+.btn-icon {
+  width: var(--min-touch-target);
+  height: var(--min-touch-target);
+  padding: 0;
+}
 
+/* ==========================================================================
+   CARDS & PANELS (SKETCH-CONTOUR)
+   ========================================================================== */
 .card, .panel {
   background-color: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-offset);
-  padding: 20px;
+  padding: 24px;
   position: relative;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Leicht organische Wobbly-Border für den echten Whiteboard-Effekt */
+.card-sketch {
+  border-radius: 14px 12px 15px 11px;
 }
 
 .panel-subtle {
   background-color: var(--bg-subtle);
-  border: var(--border-width) solid var(--border-color);
+  border: var(--border-width-sm) solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 16px;
+  padding: 18px;
 }
 
 .dashed-divider {
   border: 0;
   border-top: 2px dashed var(--border-color);
-  margin: 20px 0;
+  margin: 24px 0;
   width: 100%;
+  opacity: 0.85;
 }
 
 /* ==========================================================================
-   FORMULAR-ELEMENTE (INPUTS, SELECTS, LABELS)
+   FORMULARE & EINGABEN
    ========================================================================== */
-
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 label, .form-label {
-  font-family: var(--font-heading);
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   color: var(--text-main);
 }
 
@@ -354,7 +381,7 @@ input[type="url"],
 select,
 textarea {
   font-family: var(--font-body);
-  font-size: 1rem; /* min 16px gegen iOS Autozoom */
+  font-size: 1rem;
   color: var(--text-main);
   background-color: var(--bg-input);
   border: var(--border-width) solid var(--border-color);
@@ -363,24 +390,28 @@ textarea {
   min-height: var(--min-touch-target);
   width: 100%;
   box-shadow: var(--shadow-offset-sm);
-  transition: box-shadow 0.1s ease, border-color 0.1s ease;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--accent-orange);
-  box-shadow: 4px 4px 0 var(--border-color);
+  border-color: var(--accent-peach-border);
+  box-shadow: 4px 4px 0 var(--shadow-color);
 }
 
 select {
   cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2317181c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 40px;
   appearance: none;
+}
+
+[data-theme="dark"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f3f4f6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
 /* Range Slider */
@@ -400,32 +431,21 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: var(--accent-orange);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--btn-primary-bg);
   border: 2px solid var(--border-color);
   box-shadow: 2px 2px 0 var(--border-color);
   cursor: pointer;
-  transition: transform 0.1s ease, background-color 0.1s ease;
+  transition: transform 0.1s ease;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.15);
-  background: var(--accent-orange-hover);
 }
 
-input[type="range"]::-moz-range-thumb {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: var(--accent-orange);
-  border: 2px solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--border-color);
-  cursor: pointer;
-}
-
-/* Checkbox & Radio */
+/* Checkbox */
 .checkbox-label {
   display: flex;
   align-items: center;
@@ -444,55 +464,69 @@ input[type="radio"] {
   height: 24px;
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--radius-sm);
-  background: #ffffff;
+  background: var(--bg-input);
   display: inline-grid;
   place-content: center;
   cursor: pointer;
-  box-shadow: 2px 2px 0 #111111;
+  box-shadow: 2px 2px 0 var(--shadow-color);
   flex-shrink: 0;
 }
 
 input[type="checkbox"]:checked {
-  background: var(--accent-orange);
+  background: var(--btn-primary-bg);
 }
 
 input[type="checkbox"]:checked::before {
   content: "";
   width: 10px;
   height: 10px;
-  background-color: #ffffff;
+  background-color: var(--btn-primary-text);
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
 }
 
 /* ==========================================================================
-   BADGES & CHIPS
+   BADGES, PILLS & CHIPS (AUS BILD 1 & 2: "WORKSHOP BOARD")
    ========================================================================== */
+.sketch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-hand);
+  font-size: 1.15rem;
+  padding: 4px 14px;
+  border-radius: var(--sketch-pill-radius);
+  border: var(--border-width-sm) solid var(--border-color);
+  background-color: var(--card-bg);
+  box-shadow: var(--shadow-offset-sm);
+  color: var(--text-main);
+  line-height: 1.1;
+}
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-heading);
+  font-family: var(--font-ui);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
   border: var(--border-width-sm) solid var(--border-color);
   background-color: var(--card-bg);
-  box-shadow: 2px 2px 0 var(--border-color);
+  box-shadow: var(--shadow-offset-sm);
   white-space: nowrap;
 }
 
 .badge-offline {
-  background-color: #ffffff;
+  background-color: var(--card-bg);
   color: var(--text-main);
 }
 
 .badge-live {
-  background-color: var(--accent-orange-light);
-  color: var(--accent-orange);
+  background-color: var(--accent-peach-light);
+  color: var(--text-main);
   border-color: var(--border-color);
 }
 
@@ -500,20 +534,14 @@ input[type="checkbox"]:checked::before {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--accent-orange);
+  background-color: #22c55e; /* Frisches Grün wie in Bild 2 */
   display: inline-block;
-  animation: pulse-dot 1.4s infinite ease-in-out;
-}
-
-@keyframes pulse-dot {
-  0% { transform: scale(0.9); opacity: 0.7; }
-  50% { transform: scale(1.3); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0.7; }
+  box-shadow: 0 0 6px #22c55e;
 }
 
 .badge-marker {
-  background-color: var(--marker-yellow);
-  color: var(--text-main);
+  background-color: var(--accent-peach);
+  color: var(--accent-peach-text);
 }
 
 /* Filter / Quick-Chips */
@@ -524,39 +552,39 @@ input[type="checkbox"]:checked::before {
   gap: 6px;
   padding: 6px 14px;
   min-height: 38px;
-  font-family: var(--font-heading);
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 700;
-  border-radius: 20px;
+  border-radius: 999px;
   border: var(--border-width-sm) solid var(--border-color);
-  background-color: #ffffff;
+  background-color: var(--card-bg);
   color: var(--text-main);
   box-shadow: var(--shadow-offset-sm);
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: all 0.12s ease;
   user-select: none;
 }
 
 .chip:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--border-color);
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow-color);
 }
 
 .chip.active {
-  background-color: var(--accent-orange);
-  color: #ffffff;
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--border-color);
 }
 
 /* ==========================================================================
    TABS-KOMPONENTE
    ========================================================================== */
-
 .tab-nav {
   display: flex;
   gap: 8px;
   border-bottom: var(--border-width) solid var(--border-color);
   padding-bottom: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -566,11 +594,10 @@ input[type="checkbox"]:checked::before {
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   box-shadow: var(--shadow-offset-sm);
-  padding: 8px 16px;
-  font-family: var(--font-heading);
+  padding: 8px 18px;
+  font-family: var(--font-ui);
   font-weight: 700;
   font-size: 0.9rem;
-  text-transform: uppercase;
   color: var(--text-main);
   cursor: pointer;
   white-space: nowrap;
@@ -579,16 +606,15 @@ input[type="checkbox"]:checked::before {
 .tab-btn.active {
   background: var(--card-bg);
   border-bottom-color: var(--card-bg);
-  color: var(--accent-orange);
+  color: var(--btn-primary-bg);
   transform: translateY(2px);
 }
 
 /* ==========================================================================
-   NAVBAR & NAVIGATION
+   NAVBAR (INSPIRIERT VON SKETCHPAD / GRIDLINE SUPPLY)
    ========================================================================== */
-
 .app-navbar {
-  min-height: 60px;
+  min-height: 64px;
   background-color: var(--card-bg);
   border-bottom: var(--border-width) solid var(--border-color);
   position: sticky;
@@ -596,13 +622,13 @@ input[type="checkbox"]:checked::before {
   z-index: 100;
   display: flex;
   align-items: center;
-  box-shadow: 0 4px 0 var(--border-color);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 4px 0 var(--shadow-color);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .navbar-container {
   width: 100%;
-  max-width: 1240px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 16px;
   display: flex;
@@ -621,11 +647,11 @@ input[type="checkbox"]:checked::before {
 }
 
 .nav-logo-box {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-sm);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--border-color);
+  box-shadow: 2px 2px 0 var(--shadow-color);
   background-color: #ffffff;
   overflow: hidden;
   display: inline-flex;
@@ -645,13 +671,11 @@ input[type="checkbox"]:checked::before {
 .brand-title {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   letter-spacing: -0.01em;
-  text-transform: uppercase;
   color: var(--text-main);
 }
 
-/* Nav Links & Actions */
 .nav-actions-group {
   display: flex;
   align-items: center;
@@ -665,14 +689,13 @@ input[type="checkbox"]:checked::before {
 }
 
 .nav-link {
-  font-family: var(--font-heading);
-  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
   font-weight: 700;
-  text-transform: uppercase;
   color: var(--text-main);
   text-decoration: none;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  border-radius: 999px;
   border: var(--border-width-sm) solid transparent;
   transition: all 0.12s ease;
   display: inline-flex;
@@ -685,7 +708,7 @@ input[type="checkbox"]:checked::before {
 .nav-link:hover, .nav-link.active {
   background-color: var(--bg-subtle);
   border-color: var(--border-color);
-  box-shadow: 2px 2px 0 var(--border-color);
+  box-shadow: var(--shadow-offset-sm);
 }
 
 /* Dropdown Menu für alle Tools */
@@ -704,7 +727,7 @@ input[type="checkbox"]:checked::before {
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-offset-lg);
-  padding: 12px;
+  padding: 14px;
   z-index: 250;
   display: flex;
   flex-direction: column;
@@ -712,10 +735,11 @@ input[type="checkbox"]:checked::before {
 }
 
 .dropdown-category-title {
-  font-family: var(--font-heading);
+  font-family: var(--font-ui);
   font-size: 0.75rem;
-  font-weight: 900;
-  color: var(--accent-orange);
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--btn-primary-bg);
   letter-spacing: 0.05em;
   margin: 6px 0 2px 4px;
 }
@@ -729,7 +753,7 @@ input[type="checkbox"]:checked::before {
   text-decoration: none;
   color: var(--text-main);
   border: 1.5px solid transparent;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   transition: all 0.1s ease;
 }
@@ -747,23 +771,22 @@ input[type="checkbox"]:checked::before {
   gap: 6px;
   min-height: 38px;
   height: 38px;
-  padding: 0 12px;
-  font-family: var(--font-heading);
+  padding: 0 14px;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 700;
-  text-transform: uppercase;
   background-color: var(--bg-subtle);
   color: var(--text-main);
   border: var(--border-width-sm) solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: 999px;
   box-shadow: var(--shadow-offset-sm);
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
 .theme-toggle-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--border-color);
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow-color);
 }
 
 /* Breadcrumb Navigation */
@@ -771,10 +794,9 @@ input[type="checkbox"]:checked::before {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-heading);
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 700;
-  text-transform: uppercase;
 }
 
 .breadcrumb-link {
@@ -795,11 +817,12 @@ input[type="checkbox"]:checked::before {
 }
 
 .breadcrumb-current {
-  color: var(--accent-orange);
-  background-color: var(--accent-orange-light);
-  padding: 4px 8px;
+  color: var(--text-main);
+  background-color: var(--accent-peach);
+  color: var(--accent-peach-text);
+  padding: 4px 10px;
   border: 1.5px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
 }
 
 /* Mobile Menü & Drawer */
@@ -809,6 +832,7 @@ input[type="checkbox"]:checked::before {
   height: 40px;
   padding: 0;
   min-height: 40px;
+  border-radius: var(--radius-sm);
 }
 
 @media (max-width: 820px) {
@@ -824,25 +848,25 @@ input[type="checkbox"]:checked::before {
 
 .mobile-drawer-backdrop {
   position: fixed;
-  top: 60px;
+  top: 64px;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 0, 0, 0.5);
   z-index: 190;
 }
 
 .mobile-drawer {
   position: fixed;
-  top: 60px;
+  top: 64px;
   left: 0;
   right: 0;
-  max-height: calc(100vh - 60px);
-  max-height: calc(100dvh - 60px);
+  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
   overflow-y: auto;
   background-color: var(--card-bg);
   border-bottom: var(--border-width) solid var(--border-color);
-  box-shadow: 0 8px 0 var(--border-color);
+  box-shadow: 0 8px 0 var(--shadow-color);
   padding: 20px;
   z-index: 200;
   display: flex;
@@ -853,17 +877,16 @@ input[type="checkbox"]:checked::before {
 /* ==========================================================================
    FOOTER
    ========================================================================== */
-
 .app-footer {
   background-color: var(--card-bg);
   border-top: var(--border-width) solid var(--border-color);
-  padding: 32px 16px;
+  padding: 36px 16px;
   margin-top: auto;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .footer-container {
-  max-width: 1240px;
+  max-width: 1200px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -873,15 +896,372 @@ input[type="checkbox"]:checked::before {
 }
 
 .footer-note {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--text-muted);
 }
 
 /* ==========================================================================
-   GRID & RESPONSIVE LAYOUTS
+   HERO-LAYOUT (INSPIRIERT VON SKETCHPAD BILD 1 & GRIDLINE SUPPLY BILD 3)
    ========================================================================== */
+.hero-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 36px;
+  align-items: center;
+  margin-bottom: 44px;
+}
 
-/* Lobby-Grid */
+@media (min-width: 920px) {
+  .hero-layout {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 48px;
+    margin-bottom: 56px;
+  }
+}
+
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hero-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2.3rem, 5.5vw, 3.8rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  color: var(--text-main);
+}
+
+.hero-subtitle {
+  font-family: var(--font-body);
+  font-size: clamp(1.02rem, 2vw, 1.16rem);
+  color: var(--text-muted);
+  line-height: 1.6;
+  max-width: 580px;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.btn-hero-primary {
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: var(--shadow-offset);
+  padding: 12px 26px;
+  font-size: 1.05rem;
+  border-radius: var(--radius-md);
+  min-height: 50px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+}
+
+.btn-hero-secondary {
+  background-color: var(--card-bg);
+  color: var(--text-main);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: var(--shadow-offset-sm);
+  padding: 12px 22px;
+  font-size: 1rem;
+  border-radius: var(--radius-md);
+  min-height: 50px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+}
+
+/* WORKSHOP BOARD PREVIEW (DIREKT AUS IMAGE 1 "WORKSHOP BOARD") */
+.workshop-card {
+  background-color: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 22px 18px 24px 19px;
+  padding: 24px;
+  box-shadow: var(--shadow-offset-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.workshop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workshop-badge {
+  font-family: var(--font-hand);
+  font-size: 1.25rem;
+  color: var(--text-main);
+  padding: 4px 16px;
+  border-radius: 999px;
+  border: var(--border-width-sm) solid var(--border-color);
+  background: var(--bg-subtle);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workshop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.workshop-tile {
+  background-color: var(--card-bg-elevated);
+  border: var(--border-width-sm) solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--text-main);
+  box-shadow: var(--shadow-offset-sm);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.workshop-tile:hover {
+  transform: translate(-1px, -1px);
+  border-color: var(--accent-peach-border);
+}
+
+.workshop-tile-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border-color);
+  background-color: var(--card-bg);
+}
+
+.workshop-tile-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.workshop-tile-name {
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.workshop-tile-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.workshop-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1.5px dashed var(--border-color);
+  padding-top: 14px;
+}
+
+.workshop-status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+/* ==========================================================================
+   DASHBOARD STAT METRICS (AUS BILD 2: "PROJECT DASHBOARD")
+   ========================================================================== */
+.dashboard-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+@media (min-width: 540px) {
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 960px) {
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.stat-card {
+  background-color: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 14px 16px 13px 15px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-offset);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.12s ease;
+}
+
+.stat-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stat-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background-color: var(--bg-subtle);
+  border: var(--border-width-sm) solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  box-shadow: 1.5px 1.5px 0 var(--shadow-color);
+}
+
+.stat-badge {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background-color: var(--accent-peach-light);
+  color: var(--text-main);
+}
+
+.stat-badge-green {
+  background-color: var(--success-green-light);
+  color: #15803d;
+}
+
+[data-theme="dark"] .stat-badge-green {
+  color: #4ade80;
+}
+
+.stat-value {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   FLOATING CATEGORY DOCK (AUS BILD 1 & 2: "MARKETING / APP / E-COMMERCE")
+   ========================================================================== */
+.category-dock-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 32px auto;
+  position: relative;
+  z-index: 20;
+}
+
+.category-dock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background-color: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 999px;
+  box-shadow: var(--shadow-offset);
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dock-pill {
+  padding: 8px 18px;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  min-height: 38px;
+  box-shadow: none;
+}
+
+.dock-pill:hover {
+  color: var(--text-main);
+}
+
+.dock-pill.active {
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-offset-sm);
+}
+
+/* SLEEK SEARCH PILL INPUT */
+.search-pill-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 580px;
+  margin: 0 auto 28px auto;
+  width: 100%;
+}
+
+.search-pill-input {
+  width: 100% !important;
+  padding: 12px 46px 12px 48px !important;
+  border-radius: 999px !important;
+  font-size: 0.98rem !important;
+  background-color: var(--bg-input) !important;
+  border: var(--border-width) solid var(--border-color) !important;
+  box-shadow: var(--shadow-offset-sm) !important;
+  transition: all 0.15s ease;
+}
+
+.search-pill-input:focus {
+  box-shadow: var(--shadow-offset) !important;
+  border-color: var(--accent-peach-border) !important;
+}
+
+/* ==========================================================================
+   GRID & TOOL-KARTEN
+   ========================================================================== */
 .tools-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -907,7 +1287,6 @@ input[type="checkbox"]:checked::before {
   }
 }
 
-/* Tool-Karte in Lobby */
 .tool-card {
   display: flex;
   flex-direction: column;
@@ -919,7 +1298,7 @@ input[type="checkbox"]:checked::before {
   padding: 20px;
   text-decoration: none;
   color: var(--text-main);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   position: relative;
   min-height: 220px;
 }
@@ -939,27 +1318,28 @@ input[type="checkbox"]:checked::before {
 }
 
 .tool-icon-wrapper {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
   background-color: var(--bg-subtle);
   border: var(--border-width-sm) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 2px 2px 0 var(--border-color);
+  box-shadow: 2px 2px 0 var(--shadow-color);
   color: var(--text-main);
 }
 
 .tool-card-title {
-  font-size: 1.15rem;
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
   margin-bottom: 8px;
 }
 
 .tool-card-desc {
   font-size: 0.9rem;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.45;
   margin-bottom: 16px;
   flex-grow: 1;
 }
@@ -973,7 +1353,7 @@ input[type="checkbox"]:checked::before {
 
 /* Einklappbare Kategorien */
 .category-section {
-  margin-bottom: 32px;
+  margin-bottom: 36px;
 }
 
 .category-header {
@@ -992,20 +1372,21 @@ input[type="checkbox"]:checked::before {
 }
 
 .category-pill {
-  background-color: var(--accent-orange);
-  color: #ffffff;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  padding: 4px 12px;
+  border-radius: 999px;
   border: var(--border-width-sm) solid var(--border-color);
-  box-shadow: 2px 2px 0 var(--border-color);
-  font-family: var(--font-heading);
+  box-shadow: var(--shadow-offset-sm);
+  font-family: var(--font-ui);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .category-count {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
   font-weight: 600;
 }
@@ -1013,7 +1394,6 @@ input[type="checkbox"]:checked::before {
 /* ==========================================================================
    TOOL-HEADER (SEITENKOPF JE TOOL)
    ========================================================================== */
-
 .tool-page-header {
   display: flex;
   flex-direction: column;
@@ -1032,14 +1412,15 @@ input[type="checkbox"]:checked::before {
 .tool-page-heading {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .tool-page-icon {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: var(--radius-md);
-  background-color: var(--marker-yellow);
+  background-color: var(--accent-peach);
+  color: var(--accent-peach-text);
   border: var(--border-width) solid var(--border-color);
   box-shadow: var(--shadow-offset-sm);
   display: flex;
@@ -1056,7 +1437,6 @@ input[type="checkbox"]:checked::before {
 /* ==========================================================================
    STATUS & AMPEL-ANZEIGEN
    ========================================================================== */
-
 .traffic-light-bar {
   height: 12px;
   width: 100%;
@@ -1076,7 +1456,6 @@ input[type="checkbox"]:checked::before {
 /* ==========================================================================
    UTILITIES
    ========================================================================== */
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1107,7 +1486,6 @@ input[type="checkbox"]:checked::before {
 .mb-4 { margin-bottom: 16px; }
 .mb-6 { margin-bottom: 24px; }
 
-/* Responsive Ausblendung */
 @media (max-width: 820px) {
   .hide-tablet-mobile {
     display: none !important;

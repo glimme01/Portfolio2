@@ -2,7 +2,7 @@
 // Neo-Brutalismus Navbar: Eigenes Logo, Dropdown für alle 12 Tools, Dark-Mode-Umschalter & Mobile-Drawer
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import {
   IconSun,
@@ -45,6 +45,7 @@ const iconMap = {
 export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
 
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
@@ -166,6 +167,21 @@ export default function Navbar() {
               )}
             </div>
           </nav>
+
+          {/* Zufalls-Tool Schnellzugriff */}
+          <button
+            type="button"
+            className="btn btn-sm btn-primary hide-tablet-mobile"
+            onClick={() => {
+              const randomIndex = Math.floor(Math.random() * TOOLS_DATA.length);
+              navigate(TOOLS_DATA[randomIndex].path);
+            }}
+            title="Ein zufälliges Tool aus allen 12 öffnen"
+            style={{ minHeight: '38px', height: '38px', padding: '0 14px' }}
+          >
+            <IconDice width={16} height={16} />
+            <span>ZUFALL</span>
+          </button>
 
           {/* Dark Mode Umschalter */}
           <button
