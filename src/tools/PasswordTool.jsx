@@ -144,8 +144,11 @@ export default function PasswordTool() {
       {/* Haupt-Anzeige bei Einzelmodus */}
       {!multiMode ? (
         <div className="card" style={{ marginBottom: '24px' }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>DEIN SICHERES PASSWORT</label>
+          <label htmlFor="pw-output" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>DEIN SICHERES PASSWORT</label>
           <div
+            id="pw-output"
+            role="status"
+            aria-live="polite"
             style={{
               padding: '16px',
               backgroundColor: 'var(--bg-subtle)',

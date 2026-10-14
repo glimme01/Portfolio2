@@ -234,6 +234,7 @@ export default function QrTool() {
         {contrastWarning && (
           <div
             className="panel-subtle"
+            role="alert"
             style={{
               backgroundColor: 'var(--warning-amber-light)',
               borderColor: 'var(--border-color)',
@@ -251,6 +252,7 @@ export default function QrTool() {
         {errorMsg && (
           <div
             className="panel-subtle"
+            role="alert"
             style={{ backgroundColor: 'var(--danger-red-light)', marginBottom: '16px' }}
           >
             <strong style={{ color: 'var(--danger-red)' }}>{errorMsg}</strong>

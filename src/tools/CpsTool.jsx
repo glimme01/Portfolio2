@@ -177,6 +177,19 @@ export default function CpsTool() {
       <div
         className="card"
         onPointerDown={handlePointerDown}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            handlePointerDown(e);
+          }
+        }}
+        role="button"
+        tabIndex={gameState === 'FINISHED' ? -1 : 0}
+        aria-label={
+          gameState === 'IDLE' ? 'Klicke zum Starten des 5-Sekunden CPS-Tests' :
+          gameState === 'RUNNING' ? `Klicke so schnell du kannst! ${clicks} Klicks, noch ${timeLeft.toFixed(1)} Sekunden` :
+          `Test beendet. ${cpsResult} Klicks pro Sekunde`
+        }
         style={{
           minHeight: '260px',
           display: 'flex',

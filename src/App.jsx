@@ -33,8 +33,11 @@ export default function App() {
   return (
     <div className="app-wrapper">
       <ScrollToTop />
+      <a href="#main-content" className="skip-link">
+        Zum Inhalt springen
+      </a>
       <Header />
-      <main className="main-content">
+      <main id="main-content" className="main-content">
         <Routes>
           {/* Lobby */}
           <Route path="/" element={<Lobby />} />

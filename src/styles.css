@@ -563,7 +563,7 @@ input[type="checkbox"]:checked::before {
   justify-content: center;
   gap: 6px;
   padding: 6px 14px;
-  min-height: 36px;
+  min-height: 44px;
   font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: 700;
@@ -1486,5 +1486,47 @@ input[type="checkbox"]:checked::before {
 @media (max-width: 820px) {
   .hide-tablet-mobile {
     display: none !important;
+  }
+}
+
+/* ==========================================================================
+   SKIP-LINK (BARRIEREFREIHEIT)
+   ========================================================================== */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 999;
+  padding: 12px 24px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-offset);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 8px;
+  outline: 3px solid var(--accent-peach-border);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   REDUZIERTE BEWEGUNG (BARRIEREFREIHEIT)
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

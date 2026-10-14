@@ -64,7 +64,7 @@ export default function Lobby() {
       {/* ====================================================================
           AUFGERÄUMTER HEADER: MOOLS TITEL + FORMEL + SUCHE OBEN IN DER ECKE
           ==================================================================== */}
-      <header className="mools-clean-header">
+      <div className="mools-clean-header">
         <div className="mools-title-block">
           {/* GEMOSH PLAKAT-POSTER TITEL */}
           <h1 className="mools-poster-title">MOOLS</h1>
@@ -111,12 +111,12 @@ export default function Lobby() {
             )}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* ====================================================================
           RESPONSIVER WERKZEUG-RASTER (KEINE LANGWEILIGEN ACCORDIONS)
           ==================================================================== */}
-      <main className="mools-tools-container">
+      <section className="mools-tools-container" aria-label="Werkzeuge">
         {filteredTools.length === 0 ? (
           <div className="card text-center" style={{ padding: '40px 20px', maxWidth: '540px', margin: '40px auto' }}>
             <h3 style={{ marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>[KEINE TREFFER]</h3>
@@ -168,7 +168,7 @@ export default function Lobby() {
             })}
           </div>
         )}
-      </main>
+      </section>
     </div>
   );
 }

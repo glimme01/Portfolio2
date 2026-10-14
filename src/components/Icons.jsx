@@ -12,6 +12,8 @@ const defaultProps = {
   strokeWidth: 2,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
+  'aria-hidden': 'true',
+  focusable: 'false',
 };
 
 // 1. QR-Code

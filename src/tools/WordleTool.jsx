@@ -350,7 +350,7 @@ export default function WordleTool() {
                     color = '#ffffff';
                   } else if (status === 'PRESENT') {
                     bg = '#eab308'; // Gelb
-                    color = '#ffffff';
+                    color = '#17181c'; // Dunkler Text für besseren Kontrast
                   } else if (status === 'ABSENT') {
                     bg = '#6b7280'; // Grau
                     color = '#ffffff';
@@ -379,6 +379,8 @@ export default function WordleTool() {
                         textTransform: 'uppercase',
                         transition: 'all 0.1s ease',
                       }}
+                      aria-label={letter ? `${letter}${status === 'CORRECT' ? ', korrekte Position' : status === 'PRESENT' ? ', im Wort enthalten' : status === 'ABSENT' ? ', nicht im Wort' : ''}` : undefined}
+                      role="gridcell"
                     >
                       {letter}
                     </div>
@@ -392,6 +394,8 @@ export default function WordleTool() {
         {/* Meldung & Feedback */}
         {message && (
           <div
+            role="status"
+            aria-live="assertive"
             style={{
               padding: '6px 14px',
               backgroundColor: 'var(--marker-yellow)',
@@ -452,10 +456,10 @@ export default function WordleTool() {
                   col = '#ffffff';
                 } else if (status === 'PRESENT') {
                   bg = '#eab308';
-                  col = '#ffffff';
+                  col = '#17181c';
                 } else if (status === 'ABSENT') {
                   bg = '#9ca3af';
-                  col = '#ffffff';
+                  col = '#17181c';
                 }
 
                 const isWide = k === 'ENTER' || k === 'DEL';
@@ -465,6 +469,7 @@ export default function WordleTool() {
                     key={k}
                     type="button"
                     onClick={() => handleKeyPress(k)}
+                  aria-label={k === 'DEL' ? 'Löschen' : k === 'ENTER' ? 'Eingabe bestätigen' : k}
                     style={{
                       flex: isWide ? 1.6 : 1,
                       minHeight: '44px',

@@ -52,6 +52,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const dropdownRef = useRef(null);
+  const drawerRef = useRef(null);
 
   // Klick außerhalb des Dropdowns schließt es
   useEffect(() => {
@@ -63,6 +64,55 @@ export default function Navbar() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Escape-Taste schließt Dropdown und Mobile-Menü
+  useEffect(() => {
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        if (toolsDropdownOpen) setToolsDropdownOpen(false);
+        if (mobileMenuOpen) setMobileMenuOpen(false);
+      }
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [toolsDropdownOpen, mobileMenuOpen]);
+
+  // Focus-Trap und Auto-Focus für Mobile-Drawer
+  useEffect(() => {
+    if (!mobileMenuOpen || !drawerRef.current) return;
+
+    // Auto-Focus auf erstes fokussierbares Element
+    const focusableElements = drawerRef.current.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled])'
+    );
+    if (focusableElements.length > 0) {
+      focusableElements[0].focus();
+    }
+
+    // Focus-Trap: Tab bleibt im Drawer
+    function handleTabTrap(e) {
+      if (e.key !== 'Tab' || !drawerRef.current) return;
+
+      const focusable = drawerRef.current.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled])'
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleTabTrap);
+    return () => document.removeEventListener('keydown', handleTabTrap);
+  }, [mobileMenuOpen]);
 
   // Bei Routenwechsel Menüs schließen
   useEffect(() => {
@@ -214,7 +264,7 @@ export default function Navbar() {
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Navigation">
+          <div ref={drawerRef} className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Navigation">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Link
                 to="/"
